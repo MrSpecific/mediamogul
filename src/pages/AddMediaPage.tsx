@@ -41,12 +41,13 @@ export function AddMediaPage() {
   const [q, setQ] = useState("");
   const [source, setSource] = useState<Source>("open_library");
   const [results, setResults] = useState<MediaCandidate[] | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [addingKey, setAddingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
 
   async function search() {
-    setBusy(true);
+    setSearching(true);
     setError(null);
     try {
       setResults(
@@ -58,12 +59,12 @@ export function AddMediaPage() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setSearching(false);
     }
   }
 
-  async function importCandidate(candidate: MediaCandidate) {
-    setBusy(true);
+  async function importCandidate(candidate: MediaCandidate, key: string) {
+    setAddingKey(key);
     try {
       const item = await apiSend<MediaItem>("POST", "/media/import", {
         candidate,
@@ -71,7 +72,7 @@ export function AddMediaPage() {
       navigate(`/media/${item.id}`);
     } catch (e) {
       setError((e as Error).message);
-      setBusy(false);
+      setAddingKey(null);
     }
   }
 
@@ -121,7 +122,7 @@ export function AddMediaPage() {
               value={q}
               onChange={(e) => setQ(e.currentTarget.value)}
             />
-            <Button type="submit" loading={busy}>
+            <Button type="submit" loading={searching}>
               Search
             </Button>
           </Flex>
@@ -131,8 +132,9 @@ export function AddMediaPage() {
           <Flex direction="column" gap="2">
             {results?.map((c, i) => {
               const author = byline(c);
+              const key = `${c.title}-${i}`;
               return (
-                <Card key={`${c.title}-${i}`} size="2">
+                <Card key={key} size="2">
                   <Flex gap="3" align="center" justify="space-between">
                     <Flex gap="3" align="center">
                       {c.coverImageUrl && (
@@ -176,8 +178,9 @@ export function AddMediaPage() {
                     ) : (
                       <Button
                         variant="soft"
-                        onClick={() => void importCandidate(c)}
-                        loading={busy}
+                        onClick={() => void importCandidate(c, key)}
+                        loading={addingKey === key}
+                        disabled={addingKey !== null}
                       >
                         Add
                       </Button>
