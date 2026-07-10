@@ -7,7 +7,12 @@ export function AppLayout() {
   return (
     <div className="layout">
       <header className="topbar">
-        <Flex align="center" justify="space-between" gap="4">
+        <Flex
+          className="topbar-inner"
+          align="center"
+          justify="space-between"
+          gap="4"
+        >
           <Link to="/" className="brand">
             mediamogul
           </Link>

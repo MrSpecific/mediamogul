@@ -24,7 +24,15 @@ enum MediaType {
   MOVIE
   TV_SHOW
   BOOK
+  AUDIOBOOK
   MAGAZINE
+}
+
+/// How two media items relate.
+enum MediaRelationType {
+  ALTERNATE_FORMAT // same work, different format (book ↔ audiobook ↔ ebook)
+  ADAPTATION // adapted across media (book → movie, etc.)
+  TRANSLATION // a translated edition
 }
 
 /// How a catalog item got here.
@@ -73,6 +81,7 @@ enum CreditRole {
   EDITOR // magazines, books
   DIRECTOR // movies
   CREATOR // tv (showrunner/creator)
+  NARRATOR // audiobooks
   WRITER
   PRODUCER
   CAST // actors
@@ -142,12 +151,15 @@ model MediaItem {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  externalIds ExternalId[]
-  credits     Credit[]
-  entries     MediaEntry[]
-  ratings     Rating[]
-  reviews     Review[]
-  listItems   MediaListItem[]
+  externalIds   ExternalId[]
+  credits       Credit[]
+  entries       MediaEntry[]
+  ratings       Rating[]
+  reviews       Review[]
+  listItems     MediaListItem[]
+  seriesEntries SeriesEntry[]
+  relationsFrom MediaRelation[] @relation("relationsFrom")
+  relationsTo   MediaRelation[] @relation("relationsTo")
 
   @@index([type])
   @@index([title])
@@ -185,6 +197,52 @@ model Credit {
   @@index([mediaItemId])
   @@index([role, name])
   @@map("credits")
+}
+
+/// A directed link between two media items (book → its movie adaptation, a
+/// book ↔ its audiobook, an original ↔ a translation, …).
+model MediaRelation {
+  id        String            @id @default(uuid())
+  fromId    String            @map("from_id")
+  from      MediaItem         @relation("relationsFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId      String            @map("to_id")
+  to        MediaItem         @relation("relationsTo", fields: [toId], references: [id], onDelete: Cascade)
+  type      MediaRelationType
+  note      String?
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  @@unique([fromId, toId, type])
+  @@index([fromId])
+  @@index([toId])
+  @@map("media_relations")
+}
+
+/// A named series/collection (a trilogy, a book saga, …).
+model Series {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  createdById String?       @map("created_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  entries     SeriesEntry[]
+
+  @@map("series")
+}
+
+/// Membership of a media item in a series at a given position ("Book 1 of 3").
+model SeriesEntry {
+  id          String    @id @default(uuid())
+  seriesId    String    @map("series_id")
+  series      Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  mediaItemId String    @map("media_item_id")
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  position    Int // 1-based order within the series
+
+  @@unique([seriesId, mediaItemId])
+  @@unique([seriesId, position])
+  @@index([mediaItemId])
+  @@map("series_entries")
 }
 
 /// An uploaded image asset. `provider` + `key` abstract the storage backend

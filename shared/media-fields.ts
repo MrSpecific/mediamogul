@@ -5,7 +5,7 @@
 //
 // Unions mirror the Prisma `MediaType` / `CreditRole` enums.
 
-export type MediaType = "MOVIE" | "TV_SHOW" | "BOOK" | "MAGAZINE";
+export type MediaType = "MOVIE" | "TV_SHOW" | "BOOK" | "AUDIOBOOK" | "MAGAZINE";
 
 export type CreditRole =
   | "AUTHOR"
@@ -13,6 +13,7 @@ export type CreditRole =
   | "EDITOR"
   | "DIRECTOR"
   | "CREATOR"
+  | "NARRATOR"
   | "WRITER"
   | "PRODUCER"
   | "CAST"
@@ -43,6 +44,8 @@ export interface MediaTypeConfig {
   icon: string;
   /** base-ic AccentColor name. */
   color: string;
+  /** Consumption verb, e.g. "watch" / "read" / "listen". */
+  logVerb: string;
   /** Credit role that headlines the item (drives the byline). */
   primaryCredit?: CreditRole;
   /** Credits typically relevant to this type, in display order. */
@@ -56,6 +59,7 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
     label: "Movie",
     icon: "🎬",
     color: "red",
+    logVerb: "watch",
     primaryCredit: "DIRECTOR",
     credits: [
       { role: "DIRECTOR", label: "Director", byline: "Directed by" },
@@ -72,6 +76,7 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
     label: "TV",
     icon: "📺",
     color: "violet",
+    logVerb: "watch",
     primaryCredit: "CREATOR",
     credits: [
       { role: "CREATOR", label: "Creator", byline: "Created by" },
@@ -89,6 +94,7 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
     label: "Book",
     icon: "📖",
     color: "amber",
+    logVerb: "read",
     primaryCredit: "AUTHOR",
     credits: [
       { role: "AUTHOR", label: "Author", byline: "By" },
@@ -101,10 +107,27 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
       { key: "publisher", label: "Publisher" },
     ],
   },
+  AUDIOBOOK: {
+    label: "Audiobook",
+    icon: "🎧",
+    color: "jade",
+    logVerb: "listen",
+    primaryCredit: "AUTHOR",
+    credits: [
+      { role: "AUTHOR", label: "Author", byline: "By" },
+      { role: "NARRATOR", label: "Narrator" },
+    ],
+    fields: [
+      { key: "genre", label: "Genre" },
+      { key: "runtimeMinutes", label: "Length", format: "runtime" },
+      { key: "publisher", label: "Publisher" },
+    ],
+  },
   MAGAZINE: {
     label: "Magazine",
     icon: "📰",
     color: "teal",
+    logVerb: "read",
     primaryCredit: "EDITOR",
     credits: [
       { role: "EDITOR", label: "Editor" },

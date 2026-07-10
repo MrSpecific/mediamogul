@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
+  Badge,
   Button,
   Card,
+  Field,
   Flex,
   Heading,
+  Input,
   Select,
   Separator,
   Text,
@@ -14,12 +17,16 @@ import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { MediaPicker } from "../components/MediaPicker";
 import { MEDIA_FIELDS, formatFieldValue } from "../../shared/media-fields";
-import type {
-  ListSummary,
-  MediaDetail,
-  Review,
-  Visibility,
+import {
+  RELATION_LABELS,
+  type ListSummary,
+  type MediaDetail,
+  type MediaItem,
+  type MediaRelationType,
+  type Review,
+  type Visibility,
 } from "../lib/types";
 
 /** Headline credit line (e.g. "Directed by …"), from the type's primary role. */
@@ -56,6 +63,9 @@ export function MediaDetailPage() {
 
   const [reviewBody, setReviewBody] = useState("");
   const [reviewVis, setReviewVis] = useState<Visibility>("PUBLIC");
+  const [relType, setRelType] = useState<MediaRelationType>("ADAPTATION");
+  const [seriesTitle, setSeriesTitle] = useState("");
+  const [seriesPos, setSeriesPos] = useState("1");
   const [msg, setMsg] = useState<string | null>(null);
 
   if (!data) return <Text color="gray">Loading…</Text>;
@@ -86,6 +96,31 @@ export function MediaDetailPage() {
     await apiSend("POST", `/lists/${listId}/items`, { mediaItemId: id });
     setMsg("Added to list.");
   };
+  const linkRelated = async (media: MediaItem) => {
+    await apiSend("POST", `/media/${id}/relations`, {
+      toId: media.id,
+      type: relType,
+    });
+    setMsg(`Linked ${media.title}.`);
+    reload();
+  };
+  const unlinkRelated = async (relId: string) => {
+    await apiSend("DELETE", `/media/${id}/relations/${relId}`);
+    reload();
+  };
+  const addToSeries = async () => {
+    if (!seriesTitle.trim()) return;
+    const s = await apiSend<{ id: string }>("POST", "/series", {
+      title: seriesTitle.trim(),
+    });
+    await apiSend("POST", `/series/${s.id}/items`, {
+      mediaItemId: id,
+      position: Number(seriesPos) || 1,
+    });
+    setSeriesTitle("");
+    setMsg("Added to series.");
+    reload();
+  };
 
   return (
     <Flex direction="column" gap="5">
@@ -111,6 +146,16 @@ export function MediaDetailPage() {
                 <Text color="gray">· {bylineOf(data)}</Text>
               )}
             </Flex>
+            {data.series.length > 0 && (
+              <Flex gap="2" wrap="wrap">
+                {data.series.map((s) => (
+                  <Badge key={s.id} variant="soft" color="gray">
+                    {MEDIA_FIELDS[data.type].label} {s.position} of {s.total} ·{" "}
+                    {s.title}
+                  </Badge>
+                ))}
+              </Flex>
+            )}
           </Flex>
 
           <Flex align="center" gap="3">
@@ -140,7 +185,9 @@ export function MediaDetailPage() {
           {data.synopsis && <Text>{data.synopsis}</Text>}
 
           <Flex gap="3" wrap="wrap" align="center">
-            <Button onClick={() => void log()}>Log a watch / read</Button>
+            <Button onClick={() => void log()}>
+              Log a {MEDIA_FIELDS[data.type].logVerb}
+            </Button>
             <Text size="1" color="gray">
               {data._count.entries} logs · {data._count.reviews} reviews
             </Text>
@@ -201,6 +248,83 @@ export function MediaDetailPage() {
           </Select>
           <Button onClick={() => void saveReview()}>Save review</Button>
         </Flex>
+      </Flex>
+
+      <Flex direction="column" gap="3">
+        <Heading size="5">Connections</Heading>
+
+        {data.related.length > 0 && (
+          <Flex direction="column" gap="2">
+            {data.related.map((r) => (
+              <Flex key={r.id} justify="space-between" align="center" gap="2">
+                <Flex gap="2" align="center" wrap="wrap">
+                  <MediaTypeBadge type={r.media.type} />
+                  <Link
+                    to={`/media/${r.media.id}`}
+                    className="media-card-link"
+                  >
+                    <Text weight="medium">{r.media.title}</Text>
+                  </Link>
+                  <Badge variant="soft" size="1">
+                    {RELATION_LABELS[r.type]}
+                  </Badge>
+                </Flex>
+                <Button
+                  size="1"
+                  variant="ghost"
+                  onClick={() => void unlinkRelated(r.id)}
+                >
+                  Remove
+                </Button>
+              </Flex>
+            ))}
+          </Flex>
+        )}
+
+        <Card size="2">
+          <Flex direction="column" gap="2">
+            <Text weight="medium" size="2">
+              Link related media
+            </Text>
+            <Select
+              value={relType}
+              onValueChange={(v) => setRelType(v as MediaRelationType)}
+            >
+              {(Object.keys(RELATION_LABELS) as MediaRelationType[]).map((t) => (
+                <Select.Item key={t} value={t}>
+                  {RELATION_LABELS[t]}
+                </Select.Item>
+              ))}
+            </Select>
+            <MediaPicker excludeId={data.id} onPick={(m) => void linkRelated(m)} />
+          </Flex>
+        </Card>
+
+        <Card size="2">
+          <Flex direction="column" gap="2">
+            <Text weight="medium" size="2">
+              Add to a new series
+            </Text>
+            <Flex gap="2" wrap="wrap" align="end">
+              <Field label="Series title">
+                <Input
+                  value={seriesTitle}
+                  onChange={(e) => setSeriesTitle(e.currentTarget.value)}
+                  placeholder="e.g. The Lord of the Rings"
+                />
+              </Field>
+              <Field label="#">
+                <Input
+                  type="number"
+                  value={seriesPos}
+                  onChange={(e) => setSeriesPos(e.currentTarget.value)}
+                  style={{ width: 72 }}
+                />
+              </Field>
+              <Button onClick={() => void addToSeries()}>Add</Button>
+            </Flex>
+          </Flex>
+        </Card>
       </Flex>
 
       <Flex direction="column" gap="3">

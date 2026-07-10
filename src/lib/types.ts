@@ -1,4 +1,9 @@
-export type MediaType = "MOVIE" | "TV_SHOW" | "BOOK" | "MAGAZINE";
+export type MediaType =
+  | "MOVIE"
+  | "TV_SHOW"
+  | "BOOK"
+  | "AUDIOBOOK"
+  | "MAGAZINE";
 export type Visibility = "PRIVATE" | "UNLISTED" | "PUBLIC";
 export type EntryStatus =
   | "PLANNED"
@@ -11,11 +16,9 @@ export const MEDIA_TYPES: { value: MediaType; label: string }[] = [
   { value: "MOVIE", label: "Movies" },
   { value: "TV_SHOW", label: "TV shows" },
   { value: "BOOK", label: "Books" },
+  { value: "AUDIOBOOK", label: "Audiobooks" },
   { value: "MAGAZINE", label: "Magazines" },
 ];
-
-export const mediaTypeLabel = (t: MediaType) =>
-  ({ MOVIE: "Movie", TV_SHOW: "TV", BOOK: "Book", MAGAZINE: "Magazine" })[t];
 
 export interface MediaItem {
   id: string;
@@ -39,10 +42,16 @@ export type CreditRole =
   | "EDITOR"
   | "DIRECTOR"
   | "CREATOR"
+  | "NARRATOR"
   | "WRITER"
   | "PRODUCER"
   | "CAST"
   | "OTHER";
+
+export type MediaRelationType =
+  | "ALTERNATE_FORMAT"
+  | "ADAPTATION"
+  | "TRANSLATION";
 
 export interface Credit {
   id: string;
@@ -80,9 +89,30 @@ export interface MediaEntry {
   mediaItem?: MediaItem;
 }
 
+export interface RelatedMedia {
+  id: string; // relation id
+  type: MediaRelationType;
+  media: MediaItem;
+}
+
+export interface SeriesMembership {
+  id: string; // series id
+  title: string;
+  position: number;
+  total: number;
+}
+
+export const RELATION_LABELS: Record<MediaRelationType, string> = {
+  ALTERNATE_FORMAT: "Alternate format",
+  ADAPTATION: "Adaptation",
+  TRANSLATION: "Translation",
+};
+
 export interface MediaDetail extends MediaItem {
   externalIds: ExternalId[];
   credits: Credit[];
+  related: RelatedMedia[];
+  series: SeriesMembership[];
   averageRating: number | null;
   ratingCount: number;
   _count: { entries: number; reviews: number };

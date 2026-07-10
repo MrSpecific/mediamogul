@@ -1,13 +1,14 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { Prisma } from "../generated/prisma/client";
+import { type MediaType, Prisma } from "../generated/prisma/client";
 import { lookupBookByIsbn } from "../services/scrape";
 import { uploadImage } from "../services/storage";
 import {
   creditRole,
   entryStatus,
   externalSource,
+  mediaRelationType,
   mediaType,
   visibility,
 } from "../schemas";
@@ -102,16 +103,22 @@ media.get(
   zValidator(
     "query",
     z.object({
-      type: mediaType.optional(),
+      // Comma-separated MediaType list; omit for all types.
+      types: z.string().optional(),
       q: z.string().optional(),
       limit: z.coerce.number().int().min(1).max(100).default(20),
       cursor: z.string().optional(),
     }),
   ),
   async (c) => {
-    const { type, q, limit, cursor } = c.req.valid("query");
+    const { types, q, limit, cursor } = c.req.valid("query");
     const where: Prisma.MediaItemWhereInput = {};
-    if (type) where.type = type;
+    if (types !== undefined) {
+      const valid = new Set<string>(mediaType.options);
+      where.type = {
+        in: types.split(",").filter((t) => valid.has(t)) as MediaType[],
+      };
+    }
     if (q) where.title = { contains: q, mode: "insensitive" };
 
     const rows = await c.get("prisma").mediaItem.findMany({
@@ -239,6 +246,13 @@ media.get("/:id", async (c) => {
       where: { id },
       include: {
         ...withRelations,
+        seriesEntries: {
+          include: {
+            series: { include: { _count: { select: { entries: true } } } },
+          },
+        },
+        relationsFrom: { include: { to: true } },
+        relationsTo: { include: { from: true } },
         _count: { select: { entries: true, reviews: true } },
       },
     }),
@@ -260,8 +274,30 @@ media.get("/:id", async (c) => {
   ]);
   if (!item) return c.json({ error: "not_found" }, 404);
 
+  const { relationsFrom, relationsTo, seriesEntries, ...rest } = item;
+  const related = [
+    ...relationsFrom.map((r) => ({
+      id: r.id,
+      type: r.type,
+      media: r.to,
+    })),
+    ...relationsTo.map((r) => ({
+      id: r.id,
+      type: r.type,
+      media: r.from,
+    })),
+  ];
+  const series = seriesEntries.map((se) => ({
+    id: se.series.id,
+    title: se.series.title,
+    position: se.position,
+    total: se.series._count.entries,
+  }));
+
   return c.json({
-    ...item,
+    ...rest,
+    related,
+    series,
     averageRating: agg._avg.stars == null ? null : Number(agg._avg.stars),
     ratingCount: agg._count,
     you: { rating, review, lastEntry },
@@ -429,4 +465,44 @@ media.delete("/:id/review", async (c) => {
     })
     .catch(() => undefined);
   return c.json({ deleted: true });
+});
+
+// --- relations (link one media item to another) ---------------------------
+
+media.post(
+  "/:id/relations",
+  zValidator(
+    "json",
+    z.object({
+      toId: z.string().min(1),
+      type: mediaRelationType,
+      note: z.string().max(500).optional(),
+    }),
+  ),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const fromId = c.req.param("id");
+    const { toId, type, note } = c.req.valid("json");
+    if (toId === fromId) return c.json({ error: "cannot_link_self" }, 400);
+    const target = await prisma.mediaItem.findUnique({
+      where: { id: toId },
+      select: { id: true },
+    });
+    if (!target) return c.json({ error: "target_not_found" }, 404);
+
+    const rel = await prisma.mediaRelation.upsert({
+      where: { fromId_toId_type: { fromId, toId, type } },
+      create: { fromId, toId, type, note },
+      update: { note },
+      include: { to: true },
+    });
+    return c.json(rel, 201);
+  },
+);
+
+media.delete("/:id/relations/:relId", async (c) => {
+  const res = await c.get("prisma").mediaRelation.deleteMany({
+    where: { id: c.req.param("relId"), fromId: c.req.param("id") },
+  });
+  return c.json({ deleted: res.count });
 });

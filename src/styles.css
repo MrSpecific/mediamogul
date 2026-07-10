@@ -37,12 +37,57 @@
   text-underline-offset: 4px;
 }
 
+.topbar-inner {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
+/* Nav scrolls horizontally rather than overflowing the viewport on small screens. */
+.topbar nav {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.topbar nav::-webkit-scrollbar {
+  display: none;
+}
+
 .content {
   flex: 1;
   width: 100%;
   max-width: 1080px;
   margin: 0 auto;
   padding: 1.5rem 1.25rem 4rem;
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0.6rem 0.9rem;
+  }
+  .brand {
+    font-size: 1.05rem;
+  }
+  .content {
+    padding: 1rem 0.9rem 3rem;
+  }
+  .app-main h1,
+  .hero {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  /* Stack the media detail header (cover above info) on small screens. */
+  .detail-cover {
+    width: 160px;
+    max-width: 45vw;
+  }
+}
+
+@media (max-width: 480px) {
+  .media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.6rem;
+  }
 }
 
 .hero {

@@ -2,7 +2,18 @@ import { z } from "zod";
 
 // zod enums whose values mirror the Prisma enums (string unions match, so the
 // parsed values are assignable to Prisma inputs directly).
-export const mediaType = z.enum(["MOVIE", "TV_SHOW", "BOOK", "MAGAZINE"]);
+export const mediaType = z.enum([
+  "MOVIE",
+  "TV_SHOW",
+  "BOOK",
+  "AUDIOBOOK",
+  "MAGAZINE",
+]);
+export const mediaRelationType = z.enum([
+  "ALTERNATE_FORMAT",
+  "ADAPTATION",
+  "TRANSLATION",
+]);
 export const mediaSource = z.enum(["OFFICIAL", "USER_SUBMITTED", "SCRAPED"]);
 export const externalSource = z.enum([
   "IMDB",
@@ -27,6 +38,7 @@ export const creditRole = z.enum([
   "EDITOR",
   "DIRECTOR",
   "CREATOR",
+  "NARRATOR",
   "WRITER",
   "PRODUCER",
   "CAST",
