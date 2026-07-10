@@ -14,6 +14,7 @@ import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { MEDIA_FIELDS, formatFieldValue } from "../../shared/media-fields";
 import type {
   ListSummary,
   MediaDetail,
@@ -21,45 +22,28 @@ import type {
   Visibility,
 } from "../lib/types";
 
-function formatRuntime(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
-}
-
-/** Author (books) / director (movies) / creator (tv), from scraped metadata. */
+/** Headline credit line (e.g. "Directed by …"), from the type's primary role. */
 function bylineOf(data: MediaDetail): string | undefined {
-  const m = data.metadata ?? {};
-  if (data.type === "BOOK" && typeof m.author === "string") return m.author;
-  if (data.type === "MOVIE" && typeof m.director === "string")
-    return `Directed by ${m.director}`;
-  if (data.type === "TV_SHOW" && typeof m.showrunner === "string")
-    return `Created by ${m.showrunner}`;
-  return undefined;
+  const cfg = MEDIA_FIELDS[data.type];
+  const role = cfg.primaryCredit;
+  if (!role) return undefined;
+  const names = (data.credits ?? [])
+    .filter((c) => c.role === role)
+    .map((c) => c.name)
+    .join(", ");
+  if (!names) return undefined;
+  const prefix = cfg.credits.find((c) => c.role === role)?.byline;
+  return prefix ? `${prefix} ${names}` : names;
 }
 
-/** Type-specific facts (runtime, pages, seasons…) for the detail header. */
+/** Type-specific facts (runtime, pages, seasons…), config-driven. */
 function factsOf(data: MediaDetail): { label: string; value: string }[] {
-  const m = data.metadata ?? {};
-  const out: { label: string; value: string }[] = [];
-  const push = (label: string, value: unknown) => {
-    if (value !== undefined && value !== null && value !== "")
-      out.push({ label, value: String(value) });
-  };
-  if (typeof m.genre === "string") push("Genre", m.genre);
-  if (data.type === "BOOK") {
-    push("Pages", m.pageCount);
-    push("Publisher", m.publisher);
-  }
-  if (data.type === "MOVIE" && typeof m.runtimeMinutes === "number")
-    push("Runtime", formatRuntime(m.runtimeMinutes));
-  if (data.type === "TV_SHOW") {
-    push("Seasons", m.seasons);
-    push("Episodes", m.episodes);
-    if (typeof m.runtimeMinutes === "number")
-      push("Episode", formatRuntime(m.runtimeMinutes));
-  }
-  return out;
+  return MEDIA_FIELDS[data.type].fields
+    .map((spec) => ({
+      label: spec.label,
+      value: formatFieldValue(spec, data[spec.key]),
+    }))
+    .filter((f): f is { label: string; value: string } => f.value !== undefined);
 }
 
 export function MediaDetailPage() {

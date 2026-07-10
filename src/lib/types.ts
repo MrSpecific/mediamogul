@@ -25,7 +25,31 @@ export interface MediaItem {
   shortDescription: string | null;
   synopsis: string | null;
   releaseDate: string | null;
-  metadata: Record<string, unknown> | null;
+  publisher: string | null;
+  pageCount: number | null;
+  runtimeMinutes: number | null;
+  seasons: number | null;
+  episodes: number | null;
+  genre: string | null;
+}
+
+export type CreditRole =
+  | "AUTHOR"
+  | "ILLUSTRATOR"
+  | "EDITOR"
+  | "DIRECTOR"
+  | "CREATOR"
+  | "WRITER"
+  | "PRODUCER"
+  | "CAST"
+  | "OTHER";
+
+export interface Credit {
+  id: string;
+  role: CreditRole;
+  name: string;
+  externalId: string | null;
+  position: number;
 }
 
 export interface ExternalId {
@@ -58,6 +82,7 @@ export interface MediaEntry {
 
 export interface MediaDetail extends MediaItem {
   externalIds: ExternalId[];
+  credits: Credit[];
   averageRating: number | null;
   ratingCount: number;
   _count: { entries: number; reviews: number };
@@ -75,7 +100,13 @@ export interface MediaCandidate {
   shortDescription?: string;
   synopsis?: string;
   releaseDate?: string;
-  metadata?: Record<string, unknown>;
+  publisher?: string;
+  pageCount?: number;
+  runtimeMinutes?: number;
+  seasons?: number;
+  episodes?: number;
+  genre?: string;
+  credits?: { role: CreditRole; name: string; externalId?: string }[];
   externalIds: { source: string; value: string; url?: string }[];
   /** Set by /api/lookup when this candidate is already in the catalog. */
   existingId?: string;

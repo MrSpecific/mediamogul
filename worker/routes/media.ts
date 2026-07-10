@@ -3,7 +3,9 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { Prisma } from "../generated/prisma/client";
 import { lookupBookByIsbn } from "../services/scrape";
+import { uploadImage } from "../services/storage";
 import {
+  creditRole,
   entryStatus,
   externalSource,
   mediaType,
@@ -19,6 +21,12 @@ const externalIdInput = z.object({
   url: z.string().url().optional(),
 });
 
+const creditInput = z.object({
+  role: creditRole,
+  name: z.string().min(1).max(200),
+  externalId: z.string().optional(),
+});
+
 const mediaInput = z.object({
   type: mediaType,
   title: z.string().min(1).max(500),
@@ -28,12 +36,63 @@ const mediaInput = z.object({
   synopsis: z.string().optional(),
   releaseDate: z.coerce.date().optional(),
   originalLanguage: z.string().max(20).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  publisher: z.string().max(300).optional(),
+  pageCount: z.number().int().optional(),
+  runtimeMinutes: z.number().int().optional(),
+  seasons: z.number().int().optional(),
+  episodes: z.number().int().optional(),
+  genre: z.string().max(100).optional(),
+  credits: z.array(creditInput).optional(),
   externalIds: z.array(externalIdInput).optional(),
 });
 
-const jsonMeta = (m?: Record<string, unknown>) =>
-  m === undefined ? undefined : (m as Prisma.InputJsonValue);
+type ExternalIdInput = z.infer<typeof externalIdInput>;
+type CreditInput = z.infer<typeof creditInput>;
+
+// Standard relation include for returning a full media item.
+const withRelations = {
+  externalIds: true,
+  credits: { orderBy: { position: "asc" } },
+} satisfies Prisma.MediaItemInclude;
+
+/** Column fields shared by create/import (people + external ids are separate). */
+function columnData(d: {
+  publisher?: string;
+  pageCount?: number;
+  runtimeMinutes?: number;
+  seasons?: number;
+  episodes?: number;
+  genre?: string;
+}) {
+  return {
+    publisher: d.publisher,
+    pageCount: d.pageCount,
+    runtimeMinutes: d.runtimeMinutes,
+    seasons: d.seasons,
+    episodes: d.episodes,
+    genre: d.genre,
+  };
+}
+
+/** Insert external ids + credits for a media item (no interactive txn needed). */
+async function saveRelations(
+  prisma: AppEnv["Variables"]["prisma"],
+  mediaItemId: string,
+  externalIds?: ExternalIdInput[],
+  credits?: CreditInput[],
+) {
+  if (externalIds?.length) {
+    await prisma.externalId.createMany({
+      data: externalIds.map((e) => ({ ...e, mediaItemId })),
+      skipDuplicates: true,
+    });
+  }
+  if (credits?.length) {
+    await prisma.credit.createMany({
+      data: credits.map((cr, i) => ({ ...cr, mediaItemId, position: i })),
+    });
+  }
+}
 
 // --- catalog ---------------------------------------------------------------
 
@@ -78,20 +137,15 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
       synopsis: data.synopsis,
       releaseDate: data.releaseDate,
       originalLanguage: data.originalLanguage,
-      metadata: jsonMeta(data.metadata),
+      ...columnData(data),
       source: "USER_SUBMITTED",
       createdById: c.get("user").id,
     },
   });
-  if (data.externalIds?.length) {
-    await prisma.externalId.createMany({
-      data: data.externalIds.map((e) => ({ ...e, mediaItemId: created.id })),
-      skipDuplicates: true,
-    });
-  }
+  await saveRelations(prisma, created.id, data.externalIds, data.credits);
   const item = await prisma.mediaItem.findUnique({
     where: { id: created.id },
-    include: { externalIds: true },
+    include: withRelations,
   });
   return c.json(item, 201);
 });
@@ -123,7 +177,7 @@ media.post(
             value: e.value,
           })),
         },
-        include: { mediaItem: { include: { externalIds: true } } },
+        include: { mediaItem: { include: withRelations } },
       });
       if (existing) return c.json(existing.mediaItem, 200);
     }
@@ -137,24 +191,42 @@ media.post(
         synopsis: cand.synopsis,
         releaseDate: cand.releaseDate ? new Date(cand.releaseDate) : undefined,
         originalLanguage: cand.originalLanguage,
-        metadata: jsonMeta(cand.metadata),
+        ...columnData(cand),
         source: "SCRAPED",
         createdById: c.get("user").id,
       },
     });
-    if (cand.externalIds?.length) {
-      await prisma.externalId.createMany({
-        data: cand.externalIds.map((e) => ({ ...e, mediaItemId: created.id })),
-        skipDuplicates: true,
-      });
-    }
+    await saveRelations(prisma, created.id, cand.externalIds, cand.credits);
     const item = await prisma.mediaItem.findUnique({
       where: { id: created.id },
-      include: { externalIds: true },
+      include: withRelations,
     });
     return c.json(item, 201);
   },
 );
+
+/** Upload a cover image (raw file body). Returns the stored asset's URL. */
+media.post("/assets", async (c) => {
+  const bytes = await c.req.arrayBuffer();
+  const contentType = c.req.header("content-type") ?? "";
+  let stored;
+  try {
+    stored = await uploadImage(c.env, bytes, contentType);
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 400);
+  }
+  const asset = await c.get("prisma").mediaAsset.create({
+    data: {
+      provider: stored.provider,
+      key: stored.key,
+      url: stored.url,
+      contentType: stored.contentType,
+      size: stored.size,
+      uploadedById: c.get("user").id,
+    },
+  });
+  return c.json({ id: asset.id, url: asset.url }, 201);
+});
 
 media.get("/:id", async (c) => {
   const prisma = c.get("prisma");
@@ -165,7 +237,7 @@ media.get("/:id", async (c) => {
     prisma.mediaItem.findUnique({
       where: { id },
       include: {
-        externalIds: true,
+        ...withRelations,
         _count: { select: { entries: true, reviews: true } },
       },
     }),
@@ -197,13 +269,14 @@ media.get("/:id", async (c) => {
 
 media.patch("/:id", zValidator("json", mediaInput.partial()), async (c) => {
   const data = c.req.valid("json");
-  const { externalIds: _ignore, metadata, ...rest } = data;
+  // Column updates only; external ids / credits are managed via their own flows.
+  const { externalIds: _ids, credits: _credits, ...rest } = data;
   const updated = await c
     .get("prisma")
     .mediaItem.update({
       where: { id: c.req.param("id") },
-      data: { ...rest, metadata: jsonMeta(metadata) },
-      include: { externalIds: true },
+      data: rest,
+      include: withRelations,
     })
     .catch(() => null);
   if (!updated) return c.json({ error: "not_found" }, 404);

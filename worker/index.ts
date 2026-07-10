@@ -19,6 +19,20 @@ app.get("/api/", (c) => c.json({ name: "mediamogul API", status: "ok" }));
 // before the auth group so it bypasses requireAuth.
 app.post("/api/billing/webhook", handleStripeWebhook);
 
+// Public delivery of uploaded R2 images (referenced as coverImageUrl). Not
+// under /api, so it bypasses auth; images are loaded directly by <img>.
+app.get("/uploads/*", async (c) => {
+  const key = decodeURIComponent(c.req.path.slice("/uploads/".length));
+  if (!key) return c.notFound();
+  const obj = await c.env.MEDIA_BUCKET.get(key);
+  if (!obj) return c.notFound();
+  const headers = new Headers();
+  obj.writeHttpMetadata(headers);
+  headers.set("ETag", obj.httpEtag);
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  return new Response(obj.body, { headers });
+});
+
 // Everything else under /api requires a valid Neon Auth session. Middleware
 // order: verify JWT -> attach Prisma -> ensure the app profile row exists (so
 // FKs to User are always satisfied).

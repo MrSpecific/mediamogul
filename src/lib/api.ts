@@ -35,6 +35,25 @@ export async function api<T>(
   return (await res.json()) as T;
 }
 
+/** Upload a file as the raw request body (preserves its content-type). */
+export async function apiUpload<T>(path: string, file: File): Promise<T> {
+  const token = await getAuthToken();
+  const headers = new Headers();
+  headers.set("Content-Type", file.type || "application/octet-stream");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`/api${path}`, { method: "POST", body: file, headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(
+      res.status,
+      (body as { error?: string }).error ?? res.statusText,
+      body,
+    );
+  }
+  return (await res.json()) as T;
+}
+
 export const apiGet = <T>(path: string) => api<T>(path);
 export const apiSend = <T>(method: string, path: string, body?: unknown) =>
   api<T>(path, {

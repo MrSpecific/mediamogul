@@ -7,10 +7,7 @@ export type TierId = "FREE" | "STANDARD";
 
 /** Feature flags gated by tier. Add flags here as product decisions land. */
 export type FeatureFlag =
-  | "unlimitedLists"
-  | "privateReviews"
-  | "advancedStats"
-  | "bulkImport";
+  "unlimitedLists" | "privateReviews" | "advancedStats" | "bulkImport";
 
 export const FEATURE_LABELS: Record<FeatureFlag, string> = {
   unlimitedLists: "Unlimited lists",
@@ -51,7 +48,8 @@ export const TIERS: Record<TierId, Tier> = {
     id: "STANDARD",
     name: "Standard",
     priceCents: 199, // $1.99/mo — pinned for now, tweak here anytime.
-    description: "Everything in Free, plus power-user features.",
+    description:
+      "Keep the project alive! Everything in Free, plus power-user features.",
     features: {
       unlimitedLists: true,
       privateReviews: true,
@@ -75,6 +73,9 @@ export function tierHasFeature(tier: TierId, feature: FeatureFlag): boolean {
 }
 
 /** A tier's limit for a given resource (null = unlimited). */
-export function tierLimit(tier: TierId, key: keyof Tier["limits"]): number | null {
+export function tierLimit(
+  tier: TierId,
+  key: keyof Tier["limits"],
+): number | null {
   return TIERS[tier]?.limits[key] ?? null;
 }

@@ -66,6 +66,19 @@ enum SubscriptionTier {
   STANDARD
 }
 
+/// The kind of contribution a person made to a media item.
+enum CreditRole {
+  AUTHOR // books
+  ILLUSTRATOR
+  EDITOR // magazines, books
+  DIRECTOR // movies
+  CREATOR // tv (showrunner/creator)
+  WRITER
+  PRODUCER
+  CAST // actors
+  OTHER
+}
+
 // ---------------------------------------------------------------------------
 // Users (profile). `id` is the Neon Auth user id (JWT `sub`); rows are
 // upserted on first authenticated request. Neon Auth also maintains its own
@@ -73,25 +86,26 @@ enum SubscriptionTier {
 // ---------------------------------------------------------------------------
 
 model User {
-  id          String           @id // Neon Auth user id
-  username    String           @unique
-  displayName String?          @map("display_name")
-  bio         String?
-  avatarUrl   String?          @map("avatar_url")
-  tier        SubscriptionTier @default(FREE)
-  stripeCustomerId     String? @unique @map("stripe_customer_id")
-  stripeSubscriptionId String? @map("stripe_subscription_id")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  id                   String           @id // Neon Auth user id
+  username             String           @unique
+  displayName          String?          @map("display_name")
+  bio                  String?
+  avatarUrl            String?          @map("avatar_url")
+  tier                 SubscriptionTier @default(FREE)
+  stripeCustomerId     String?          @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?          @map("stripe_subscription_id")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
 
-  addedMedia MediaItem[]  @relation("MediaCreatedBy")
-  entries    MediaEntry[]
-  ratings    Rating[]
-  reviews    Review[]
-  lists      MediaList[]
-  savedLists SavedList[]
-  following  Follow[]     @relation("follower") // rows where this user follows someone
-  followers  Follow[]     @relation("following") // rows where this user is followed
+  addedMedia     MediaItem[]  @relation("MediaCreatedBy")
+  uploadedAssets MediaAsset[]
+  entries        MediaEntry[]
+  ratings        Rating[]
+  reviews        Review[]
+  lists          MediaList[]
+  savedLists     SavedList[]
+  following      Follow[]     @relation("follower") // rows where this user follows someone
+  followers      Follow[]     @relation("following") // rows where this user is followed
 
   @@index([username])
   @@map("users")
@@ -102,15 +116,15 @@ model User {
 // ---------------------------------------------------------------------------
 
 model MediaItem {
-  id               String      @id @default(uuid())
+  id               String    @id @default(uuid())
   type             MediaType
   title            String
-  sortTitle        String?     @map("sort_title")
-  coverImageUrl    String?     @map("cover_image_url")
-  shortDescription String?     @map("short_description") // one/two-liner for cards
+  sortTitle        String?   @map("sort_title")
+  coverImageUrl    String?   @map("cover_image_url")
+  shortDescription String?   @map("short_description") // one/two-liner for cards
   synopsis         String? // full description
-  releaseDate      DateTime?   @map("release_date")
-  originalLanguage String?     @map("original_language")
+  releaseDate      DateTime? @map("release_date")
+  originalLanguage String?   @map("original_language")
 
   // Type-specific attributes as first-class columns. Only the ones relevant to
   // a given media type are populated. People (authors/directors/…) are modeled
@@ -122,11 +136,11 @@ model MediaItem {
   episodes       Int? // tv
   genre          String? // movies, tv
 
-  source           MediaSource @default(USER_SUBMITTED)
-  createdById      String?     @map("created_by_id")
-  createdBy        User?       @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
+  source      MediaSource @default(USER_SUBMITTED)
+  createdById String?     @map("created_by_id")
+  createdBy   User?       @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
 
   externalIds ExternalId[]
   credits     Credit[]
@@ -153,6 +167,42 @@ model ExternalId {
   @@unique([mediaItemId, source]) // one id per source per item
   @@index([mediaItemId])
   @@map("external_ids")
+}
+
+/// A person's contribution to a media item (many per item, ordered). Names are
+/// denormalized; `externalId` (e.g. Wikidata QID, TMDB person id) is kept for
+/// future person-linking / "all works by X".
+model Credit {
+  id          String     @id @default(uuid())
+  mediaItemId String     @map("media_item_id")
+  mediaItem   MediaItem  @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  role        CreditRole
+  name        String
+  externalId  String?    @map("external_id")
+  position    Int        @default(0)
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  @@index([mediaItemId])
+  @@index([role, name])
+  @@map("credits")
+}
+
+/// An uploaded image asset. `provider` + `key` abstract the storage backend
+/// (R2 today, e.g. Cloudflare Images later); `url` is the delivery URL used as
+/// a MediaItem.coverImageUrl.
+model MediaAsset {
+  id           String   @id @default(uuid())
+  provider     String   @default("r2") // "r2" | "cloudflare_images"
+  key          String // R2 object key or provider image id
+  url          String // delivery URL (Worker /uploads/<key> for R2)
+  contentType  String?  @map("content_type")
+  size         Int?
+  uploadedById String?  @map("uploaded_by_id")
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([uploadedById])
+  @@map("media_assets")
 }
 
 // ---------------------------------------------------------------------------
@@ -238,17 +288,17 @@ model Follow {
 // ---------------------------------------------------------------------------
 
 model MediaList {
-  id          String     @id @default(uuid())
-  ownerId     String     @map("owner_id")
-  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  visibility  Visibility @default(PRIVATE)
+  id           String      @id @default(uuid())
+  ownerId      String      @map("owner_id")
+  owner        User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  visibility   Visibility  @default(PRIVATE)
   /// Which media types may be added. Empty = any type allowed.
   allowedTypes MediaType[] @map("allowed_types")
-  ranked      Boolean    @default(false)
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
+  ranked       Boolean     @default(false)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   items   MediaListItem[]
   savedBy SavedList[]

@@ -1,14 +1,7 @@
 import type { CSSProperties } from "react";
 import { Badge } from "@wlcr/base-ic";
-import { mediaTypeLabel, type MediaType } from "../lib/types";
-
-// Icon + semantic accent color per media type (base-ic AccentColor names).
-const CONFIG: Record<MediaType, { icon: string; color: string }> = {
-  MOVIE: { icon: "🎬", color: "red" },
-  TV_SHOW: { icon: "📺", color: "violet" },
-  BOOK: { icon: "📖", color: "amber" },
-  MAGAZINE: { icon: "📰", color: "teal" },
-};
+import { MEDIA_FIELDS } from "../../shared/media-fields";
+import type { MediaType } from "../lib/types";
 
 interface Props {
   type: MediaType;
@@ -16,15 +9,15 @@ interface Props {
   style?: CSSProperties;
 }
 
-/** Displays a media type as a colored, icon-prefixed badge. */
+/** Displays a media type as a colored, icon-prefixed badge (config-driven). */
 export function MediaTypeBadge({ type, size = "1", style }: Props) {
-  const { icon, color } = CONFIG[type];
+  const cfg = MEDIA_FIELDS[type];
   return (
-    <Badge color={color} variant="soft" size={size} style={style}>
+    <Badge color={cfg.color} variant="soft" size={size} style={style}>
       <span aria-hidden style={{ marginRight: 4 }}>
-        {icon}
+        {cfg.icon}
       </span>
-      {mediaTypeLabel(type)}
+      {cfg.label}
     </Badge>
   );
 }

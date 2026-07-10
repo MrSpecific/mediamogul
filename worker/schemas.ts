@@ -21,6 +21,17 @@ export const entryStatus = z.enum([
   "ABANDONED",
 ]);
 export const visibility = z.enum(["PRIVATE", "UNLISTED", "PUBLIC"]);
+export const creditRole = z.enum([
+  "AUTHOR",
+  "ILLUSTRATOR",
+  "EDITOR",
+  "DIRECTOR",
+  "CREATOR",
+  "WRITER",
+  "PRODUCER",
+  "CAST",
+  "OTHER",
+]);
 
 export const username = z
   .string()

@@ -1,30 +1,32 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Badge,
-  Button,
-  Card,
-  Flex,
-  Heading,
-  Input,
-  Select,
-  Text,
-} from "@wlcr/base-ic";
+import { Badge, Button, Card, Flex, Heading, Input, Text } from "@wlcr/base-ic";
 import { apiSend } from "../lib/api";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { SegmentedControl } from "../components/SegmentedControl";
+import { MEDIA_FIELDS } from "../../shared/media-fields";
 import type { MediaCandidate, MediaItem } from "../lib/types";
 
 type Source = "open_library" | "wikidata" | "tmdb";
 
-/** Author (books) / director (movies) / creator (tv), from scraped metadata. */
+const SOURCE_OPTIONS: { value: Source; label: string }[] = [
+  { value: "open_library", label: "Books" },
+  { value: "wikidata", label: "Movies & TV" },
+  { value: "tmdb", label: "TMDB" },
+];
+
+/** Headline credit (author/director/creator) from the type's primary role. */
 function byline(c: MediaCandidate): string | undefined {
-  const m = c.metadata ?? {};
-  if (c.type === "BOOK" && typeof m.author === "string") return m.author;
-  if (c.type === "MOVIE" && typeof m.director === "string")
-    return `Dir. ${m.director}`;
-  if (c.type === "TV_SHOW" && typeof m.showrunner === "string")
-    return `Created by ${m.showrunner}`;
-  return undefined;
+  const cfg = MEDIA_FIELDS[c.type];
+  const role = cfg.primaryCredit;
+  if (!role) return undefined;
+  const names = (c.credits ?? [])
+    .filter((x) => x.role === role)
+    .map((x) => x.name)
+    .join(", ");
+  if (!names) return undefined;
+  const prefix = cfg.credits.find((x) => x.role === role)?.byline;
+  return prefix ? `${prefix} ${names}` : names;
 }
 
 export function AddMediaPage() {
@@ -74,6 +76,13 @@ export function AddMediaPage() {
         (both free to use). TMDB is richer but needs a commercial license.
       </Text>
 
+      <SegmentedControl
+        ariaLabel="Search source"
+        value={source}
+        onChange={setSource}
+        options={SOURCE_OPTIONS}
+      />
+
       <Flex
         as="form"
         gap="3"
@@ -83,15 +92,6 @@ export function AddMediaPage() {
           void search();
         }}
       >
-        <Select
-          value={source}
-          onValueChange={(v) => setSource(v as Source)}
-          placeholder="Source"
-        >
-          <Select.Item value="open_library">Books</Select.Item>
-          <Select.Item value="wikidata">Movies &amp; TV</Select.Item>
-          <Select.Item value="tmdb">Movies &amp; TV (TMDB)</Select.Item>
-        </Select>
         <Input
           placeholder={
             source === "open_library"
