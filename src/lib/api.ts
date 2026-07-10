@@ -1,13 +1,13 @@
 import { getAuthToken } from "../auth";
 
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public body?: unknown,
-  ) {
+  status: number;
+  body?: unknown;
+  constructor(status: number, message: string, body?: unknown) {
     super(message);
     this.name = "ApiError";
+    this.status = status;
+    this.body = body;
   }
 }
 

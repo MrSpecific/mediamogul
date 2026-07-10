@@ -1,0 +1,141 @@
+/* App-level layout styles. Component styling comes from @wlcr/base-ic
+   (Base UI + CSS Modules + design tokens) — no Tailwind anywhere. */
+
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--gray-a5, rgba(128, 128, 128, 0.2));
+  position: sticky;
+  top: 0;
+  background: var(--color-background, inherit);
+  z-index: 10;
+}
+
+.brand {
+  font-weight: 800;
+  font-size: 1.2rem;
+  text-decoration: none;
+  color: inherit;
+  letter-spacing: -0.02em;
+}
+
+.topbar a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.topbar nav a.active {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.content {
+  flex: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.hero {
+  padding: 5rem 1rem;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.media-card-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.cover {
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-3, 8px);
+  overflow: hidden;
+  background: var(--gray-a3, rgba(128, 128, 128, 0.12));
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.detail-cover {
+  width: 220px;
+  max-width: 40vw;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-4, 10px);
+  overflow: hidden;
+  background: var(--gray-a3, rgba(128, 128, 128, 0.12));
+  flex-shrink: 0;
+}
+
+.detail-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Half-star rating */
+.stars {
+  display: inline-flex;
+  gap: 2px;
+  line-height: 1;
+}
+
+.star {
+  position: relative;
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+}
+
+.star-bg {
+  color: var(--gray-a6, rgba(128, 128, 128, 0.3));
+}
+
+.star-fg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--amber-9, #f5a623);
+}
+
+.star-hit {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 50%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.star-hit.left {
+  left: 0;
+}
+.star-hit.right {
+  right: 0;
+}

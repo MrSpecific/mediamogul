@@ -8,7 +8,7 @@ import { authClient } from "../auth";
 const Link: ComponentType<{
   href: string;
   className?: string;
-  children?: ReactNode;
+  children: ReactNode;
 }> = ({ href, className, children }) => (
   <RouterLink to={href} className={className}>
     {children}
@@ -27,6 +27,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       navigate={(href: string) => navigate(href)}
       replace={(href: string) => navigate(href, { replace: true })}
       Link={Link}
+      // Renders the "Continue with Google" button on the sign-in/up views.
+      // The Google client id/secret + redirect URL are configured server-side
+      // in the Neon Console (Auth → Providers → Google), not here.
+      social={{ providers: ["google"] }}
     >
       {children}
     </NeonAuthUIProvider>
