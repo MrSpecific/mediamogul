@@ -129,6 +129,7 @@ model MediaItem {
   updatedAt        DateTime    @updatedAt @map("updated_at")
 
   externalIds ExternalId[]
+  credits     Credit[]
   entries     MediaEntry[]
   ratings     Rating[]
   reviews     Review[]
