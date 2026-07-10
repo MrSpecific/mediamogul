@@ -29,7 +29,6 @@ export function AppLayout() {
             <Flex as="nav" align="center" gap="4">
               <NavLink to="/catalog">Catalog</NavLink>
               <NavLink to="/lists">Lists</NavLink>
-              <NavLink to="/settings">Settings</NavLink>
               {me?.isAdmin && <NavLink to="/admin/genres">Admin</NavLink>}
               <span className="user-full">
                 <UserButton size="sm" />
