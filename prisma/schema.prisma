@@ -60,6 +60,12 @@ enum Visibility {
   PUBLIC
 }
 
+/// Billing tier. Feature gating + pricing live in shared/tiers.ts.
+enum SubscriptionTier {
+  FREE
+  STANDARD
+}
+
 // ---------------------------------------------------------------------------
 // Users (profile). `id` is the Neon Auth user id (JWT `sub`); rows are
 // upserted on first authenticated request. Neon Auth also maintains its own
@@ -67,13 +73,16 @@ enum Visibility {
 // ---------------------------------------------------------------------------
 
 model User {
-  id          String   @id // Neon Auth user id
-  username    String   @unique
-  displayName String?  @map("display_name")
+  id          String           @id // Neon Auth user id
+  username    String           @unique
+  displayName String?          @map("display_name")
   bio         String?
-  avatarUrl   String?  @map("avatar_url")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  avatarUrl   String?          @map("avatar_url")
+  tier        SubscriptionTier @default(FREE)
+  stripeCustomerId     String? @unique @map("stripe_customer_id")
+  stripeSubscriptionId String? @map("stripe_subscription_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
 
   addedMedia MediaItem[]  @relation("MediaCreatedBy")
   entries    MediaEntry[]

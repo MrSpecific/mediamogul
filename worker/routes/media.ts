@@ -66,8 +66,9 @@ media.get(
 );
 
 media.post("/", zValidator("json", mediaInput), async (c) => {
+  const prisma = c.get("prisma");
   const data = c.req.valid("json");
-  const item = await c.get("prisma").mediaItem.create({
+  const created = await prisma.mediaItem.create({
     data: {
       type: data.type,
       title: data.title,
@@ -80,10 +81,16 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
       metadata: jsonMeta(data.metadata),
       source: "USER_SUBMITTED",
       createdById: c.get("user").id,
-      externalIds: data.externalIds
-        ? { create: data.externalIds }
-        : undefined,
     },
+  });
+  if (data.externalIds?.length) {
+    await prisma.externalId.createMany({
+      data: data.externalIds.map((e) => ({ ...e, mediaItemId: created.id })),
+      skipDuplicates: true,
+    });
+  }
+  const item = await prisma.mediaItem.findUnique({
+    where: { id: created.id },
     include: { externalIds: true },
   });
   return c.json(item, 201);
@@ -133,13 +140,19 @@ media.post(
         metadata: jsonMeta(cand.metadata),
         source: "SCRAPED",
         createdById: c.get("user").id,
-        externalIds: cand.externalIds?.length
-          ? { create: cand.externalIds }
-          : undefined,
       },
+    });
+    if (cand.externalIds?.length) {
+      await prisma.externalId.createMany({
+        data: cand.externalIds.map((e) => ({ ...e, mediaItemId: created.id })),
+        skipDuplicates: true,
+      });
+    }
+    const item = await prisma.mediaItem.findUnique({
+      where: { id: created.id },
       include: { externalIds: true },
     });
-    return c.json(created, 201);
+    return c.json(item, 201);
   },
 );
 

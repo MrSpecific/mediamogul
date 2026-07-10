@@ -15,6 +15,7 @@ export function AppLayout() {
             <Flex as="nav" align="center" gap="4">
               <NavLink to="/catalog">Catalog</NavLink>
               <NavLink to="/lists">Lists</NavLink>
+              <NavLink to="/settings">Settings</NavLink>
               <UserButton />
             </Flex>
           </SignedIn>

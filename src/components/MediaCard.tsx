@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { Badge, Card, Flex, Text } from "@wlcr/base-ic";
-import { mediaTypeLabel, type MediaItem } from "../lib/types";
+import { Card, Flex, Text } from "@wlcr/base-ic";
+import { MediaTypeBadge } from "./MediaTypeBadge";
+import type { MediaItem } from "../lib/types";
 
 export function MediaCard({ item }: { item: MediaItem }) {
   return (
@@ -14,9 +15,7 @@ export function MediaCard({ item }: { item: MediaItem }) {
               <div className="cover-fallback" />
             )}
           </div>
-          <Badge size="1" variant="soft">
-            {mediaTypeLabel(item.type)}
-          </Badge>
+          <MediaTypeBadge type={item.type} />
           <Text weight="medium" size="2" truncate>
             {item.title}
           </Text>

@@ -16,6 +16,7 @@ import { MediaDetailPage } from "./pages/MediaDetailPage";
 import { ListsPage } from "./pages/ListsPage";
 import { ListDetailPage } from "./pages/ListDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -37,6 +38,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/lists" element={<ListsPage />} />
               <Route path="/lists/:id" element={<ListDetailPage />} />
               <Route path="/u/:username" element={<ProfilePage />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Routes>
         </AuthProvider>

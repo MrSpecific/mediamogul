@@ -6,18 +6,19 @@
   // nodejs_compat is required by the Neon serverless driver / Prisma adapter.
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   // Public (non-secret) vars. NEON_AUTH_URL must match VITE_NEON_AUTH_URL in .env
-  // — the Worker verifies Neon Auth JWTs against <NEON_AUTH_URL>/jwt (JWKS).
+  // — the Worker verifies Neon Auth JWTs against
+  // <NEON_AUTH_URL>/.well-known/jwks.json (JWKS).
   "vars": {
-    "NEON_AUTH_URL": "https://REPLACE-ME.neonauth.example/neondb/auth"
+    "NEON_AUTH_URL": "https://ep-empty-sound-a6ukfuft.neonauth.us-west-2.aws.neon.tech/neondb/auth",
   },
   // The React SPA is served from Cloudflare static assets. The Vite plugin sets
   // `directory` automatically from the client build output. Navigation requests
   // that don't match an asset fall back to index.html (client-side routing);
   // requests to /api/* that don't match an asset hit the Worker below.
   "assets": {
-    "not_found_handling": "single-page-application"
-  }
+    "not_found_handling": "single-page-application",
+  },
 }

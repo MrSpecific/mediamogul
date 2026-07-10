@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import {
-  Badge,
   Button,
   Card,
   Flex,
@@ -14,12 +13,12 @@ import {
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { StarRating } from "../components/StarRating";
-import {
-  mediaTypeLabel,
-  type ListSummary,
-  type MediaDetail,
-  type Review,
-  type Visibility,
+import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import type {
+  ListSummary,
+  MediaDetail,
+  Review,
+  Visibility,
 } from "../lib/types";
 
 export function MediaDetailPage() {
@@ -71,9 +70,11 @@ export function MediaDetailPage() {
         </div>
         <Flex direction="column" gap="3" style={{ flex: 1, minWidth: 260 }}>
           <Flex direction="column" gap="1">
-            <Badge variant="soft" style={{ alignSelf: "flex-start" }}>
-              {mediaTypeLabel(data.type)}
-            </Badge>
+            <MediaTypeBadge
+              type={data.type}
+              size="2"
+              style={{ alignSelf: "flex-start" }}
+            />
             <Heading size="8">{data.title}</Heading>
             {data.releaseDate && (
               <Text color="gray">{new Date(data.releaseDate).getFullYear()}</Text>

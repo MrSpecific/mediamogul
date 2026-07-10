@@ -3,7 +3,8 @@ import { Badge, Button, Flex, Heading, Text } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { MediaCard } from "../components/MediaCard";
-import { mediaTypeLabel, type ListDetail } from "../lib/types";
+import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import type { ListDetail } from "../lib/types";
 
 export function ListDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,9 +31,7 @@ export function ListDetailPage() {
             <Badge variant="soft">{data.visibility.toLowerCase()}</Badge>
             {data.allowedTypes.length ? (
               data.allowedTypes.map((t) => (
-                <Badge key={t} variant="outline">
-                  {mediaTypeLabel(t)}
-                </Badge>
+                <MediaTypeBadge key={t} type={t} />
               ))
             ) : (
               <Badge variant="outline">Any type</Badge>

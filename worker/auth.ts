@@ -8,11 +8,11 @@ import { createMiddleware } from "hono/factory";
  * here against the auth server's public JWKS (no per-request round-trip once
  * the key set is cached).
  *
- * Neon Auth exposes its JWKS at `<NEON_AUTH_URL>/jwt`. If your instance differs,
- * confirm the endpoint in the Neon Console and adjust `jwksUrl()` below.
+ * Neon Auth exposes its JWKS at `<NEON_AUTH_URL>/.well-known/jwks.json`
+ * (EdDSA / Ed25519 keys).
  */
 function jwksUrl(authUrl: string): URL {
-  return new URL(`${authUrl.replace(/\/+$/, "")}/jwt`);
+  return new URL(`${authUrl.replace(/\/+$/, "")}/.well-known/jwks.json`);
 }
 
 // Cache the remote key set per auth URL. Module scope persists across requests

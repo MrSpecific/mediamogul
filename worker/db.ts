@@ -1,8 +1,14 @@
+import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { createMiddleware } from "hono/factory";
 import { PrismaClient } from "./generated/prisma/client";
 import type { AuthUser } from "./auth";
 import type { AppEnv } from "./types";
+
+// Route plain queries over Neon's HTTP (fetch) API; only real transactions
+// (Prisma wraps every write in one) use the WebSocket pool. Keeps read paths
+// off WebSockets, which are the fragile part on Workers.
+neonConfig.poolQueryViaFetch = true;
 
 /**
  * A fresh Prisma client per request. On Workers there is no long-lived process
@@ -10,7 +16,12 @@ import type { AppEnv } from "./types";
  * runtime tear it down when the request ends.
  */
 export function getPrisma(env: Env): PrismaClient {
-  const adapter = new PrismaNeon({ connectionString: env.DATABASE_URL });
+  const adapter = new PrismaNeon(
+    { connectionString: env.DATABASE_URL },
+    // Without a handler, an async pool error becomes an unhandled rejection that
+    // crashes the isolate ("internal error; reference = …"). Log instead.
+    { onPoolError: (err) => console.error("Neon pool error:", err) },
+  );
   return new PrismaClient({ adapter });
 }
 

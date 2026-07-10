@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { mediaType, visibility } from "../schemas";
+import { type TierId, tierLimit } from "../../shared/tiers";
 import type { AppEnv } from "../types";
 
 export const lists = new Hono<AppEnv>();
@@ -16,8 +17,24 @@ const listInput = z.object({
 });
 
 lists.post("/", zValidator("json", listInput), async (c) => {
-  const list = await c.get("prisma").mediaList.create({
-    data: { ...c.req.valid("json"), ownerId: c.get("user").id },
+  const prisma = c.get("prisma");
+  const ownerId = c.get("user").id;
+
+  // Config-driven tier limit (see shared/tiers.ts — FREE caps lists, STANDARD
+  // is unlimited). Adjust or remove by editing the tier config.
+  const limit = tierLimit(c.get("profile").tier as TierId, "lists");
+  if (limit !== null) {
+    const count = await prisma.mediaList.count({ where: { ownerId } });
+    if (count >= limit) {
+      return c.json(
+        { error: "upgrade_required", reason: "list_limit_reached", limit },
+        402,
+      );
+    }
+  }
+
+  const list = await prisma.mediaList.create({
+    data: { ...c.req.valid("json"), ownerId },
   });
   return c.json(list, 201);
 });

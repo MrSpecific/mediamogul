@@ -6,6 +6,7 @@ import { users } from "./routes/users";
 import { media } from "./routes/media";
 import { lists } from "./routes/lists";
 import { lookup } from "./routes/lookup";
+import { billing, handleStripeWebhook } from "./routes/billing";
 import type { AppEnv } from "./types";
 
 const app = new Hono<AppEnv>();
@@ -14,6 +15,10 @@ const app = new Hono<AppEnv>();
 // it stays open.
 app.get("/api/", (c) => c.json({ name: "mediamogul API", status: "ok" }));
 
+// Stripe webhook — public (verified by signature, not by session). Registered
+// before the auth group so it bypasses requireAuth.
+app.post("/api/billing/webhook", handleStripeWebhook);
+
 // Everything else under /api requires a valid Neon Auth session. Middleware
 // order: verify JWT -> attach Prisma -> ensure the app profile row exists (so
 // FKs to User are always satisfied).
@@ -21,7 +26,7 @@ const api = new Hono<AppEnv>();
 api.use("*", requireAuth);
 api.use("*", withDb);
 api.use("*", async (c, next) => {
-  await getOrCreateUser(c.get("prisma"), c.get("user"));
+  c.set("profile", await getOrCreateUser(c.get("prisma"), c.get("user")));
   await next();
 });
 
@@ -30,6 +35,7 @@ api.route("/users", users);
 api.route("/media", media);
 api.route("/lists", lists);
 api.route("/lookup", lookup);
+api.route("/billing", billing);
 
 app.route("/api", api);
 

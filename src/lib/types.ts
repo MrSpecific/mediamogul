@@ -77,6 +77,8 @@ export interface MediaCandidate {
   releaseDate?: string;
   metadata?: Record<string, unknown>;
   externalIds: { source: string; value: string; url?: string }[];
+  /** Set by /api/lookup when this candidate is already in the catalog. */
+  existingId?: string;
 }
 
 export interface ListSummary {

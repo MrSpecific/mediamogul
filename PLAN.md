@@ -13,8 +13,10 @@ lists.
   (static assets) and the API under `/api/*`.
 - **Database:** Neon Postgres via Prisma 7 (Rust-free query compiler + Neon
   driver adapter).
-- **Auth:** Neon Auth (Better Auth). Client uses the prebuilt UI; the Worker
-  verifies JWTs against the Neon Auth JWKS.
+- **Auth:** Neon Auth (Better Auth). Client uses the prebuilt UI (email/password
+  + Google OAuth); the Worker verifies JWTs against the Neon Auth JWKS.
+- **Billing:** tier config in `shared/tiers.ts` (Free + Standard @ $1.99/mo);
+  payment provider integration is on the roadmap.
 
 ## Data model (implemented — see `prisma/schema.prisma`)
 
@@ -55,8 +57,8 @@ All routes require a Neon Auth session except `GET /api/` (health).
 ## Scrape-assist strategy
 
 - **Books:** Open Library (keyless) — search + ISBN lookup implemented.
-- **Movies/TV:** TMDB — stubbed; add `TMDB_API_KEY` secret and implement
-  `searchScreen()` in `worker/services/scrape.ts`.
+- **Movies/TV:** TMDB `/search/multi` — implemented in
+  `worker/services/scrape.ts`; set `TMDB_API_KEY` (v3 key) to enable.
 - **Books (alt):** Goodreads has no open API; use ISBN → Open Library instead.
 - Flow: `GET /api/lookup` returns unsaved `MediaCandidate[]`; the user picks one,
   optionally edits, then `POST /api/media/import` creates the catalog row
@@ -87,6 +89,37 @@ full schema; full CRUD API; Open Library scrape-assist.
 - Richer scrape sources (TMDB, IGDB-style), background enrichment jobs
   (Workers Cron / Queues).
 - Full-text search (Postgres `tsvector` or external index).
+
+### Phase 5 — Billing & tiers (implemented; provider config pending)
+Config-first so pricing/gating is easy to manage:
+
+- **`shared/tiers.ts`** is the single source of truth — tier names, prices
+  (Standard pinned at **$1.99/mo** = `199` cents), per-tier feature flags, and
+  limits. Change plans by editing this one file.
+- **`User.tier`** (`SubscriptionTier`, default `FREE`) persists the active plan;
+  `/api/me` and `/api/billing/plans` return it.
+- **Gating (implemented):** `requireTier("STANDARD")` and `requireFeature(flag)`
+  Hono middleware (`worker/tiers.ts`) return **402** when insufficient; the
+  client hides/disables UI with the same `shared/tiers.ts` helpers. A working
+  example gate: list creation is capped by `tierLimit(tier, "lists")` in
+  `worker/routes/lists.ts` (FREE = 5, STANDARD = unlimited).
+- **Stripe (implemented):** `POST /api/billing/checkout` (subscription Checkout),
+  `POST /api/billing/portal` (customer portal), and `POST /api/billing/webhook`
+  (public; syncs subscription status → `User.tier`). `stripeCustomerId` /
+  `stripeSubscriptionId` live on `User`. The Settings page (`/settings`) drives
+  upgrade/manage.
+- **To go live:** set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+  `STRIPE_PRICE_STANDARD` secrets; create the Standard product/price in Stripe;
+  point a Stripe webhook at `/api/billing/webhook` (subscription events).
+- **Next:** add gates as product decisions land (flip flags in `shared/tiers.ts`
+  + drop `requireFeature(...)` on the relevant routes); consider a trial period.
+
+## Auth notes
+
+- Email/password and **Google OAuth** are enabled via the prebuilt UI
+  (`social={{ providers: ["google"] }}` in `AuthProvider`). Configure the Google
+  client id/secret and authorized redirect URL in the **Neon Console → Auth →
+  Providers → Google** — no app secrets required.
 
 ## Known follow-ups / decisions
 

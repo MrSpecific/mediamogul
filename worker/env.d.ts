@@ -14,4 +14,10 @@ interface Env {
    * Open Library). Set via `wrangler secret put TMDB_API_KEY`.
    */
   TMDB_API_KEY?: string;
+
+  /** Stripe billing (all via `wrangler secret put …`). Optional until billing is wired. */
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  /** Stripe Price id for the Standard plan. */
+  STRIPE_PRICE_STANDARD?: string;
 }
