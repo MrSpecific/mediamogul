@@ -1,12 +1,14 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
+import { requireAdmin } from "../auth";
 import type { AppEnv } from "../types";
 
 export const series = new Hono<AppEnv>();
 
 series.post(
   "/",
+  requireAdmin,
   zValidator(
     "json",
     z.object({
@@ -38,6 +40,7 @@ series.get("/:id", async (c) => {
 
 series.post(
   "/:id/items",
+  requireAdmin,
   zValidator(
     "json",
     z.object({
@@ -64,7 +67,7 @@ series.post(
   },
 );
 
-series.delete("/:id/items/:mediaItemId", async (c) => {
+series.delete("/:id/items/:mediaItemId", requireAdmin, async (c) => {
   const res = await c.get("prisma").seriesEntry.deleteMany({
     where: {
       seriesId: c.req.param("id"),

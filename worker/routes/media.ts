@@ -567,6 +567,7 @@ media.delete("/:id/review", async (c) => {
 
 media.post(
   "/:id/relations",
+  requireAdmin,
   zValidator(
     "json",
     z.object({
@@ -596,9 +597,39 @@ media.post(
   },
 );
 
-media.delete("/:id/relations/:relId", async (c) => {
+media.delete("/:id/relations/:relId", requireAdmin, async (c) => {
   const res = await c.get("prisma").mediaRelation.deleteMany({
     where: { id: c.req.param("relId"), fromId: c.req.param("id") },
   });
   return c.json({ deleted: res.count });
 });
+
+/** Admin moderation: change catalog visibility and archive/unarchive. */
+media.patch(
+  "/:id/moderation",
+  requireAdmin,
+  zValidator(
+    "json",
+    z.object({
+      visibility: visibility.optional(),
+      archived: z.boolean().optional(),
+    }),
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const data: Prisma.MediaItemUpdateInput = {};
+    if (body.visibility) data.visibility = body.visibility;
+    if (body.archived !== undefined) {
+      data.archivedAt = body.archived ? new Date() : null;
+    }
+    const updated = await c
+      .get("prisma")
+      .mediaItem.update({ where: { id: c.req.param("id") }, data })
+      .catch(() => null);
+    if (!updated) return c.json({ error: "not_found" }, 404);
+    return c.json({
+      visibility: updated.visibility,
+      archivedAt: updated.archivedAt,
+    });
+  },
+);
