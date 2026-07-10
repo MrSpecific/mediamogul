@@ -4,10 +4,17 @@ import { Badge, Button, Card, Flex, Heading, Input, Text } from "@wlcr/base-ic";
 import { apiSend } from "../lib/api";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
+import { ManualMediaForm } from "../components/ManualMediaForm";
 import { MEDIA_FIELDS } from "../../shared/media-fields";
 import type { MediaCandidate, MediaItem } from "../lib/types";
 
 type Source = "open_library" | "wikidata" | "tmdb";
+type Mode = "search" | "manual";
+
+const MODE_OPTIONS: { value: Mode; label: string }[] = [
+  { value: "search", label: "Search a source" },
+  { value: "manual", label: "Enter manually" },
+];
 
 const SOURCE_OPTIONS: { value: Source; label: string }[] = [
   { value: "open_library", label: "Books" },
@@ -36,6 +43,7 @@ export function AddMediaPage() {
   const [results, setResults] = useState<MediaCandidate[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>("search");
 
   async function search() {
     setBusy(true);
@@ -70,18 +78,31 @@ export function AddMediaPage() {
   return (
     <Flex direction="column" gap="4">
       <Heading size="7">Add media</Heading>
-      <Text color="gray">
-        Search a public source — we pull in the cover, description, and external
-        IDs automatically. Books use Open Library; movies & TV use Wikidata
-        (both free to use). TMDB is richer but needs a commercial license.
-      </Text>
 
       <SegmentedControl
-        ariaLabel="Search source"
-        value={source}
-        onChange={setSource}
-        options={SOURCE_OPTIONS}
+        ariaLabel="Add mode"
+        value={mode}
+        onChange={setMode}
+        options={MODE_OPTIONS}
       />
+
+      {mode === "manual" ? (
+        <ManualMediaForm />
+      ) : (
+        <>
+          <Text color="gray">
+            Search a public source — we pull in the cover, description, and
+            external IDs automatically. Books use Open Library; movies & TV use
+            Wikidata (both free to use). TMDB is richer but needs a commercial
+            license.
+          </Text>
+
+          <SegmentedControl
+            ariaLabel="Search source"
+            value={source}
+            onChange={setSource}
+            options={SOURCE_OPTIONS}
+          />
 
       <Flex
         as="form"
@@ -170,6 +191,8 @@ export function AddMediaPage() {
           <Text color="gray">No matches.</Text>
         )}
       </Flex>
+        </>
+      )}
     </Flex>
   );
 }

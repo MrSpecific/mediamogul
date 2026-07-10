@@ -31,7 +31,8 @@ const mediaInput = z.object({
   type: mediaType,
   title: z.string().min(1).max(500),
   sortTitle: z.string().max(500).optional(),
-  coverImageUrl: z.string().url().optional(),
+  // Accepts absolute URLs (scraped) and relative /uploads/… paths (our R2).
+  coverImageUrl: z.string().max(1000).optional(),
   shortDescription: z.string().max(500).optional(),
   synopsis: z.string().optional(),
   releaseDate: z.coerce.date().optional(),

@@ -109,9 +109,16 @@ npm run dev           # http://localhost:5173 — SPA + /api on one origin, HMR
 
 ```bash
 npx wrangler login
-npx wrangler secret put DATABASE_URL   # production DB secret (once)
-npm run deploy                          # build + wrangler deploy
+npx wrangler secret put DATABASE_URL          # production DB secret (once)
+npx wrangler r2 bucket create mediamogul       # cover-image uploads (once)
+npm run deploy                                 # build + wrangler deploy
 ```
+
+Uploaded cover images are stored in R2 (`MEDIA_BUCKET` binding) and served by
+the Worker at `/uploads/<key>`. The storage layer
+([`worker/services/storage.ts`](worker/services/storage.ts)) is an abstraction —
+swap it for Cloudflare Images later without touching the UI or `MediaAsset` DB
+model. Dev uses a local simulated bucket automatically (no setup needed).
 
 ## Project layout
 

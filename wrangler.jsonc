@@ -14,11 +14,10 @@
   "vars": {
     "NEON_AUTH_URL": "https://ep-empty-sound-a6ukfuft.neonauth.us-west-2.aws.neon.tech/neondb/auth",
   },
-  // Object storage for uploaded cover images. Create it before first deploy:
-  //   npx wrangler r2 bucket create mediamogul-media
-  // (dev uses a local simulated bucket automatically).
+  // Object storage for uploaded cover images (dev uses a local simulated
+  // bucket automatically; the "mediamogul" bucket backs production).
   "r2_buckets": [
-    { "binding": "MEDIA_BUCKET", "bucket_name": "mediamogul-media" },
+    { "binding": "MEDIA_BUCKET", "bucket_name": "mediamogul" },
   ],
   // The React SPA is served from Cloudflare static assets. The Vite plugin sets
   // `directory` automatically from the client build output. Navigation requests
