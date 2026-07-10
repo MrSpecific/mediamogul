@@ -46,6 +46,8 @@ export interface MediaTypeConfig {
   color: string;
   /** Consumption verb, e.g. "watch" / "read" / "listen". */
   logVerb: string;
+  /** Past tense, e.g. "watched" / "read" / "listened". */
+  logPast: string;
   /** Credit role that headlines the item (drives the byline). */
   primaryCredit?: CreditRole;
   /** Credits typically relevant to this type, in display order. */
@@ -60,6 +62,7 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
     icon: "🎬",
     color: "red",
     logVerb: "watch",
+    logPast: "watched",
     primaryCredit: "DIRECTOR",
     credits: [
       { role: "DIRECTOR", label: "Director", byline: "Directed by" },
@@ -77,6 +80,7 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
     icon: "📺",
     color: "violet",
     logVerb: "watch",
+    logPast: "watched",
     primaryCredit: "CREATOR",
     credits: [
       { role: "CREATOR", label: "Creator", byline: "Created by" },
@@ -95,6 +99,7 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
     icon: "📖",
     color: "amber",
     logVerb: "read",
+    logPast: "read",
     primaryCredit: "AUTHOR",
     credits: [
       { role: "AUTHOR", label: "Author", byline: "By" },
@@ -112,6 +117,7 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
     icon: "🎧",
     color: "jade",
     logVerb: "listen",
+    logPast: "listened",
     primaryCredit: "AUTHOR",
     credits: [
       { role: "AUTHOR", label: "Author", byline: "By" },
@@ -128,6 +134,7 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
     icon: "📰",
     color: "teal",
     logVerb: "read",
+    logPast: "read",
     primaryCredit: "EDITOR",
     credits: [
       { role: "EDITOR", label: "Editor" },

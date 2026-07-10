@@ -18,16 +18,27 @@ import { apiSend } from "../lib/api";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { MediaPicker } from "../components/MediaPicker";
+import { MarkCompleteDialog } from "../components/MarkCompleteDialog";
 import { MEDIA_FIELDS, formatFieldValue } from "../../shared/media-fields";
 import {
   RELATION_LABELS,
+  type EntryStatus,
   type ListSummary,
   type MediaDetail,
+  type MediaEntry,
   type MediaItem,
   type MediaRelationType,
   type Review,
   type Visibility,
 } from "../lib/types";
+
+const STATUS_LABELS: Record<EntryStatus, string> = {
+  PLANNED: "Planned",
+  IN_PROGRESS: "In progress",
+  ON_HOLD: "On hold",
+  COMPLETED: "Completed",
+  ABANDONED: "Abandoned",
+};
 
 /** Headline credit line (e.g. "Directed by …"), from the type's primary role. */
 function bylineOf(data: MediaDetail): string | undefined {
@@ -59,6 +70,9 @@ export function MediaDetailPage() {
   const { data: reviews, reload: reloadReviews } = useApiData<Review[]>(
     id ? `/media/${id}/reviews` : null,
   );
+  const { data: entries, reload: reloadEntries } = useApiData<MediaEntry[]>(
+    id ? `/media/${id}/entries` : null,
+  );
   const { data: myLists } = useApiData<{ owned: ListSummary[] }>("/me/lists");
 
   const [reviewBody, setReviewBody] = useState("");
@@ -66,23 +80,73 @@ export function MediaDetailPage() {
   const [relType, setRelType] = useState<MediaRelationType>("ADAPTATION");
   const [seriesTitle, setSeriesTitle] = useState("");
   const [seriesPos, setSeriesPos] = useState("1");
+  const [completeOpen, setCompleteOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   if (!data) return <Text color="gray">Loading…</Text>;
 
+  const cfg = MEDIA_FIELDS[data.type];
+  const gerund = `${cfg.logVerb}ing`;
   const yourStars = data.you.rating ? Number(data.you.rating.stars) : null;
+  const active =
+    data.you.lastEntry && data.you.lastEntry.status === "IN_PROGRESS"
+      ? data.you.lastEntry
+      : null;
+  const refresh = () => {
+    reload();
+    reloadEntries();
+  };
 
   const rate = async (stars: number) => {
     await apiSend("PUT", `/media/${id}/rating`, { stars });
     reload();
   };
-  const log = async () => {
+  const start = async () => {
     await apiSend("POST", `/media/${id}/entries`, {
-      status: "COMPLETED",
-      finishedAt: new Date().toISOString(),
+      status: "IN_PROGRESS",
+      startedAt: new Date().toISOString(),
     });
-    setMsg("Logged!");
-    reload();
+    setMsg(`Started ${gerund}.`);
+    refresh();
+  };
+  const abandon = async () => {
+    if (!active) return;
+    await apiSend("PATCH", `/media/${id}/entries/${active.id}`, {
+      status: "ABANDONED",
+    });
+    setMsg("Marked as abandoned.");
+    refresh();
+  };
+  const complete = async ({
+    stars,
+    reviewBody,
+    visibility,
+  }: {
+    stars: number | null;
+    reviewBody: string;
+    visibility: Visibility;
+  }) => {
+    if (active) {
+      await apiSend("PATCH", `/media/${id}/entries/${active.id}`, {
+        status: "COMPLETED",
+        finishedAt: new Date().toISOString(),
+      });
+    } else {
+      await apiSend("POST", `/media/${id}/entries`, {
+        status: "COMPLETED",
+        finishedAt: new Date().toISOString(),
+      });
+    }
+    if (stars != null) await apiSend("PUT", `/media/${id}/rating`, { stars });
+    if (reviewBody) {
+      await apiSend("PUT", `/media/${id}/review`, {
+        body: reviewBody,
+        visibility,
+      });
+    }
+    setMsg(`Marked as ${cfg.logPast}.`);
+    refresh();
+    reloadReviews();
   };
   const saveReview = async () => {
     const body = reviewBody || data.you.review?.body;
@@ -184,14 +248,43 @@ export function MediaDetailPage() {
 
           {data.synopsis && <Text>{data.synopsis}</Text>}
 
-          <Flex gap="3" wrap="wrap" align="center">
-            <Button onClick={() => void log()}>
-              Log a {MEDIA_FIELDS[data.type].logVerb}
-            </Button>
+          <Flex gap="2" wrap="wrap" align="center">
+            {active ? (
+              <>
+                <Button onClick={() => setCompleteOpen(true)}>
+                  Finish {gerund}
+                </Button>
+                <Button
+                  variant="soft"
+                  color="red"
+                  onClick={() => void abandon()}
+                >
+                  Abandon
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button onClick={() => setCompleteOpen(true)}>
+                  Mark as {cfg.logPast}
+                </Button>
+                <Button variant="soft" onClick={() => void start()}>
+                  Start {gerund}
+                </Button>
+              </>
+            )}
             <Text size="1" color="gray">
               {data._count.entries} logs · {data._count.reviews} reviews
             </Text>
           </Flex>
+
+          <MarkCompleteDialog
+            open={completeOpen}
+            onOpenChange={setCompleteOpen}
+            verbPast={cfg.logPast}
+            initialStars={yourStars}
+            initialReview={data.you.review?.body ?? ""}
+            onConfirm={complete}
+          />
 
           {myLists?.owned && myLists.owned.length > 0 && (
             <Flex gap="2" align="center">
@@ -247,6 +340,43 @@ export function MediaDetailPage() {
             <Select.Item value="PRIVATE">Private</Select.Item>
           </Select>
           <Button onClick={() => void saveReview()}>Save review</Button>
+        </Flex>
+      </Flex>
+
+      <Flex direction="column" gap="3">
+        <Heading size="5">Your journey</Heading>
+        {(!entries || entries.length === 0) && (
+          <Text color="gray">
+            No activity yet — start or mark it {cfg.logPast}.
+          </Text>
+        )}
+        <Flex direction="column" gap="2">
+          {entries?.map((e) => (
+            <Card key={e.id} size="1">
+              <Flex direction="column" gap="1">
+                <Flex justify="space-between" gap="2" wrap="wrap" align="center">
+                  <Flex gap="2" align="center">
+                    <Badge variant="soft" size="1">
+                      {STATUS_LABELS[e.status]}
+                    </Badge>
+                    {e.progress && (
+                      <Text size="1" color="gray">
+                        {e.progress}
+                      </Text>
+                    )}
+                  </Flex>
+                  <Text size="1" color="gray">
+                    {e.finishedAt
+                      ? new Date(e.finishedAt).toLocaleDateString()
+                      : e.startedAt
+                        ? `Started ${new Date(e.startedAt).toLocaleDateString()}`
+                        : ""}
+                  </Text>
+                </Flex>
+                {e.note && <Text size="2">{e.note}</Text>}
+              </Flex>
+            </Card>
+          ))}
         </Flex>
       </Flex>
 
