@@ -111,10 +111,17 @@ model MediaItem {
   synopsis         String? // full description
   releaseDate      DateTime?   @map("release_date")
   originalLanguage String?     @map("original_language")
-  /// Type-specific attributes not worth a first-class column, e.g.
-  /// movie: { runtimeMinutes }, tv: { seasons, episodes }, book: { author, isbn, pageCount },
-  /// magazine: { publisher, issueNumber, frequency }.
-  metadata         Json?
+
+  // Type-specific attributes as first-class columns. Only the ones relevant to
+  // a given media type are populated. People (authors/directors/…) are modeled
+  // relationally via Credit to support multiples.
+  publisher      String? // books, magazines
+  pageCount      Int?    @map("page_count") // books
+  runtimeMinutes Int?    @map("runtime_minutes") // movies; tv per-episode
+  seasons        Int? // tv
+  episodes       Int? // tv
+  genre          String? // movies, tv
+
   source           MediaSource @default(USER_SUBMITTED)
   createdById      String?     @map("created_by_id")
   createdBy        User?       @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)

@@ -9,10 +9,12 @@
 
 .topbar {
   padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--gray-a5, rgba(128, 128, 128, 0.2));
+  border-bottom: 1px solid var(--color-gray-6, rgba(128, 128, 128, 0.25));
   position: sticky;
   top: 0;
-  background: var(--color-background, inherit);
+  /* Opaque theme surface so scrolled content doesn't bleed through the
+     sticky header. Base-IC exposes --color-surface-base on the <Theme>. */
+  background-color: var(--color-surface-base, #111417);
   z-index: 10;
 }
 
