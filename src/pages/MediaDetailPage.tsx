@@ -4,7 +4,6 @@ import {
   Badge,
   Button,
   Card,
-  Dialog,
   Field,
   Flex,
   Heading,
@@ -20,6 +19,8 @@ import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { MediaPicker } from "../components/MediaPicker";
 import { MarkCompleteDialog } from "../components/MarkCompleteDialog";
+import { AddToListDialog } from "../components/AddToListDialog";
+import { CoverFinderDialog } from "../components/CoverFinderDialog";
 import { MEDIA_FIELDS, formatFieldValue } from "../../shared/media-fields";
 import {
   RELATION_LABELS,
@@ -85,6 +86,7 @@ export function MediaDetailPage() {
   const [seriesPos, setSeriesPos] = useState("1");
   const [completeOpen, setCompleteOpen] = useState(false);
   const [addListOpen, setAddListOpen] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   if (!data) return <Text color="gray">Loading…</Text>;
@@ -160,20 +162,6 @@ export function MediaDetailPage() {
     reloadReviews();
     reload();
   };
-  const addToList = async (listId: string) => {
-    try {
-      await apiSend("POST", `/lists/${listId}/items`, { mediaItemId: id });
-      setMsg("Added to list.");
-      setAddListOpen(false);
-      reloadLists();
-    } catch (e) {
-      setMsg(
-        (e as Error).message === "type_not_allowed"
-          ? "That list doesn't allow this media type."
-          : "Couldn't add to list.",
-      );
-    }
-  };
   const linkRelated = async (media: MediaItem) => {
     await apiSend("POST", `/media/${id}/relations`, {
       toId: media.id,
@@ -203,9 +191,28 @@ export function MediaDetailPage() {
   return (
     <Flex direction="column" gap="5">
       <Flex gap="5" wrap="wrap">
-        <div className="detail-cover">
-          {data.coverImageUrl && <img src={data.coverImageUrl} alt="" />}
-        </div>
+        <Flex direction="column" gap="2" align="center">
+          <div className="detail-cover">
+            {data.coverImageUrl && <img src={data.coverImageUrl} alt="" />}
+          </div>
+          {!data.coverImageUrl &&
+            (data.type === "MOVIE" || data.type === "TV_SHOW") && (
+              <Button
+                size="1"
+                variant="soft"
+                onClick={() => setCoverOpen(true)}
+              >
+                Find a cover
+              </Button>
+            )}
+          <CoverFinderDialog
+            open={coverOpen}
+            onOpenChange={setCoverOpen}
+            mediaId={data.id}
+            title={data.title}
+            onChanged={reload}
+          />
+        </Flex>
         <Flex direction="column" gap="3" style={{ flex: 1, minWidth: 260 }}>
           <Flex direction="column" gap="1">
             <MediaTypeBadge
@@ -306,45 +313,13 @@ export function MediaDetailPage() {
             </Button>
           </Flex>
 
-          <Dialog
+          <AddToListDialog
             open={addListOpen}
             onOpenChange={setAddListOpen}
-            title="Add to a list"
-            description="Pick one of your lists."
-            content={
-              <Flex direction="column" gap="2">
-                {(!myLists || myLists.owned.length === 0) && (
-                  <Text color="gray">
-                    You don't have any lists yet — create one on the Lists page.
-                  </Text>
-                )}
-                {myLists?.owned.map((l) => (
-                  <Flex
-                    key={l.id}
-                    justify="space-between"
-                    align="center"
-                    gap="3"
-                  >
-                    <Flex direction="column">
-                      <Text weight="medium">{l.title}</Text>
-                      <Text size="1" color="gray">
-                        {l._count?.items ?? 0} items · {l.visibility.toLowerCase()}
-                      </Text>
-                    </Flex>
-                    <Button
-                      size="1"
-                      variant="soft"
-                      onClick={() => void addToList(l.id)}
-                    >
-                      Add
-                    </Button>
-                  </Flex>
-                ))}
-              </Flex>
-            }
-          >
-            <span style={{ display: "none" }} aria-hidden />
-          </Dialog>
+            mediaId={data.id}
+            lists={myLists?.owned ?? []}
+            onChanged={reloadLists}
+          />
           {msg && (
             <Text color="green" size="2">
               {msg}

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type MediaType, Prisma } from "../generated/prisma/client";
 import { lookupBookByIsbn } from "../services/scrape";
 import { uploadImage } from "../services/storage";
+import { searchCovers } from "../services/covers";
 import {
   creditRole,
   entryStatus,
@@ -235,6 +236,53 @@ media.post("/assets", async (c) => {
   });
   return c.json({ id: asset.id, url: asset.url }, 201);
 });
+
+/** Creative-Commons cover-image candidates (defaults to the item's title). */
+media.get("/:id/cover-options", async (c) => {
+  const item = await c.get("prisma").mediaItem.findUnique({
+    where: { id: c.req.param("id") },
+    select: { title: true },
+  });
+  if (!item) return c.json({ error: "not_found" }, 404);
+  const q = c.req.query("q") || item.title;
+  return c.json(await searchCovers(q));
+});
+
+/** Ingest a chosen (CC-licensed) image into R2 and set it as the cover. */
+media.post(
+  "/:id/cover",
+  zValidator("json", z.object({ imageUrl: z.string().url() })),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const { imageUrl } = c.req.valid("json");
+    const res = await fetch(imageUrl).catch(() => null);
+    if (!res || !res.ok) return c.json({ error: "fetch_failed" }, 400);
+    const contentType = res.headers.get("content-type")?.split(";")[0] ?? "";
+    const bytes = await res.arrayBuffer();
+
+    let stored;
+    try {
+      stored = await uploadImage(c.env, bytes, contentType);
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 400);
+    }
+    await prisma.mediaAsset.create({
+      data: {
+        provider: stored.provider,
+        key: stored.key,
+        url: stored.url,
+        contentType: stored.contentType,
+        size: stored.size,
+        uploadedById: c.get("user").id,
+      },
+    });
+    await prisma.mediaItem.update({
+      where: { id: c.req.param("id") },
+      data: { coverImageUrl: stored.url },
+    });
+    return c.json({ coverImageUrl: stored.url });
+  },
+);
 
 media.get("/:id", async (c) => {
   const prisma = c.get("prisma");

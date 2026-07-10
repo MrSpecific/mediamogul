@@ -21,7 +21,12 @@ export function AppLayout() {
               <NavLink to="/catalog">Catalog</NavLink>
               <NavLink to="/lists">Lists</NavLink>
               <NavLink to="/settings">Settings</NavLink>
-              <UserButton />
+              <span className="user-full">
+                <UserButton size="sm" />
+              </span>
+              <span className="user-compact">
+                <UserButton size="icon" />
+              </span>
             </Flex>
           </SignedIn>
           <SignedOut>
