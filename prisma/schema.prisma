@@ -145,6 +145,8 @@ model MediaItem {
   episodes       Int? // tv
 
   source      MediaSource @default(USER_SUBMITTED)
+  visibility  Visibility  @default(PUBLIC)
+  archivedAt  DateTime?   @map("archived_at")
   createdById String?     @map("created_by_id")
   createdBy   User?       @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime    @default(now()) @map("created_at")

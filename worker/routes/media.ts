@@ -6,6 +6,7 @@ import { lookupBookByIsbn } from "../services/scrape";
 import { uploadImage } from "../services/storage";
 import { searchCovers } from "../services/covers";
 import { linkGenres, resolveGenreId } from "../services/genres";
+import { requireAdmin } from "../auth";
 import {
   creditRole,
   entryStatus,
@@ -128,7 +129,11 @@ media.get(
   ),
   async (c) => {
     const { types, q, limit, cursor } = c.req.valid("query");
-    const where: Prisma.MediaItemWhereInput = {};
+    // Public catalog hides archived + non-public items.
+    const where: Prisma.MediaItemWhereInput = {
+      archivedAt: null,
+      visibility: "PUBLIC",
+    };
     if (types !== undefined) {
       const valid = new Set<string>(mediaType.options);
       where.type = {

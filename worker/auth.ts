@@ -48,9 +48,30 @@ export async function verifyToken(
   };
 }
 
-/** Admin = the NeonDB `admin` role carried in the JWT `role` claim. */
+// App roles come from the NeonDB `role` claim in the JWT. Hierarchy:
+// admin > editor > contributor > user. editor/contributor are defined for
+// later use (content curation) — only `admin` is enforced anywhere today.
+export type AppRole = "admin" | "editor" | "contributor" | "user";
+
+const ROLE_RANK: Record<AppRole, number> = {
+  user: 0,
+  contributor: 1,
+  editor: 2,
+  admin: 3,
+};
+
+export function getRole(user: AuthUser): AppRole {
+  const r = user.payload.role;
+  return r === "admin" || r === "editor" || r === "contributor" ? r : "user";
+}
+
+/** True if the user's role is at least `min` in the hierarchy. */
+export function hasRole(user: AuthUser, min: AppRole): boolean {
+  return ROLE_RANK[getRole(user)] >= ROLE_RANK[min];
+}
+
 export function isAdmin(user: AuthUser): boolean {
-  return user.payload.role === "admin";
+  return hasRole(user, "admin");
 }
 
 export type AuthVariables = { user: AuthUser };
@@ -76,11 +97,16 @@ export const requireAuth = createMiddleware<{
   await next();
 });
 
-/** Requires the NeonDB `admin` role (runs after requireAuth). */
-export const requireAdmin = createMiddleware<{
-  Bindings: Env;
-  Variables: AuthVariables;
-}>(async (c, next) => {
-  if (!isAdmin(c.get("user"))) return c.json({ error: "forbidden" }, 403);
-  await next();
-});
+/** Requires at least the given role (runs after requireAuth). */
+export const requireRole = (min: AppRole) =>
+  createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(
+    async (c, next) => {
+      if (!hasRole(c.get("user"), min)) {
+        return c.json({ error: "forbidden" }, 403);
+      }
+      await next();
+    },
+  );
+
+/** Requires the NeonDB `admin` role. */
+export const requireAdmin = requireRole("admin");
