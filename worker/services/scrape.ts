@@ -30,6 +30,7 @@ export interface MediaCandidate {
   seasons?: number;
   episodes?: number;
   genre?: string;
+  genreIds?: string[];
   credits?: CandidateCredit[];
   externalIds: { source: ExternalSource; value: string; url?: string }[];
 }

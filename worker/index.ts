@@ -7,6 +7,7 @@ import { media } from "./routes/media";
 import { lists } from "./routes/lists";
 import { lookup } from "./routes/lookup";
 import { series } from "./routes/series";
+import { genres } from "./routes/genres";
 import { billing, handleStripeWebhook } from "./routes/billing";
 import type { AppEnv } from "./types";
 
@@ -51,6 +52,7 @@ api.route("/media", media);
 api.route("/lists", lists);
 api.route("/lookup", lookup);
 api.route("/series", series);
+api.route("/genres", genres);
 api.route("/billing", billing);
 
 app.route("/api", api);

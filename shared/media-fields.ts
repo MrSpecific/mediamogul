@@ -21,13 +21,7 @@ export type CreditRole =
 
 /** A first-class MediaItem column worth surfacing for a type. */
 export interface FieldSpec {
-  key:
-    | "publisher"
-    | "pageCount"
-    | "runtimeMinutes"
-    | "seasons"
-    | "episodes"
-    | "genre";
+  key: "publisher" | "pageCount" | "runtimeMinutes" | "seasons" | "episodes";
   label: string;
   format?: "runtime" | "text";
 }
@@ -71,7 +65,6 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
       { role: "CAST", label: "Cast" },
     ],
     fields: [
-      { key: "genre", label: "Genre" },
       { key: "runtimeMinutes", label: "Runtime", format: "runtime" },
     ],
   },
@@ -88,7 +81,6 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
       { role: "CAST", label: "Cast" },
     ],
     fields: [
-      { key: "genre", label: "Genre" },
       { key: "seasons", label: "Seasons" },
       { key: "episodes", label: "Episodes" },
       { key: "runtimeMinutes", label: "Episode length", format: "runtime" },
@@ -107,7 +99,6 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
       { role: "EDITOR", label: "Editor" },
     ],
     fields: [
-      { key: "genre", label: "Genre" },
       { key: "pageCount", label: "Pages" },
       { key: "publisher", label: "Publisher" },
     ],
@@ -124,7 +115,6 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
       { role: "NARRATOR", label: "Narrator" },
     ],
     fields: [
-      { key: "genre", label: "Genre" },
       { key: "runtimeMinutes", label: "Length", format: "runtime" },
       { key: "publisher", label: "Publisher" },
     ],
@@ -141,7 +131,6 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
       { role: "AUTHOR", label: "Contributor" },
     ],
     fields: [
-      { key: "genre", label: "Category" },
       { key: "publisher", label: "Publisher" },
     ],
   },

@@ -1,6 +1,9 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
+import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { StatusBadge } from "../components/StatusBadge";
+import { formatDate, timeAgo } from "../lib/time";
 import type { MediaEntry, Profile } from "../lib/types";
 
 export function HomePage() {
@@ -32,21 +35,36 @@ export function HomePage() {
             Nothing logged yet — find something in the catalog and log it.
           </Text>
         )}
-        {entries?.map((e) => (
-          <Card key={e.id} size="2">
-            <Link to={`/media/${e.mediaItem?.id}`} className="media-card-link">
-              <Flex justify="space-between" align="center" gap="3">
-                <Text weight="medium">{e.mediaItem?.title ?? "Unknown"}</Text>
-                <Text size="1" color="gray">
-                  {e.status}
-                  {e.finishedAt
-                    ? ` · ${new Date(e.finishedAt).toLocaleDateString()}`
-                    : ""}
-                </Text>
-              </Flex>
-            </Link>
-          </Card>
-        ))}
+        {entries?.map((e) => {
+          const when = e.finishedAt ?? e.startedAt;
+          return (
+            <Card key={e.id} size="2">
+              <Link to={`/media/${e.mediaItem?.id}`} className="media-card-link">
+                <Flex
+                  justify="space-between"
+                  align="center"
+                  gap="3"
+                  wrap="wrap"
+                >
+                  <Flex gap="3" align="center">
+                    {e.mediaItem && <MediaTypeBadge type={e.mediaItem.type} />}
+                    <Text weight="medium">
+                      {e.mediaItem?.title ?? "Unknown"}
+                    </Text>
+                  </Flex>
+                  <Flex gap="2" align="center">
+                    <StatusBadge status={e.status} />
+                    {when && (
+                      <Text size="1" color="gray" title={formatDate(when)}>
+                        {timeAgo(when)}
+                      </Text>
+                    )}
+                  </Flex>
+                </Flex>
+              </Link>
+            </Card>
+          );
+        })}
       </Flex>
     </Flex>
   );

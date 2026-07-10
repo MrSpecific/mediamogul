@@ -21,11 +21,11 @@ import { MediaPicker } from "../components/MediaPicker";
 import { MarkCompleteDialog } from "../components/MarkCompleteDialog";
 import { AddToListDialog } from "../components/AddToListDialog";
 import { CoverFinderDialog } from "../components/CoverFinderDialog";
+import { StatusBadge } from "../components/StatusBadge";
 import { MEDIA_FIELDS, formatFieldValue } from "../../shared/media-fields";
 import { timeAgo } from "../lib/time";
 import {
   RELATION_LABELS,
-  type EntryStatus,
   type ListSummary,
   type MediaDetail,
   type MediaEntry,
@@ -34,14 +34,6 @@ import {
   type Review,
   type Visibility,
 } from "../lib/types";
-
-const STATUS_LABELS: Record<EntryStatus, string> = {
-  PLANNED: "Planned",
-  IN_PROGRESS: "In progress",
-  ON_HOLD: "On hold",
-  COMPLETED: "Completed",
-  ABANDONED: "Abandoned",
-};
 
 /** Headline credit line (e.g. "Directed by …"), from the type's primary role. */
 function bylineOf(data: MediaDetail): string | undefined {
@@ -268,6 +260,16 @@ export function MediaDetailPage() {
             </Flex>
           )}
 
+          {data.genres.length > 0 && (
+            <Flex gap="2" wrap="wrap">
+              {data.genres.map((g) => (
+                <Badge key={g.id} variant="soft" color="gray">
+                  {g.name}
+                </Badge>
+              ))}
+            </Flex>
+          )}
+
           {data.synopsis && <Text>{data.synopsis}</Text>}
 
           <Flex gap="2" wrap="wrap" align="center">
@@ -383,9 +385,7 @@ export function MediaDetailPage() {
               <Flex direction="column" gap="1">
                 <Flex justify="space-between" gap="2" wrap="wrap" align="center">
                   <Flex gap="2" align="center">
-                    <Badge variant="soft" size="1">
-                      {STATUS_LABELS[e.status]}
-                    </Badge>
+                    <StatusBadge status={e.status} />
                     {e.progress && (
                       <Text size="1" color="gray">
                         {e.progress}
@@ -393,11 +393,7 @@ export function MediaDetailPage() {
                     )}
                   </Flex>
                   <Text size="1" color="gray">
-                    {e.finishedAt
-                      ? new Date(e.finishedAt).toLocaleDateString()
-                      : e.startedAt
-                        ? `Started ${new Date(e.startedAt).toLocaleDateString()}`
-                        : ""}
+                    {timeAgo(e.finishedAt ?? e.startedAt)}
                   </Text>
                 </Flex>
                 {e.note && <Text size="2">{e.note}</Text>}

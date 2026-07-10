@@ -48,6 +48,11 @@ export async function verifyToken(
   };
 }
 
+/** Admin = the NeonDB `admin` role carried in the JWT `role` claim. */
+export function isAdmin(user: AuthUser): boolean {
+  return user.payload.role === "admin";
+}
+
 export type AuthVariables = { user: AuthUser };
 
 /**
@@ -68,5 +73,14 @@ export const requireAuth = createMiddleware<{
   } catch {
     return c.json({ error: "Unauthorized", reason: "invalid token" }, 401);
   }
+  await next();
+});
+
+/** Requires the NeonDB `admin` role (runs after requireAuth). */
+export const requireAdmin = createMiddleware<{
+  Bindings: Env;
+  Variables: AuthVariables;
+}>(async (c, next) => {
+  if (!isAdmin(c.get("user"))) return c.json({ error: "forbidden" }, 403);
   await next();
 });

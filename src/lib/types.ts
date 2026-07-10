@@ -33,7 +33,14 @@ export interface MediaItem {
   runtimeMinutes: number | null;
   seasons: number | null;
   episodes: number | null;
-  genre: string | null;
+}
+
+export interface Genre {
+  id: string;
+  name: string;
+  slug: string;
+  applicableTypes: MediaType[];
+  _count?: { media: number };
 }
 
 export type CreditRole =
@@ -111,6 +118,7 @@ export const RELATION_LABELS: Record<MediaRelationType, string> = {
 export interface MediaDetail extends MediaItem {
   externalIds: ExternalId[];
   credits: Credit[];
+  genres: { id: string; name: string; slug: string }[];
   related: RelatedMedia[];
   series: SeriesMembership[];
   createdAt: string;
@@ -138,6 +146,7 @@ export interface MediaCandidate {
   seasons?: number;
   episodes?: number;
   genre?: string;
+  genreIds?: string[];
   credits?: { role: CreditRole; name: string; externalId?: string }[];
   externalIds: { source: string; value: string; url?: string }[];
   /** Set by /api/lookup when this candidate is already in the catalog. */
@@ -168,6 +177,7 @@ export interface Profile {
   displayName: string | null;
   bio: string | null;
   avatarUrl: string | null;
+  isAdmin?: boolean;
   isFollowing?: boolean;
   _count?: {
     followers: number;

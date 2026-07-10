@@ -2,15 +2,16 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { getOrCreateUser } from "../db";
+import { isAdmin } from "../auth";
 import { username } from "../schemas";
 import type { AppEnv } from "../types";
 
 export const me = new Hono<AppEnv>();
 
-/** Current user's profile (created on first call). */
+/** Current user's profile (created on first call), plus admin flag. */
 me.get("/", async (c) => {
   const profile = await getOrCreateUser(c.get("prisma"), c.get("user"));
-  return c.json(profile);
+  return c.json({ ...profile, isAdmin: isAdmin(c.get("user")) });
 });
 
 me.patch(

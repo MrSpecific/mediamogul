@@ -9,10 +9,14 @@ import {
   Input,
   Text,
   Textarea,
+  Toggle,
+  ToggleGroup,
 } from "@wlcr/base-ic";
 import { apiSend, apiUpload } from "../lib/api";
+import { useApiData } from "../lib/hooks";
 import { SegmentedControl } from "./SegmentedControl";
 import { MEDIA_FIELDS, type MediaType } from "../../shared/media-fields";
+import type { Genre } from "../lib/types";
 
 const TYPE_OPTIONS = (Object.keys(MEDIA_FIELDS) as MediaType[]).map((value) => ({
   value,
@@ -30,12 +34,20 @@ export function ManualMediaForm() {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [credits, setCredits] = useState<Record<string, string>>({});
+  const [genreIds, setGenreIds] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const cfg = MEDIA_FIELDS[type];
+  const { data: genres } = useApiData<Genre[]>(`/genres?type=${type}`);
+
+  // Reset genre selection when the type changes (available genres differ).
+  const changeType = (t: MediaType) => {
+    setType(t);
+    setGenreIds([]);
+  };
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;

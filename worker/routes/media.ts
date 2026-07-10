@@ -5,6 +5,7 @@ import { type MediaType, Prisma } from "../generated/prisma/client";
 import { lookupBookByIsbn } from "../services/scrape";
 import { uploadImage } from "../services/storage";
 import { searchCovers } from "../services/covers";
+import { linkGenres, resolveGenreId } from "../services/genres";
 import {
   creditRole,
   entryStatus,
@@ -44,7 +45,10 @@ const mediaInput = z.object({
   runtimeMinutes: z.number().int().optional(),
   seasons: z.number().int().optional(),
   episodes: z.number().int().optional(),
+  // `genre` is a transient scrape passthrough (resolved to a Genre on save);
+  // `genreIds` are chosen explicitly (manual form).
   genre: z.string().max(100).optional(),
+  genreIds: z.array(z.string()).optional(),
   credits: z.array(creditInput).optional(),
   externalIds: z.array(externalIdInput).optional(),
 });
@@ -56,16 +60,16 @@ type CreditInput = z.infer<typeof creditInput>;
 const withRelations = {
   externalIds: true,
   credits: { orderBy: { position: "asc" } },
+  genres: { include: { genre: true } },
 } satisfies Prisma.MediaItemInclude;
 
-/** Column fields shared by create/import (people + external ids are separate). */
+/** Column fields shared by create/import (people, genres, ids are separate). */
 function columnData(d: {
   publisher?: string;
   pageCount?: number;
   runtimeMinutes?: number;
   seasons?: number;
   episodes?: number;
-  genre?: string;
 }) {
   return {
     publisher: d.publisher,
@@ -73,8 +77,19 @@ function columnData(d: {
     runtimeMinutes: d.runtimeMinutes,
     seasons: d.seasons,
     episodes: d.episodes,
-    genre: d.genre,
   };
+}
+
+/** Resolve a scrape `genre` string + explicit `genreIds` and link them. */
+async function saveGenres(
+  prisma: AppEnv["Variables"]["prisma"],
+  mediaItemId: string,
+  type: MediaType,
+  opts: { genre?: string; genreIds?: string[] },
+) {
+  const ids = [...(opts.genreIds ?? [])];
+  if (opts.genre) ids.push(await resolveGenreId(prisma, opts.genre, type));
+  await linkGenres(prisma, mediaItemId, ids);
 }
 
 /** Insert external ids + credits for a media item (no interactive txn needed). */
@@ -152,6 +167,10 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
     },
   });
   await saveRelations(prisma, created.id, data.externalIds, data.credits);
+  await saveGenres(prisma, created.id, data.type, {
+    genre: data.genre,
+    genreIds: data.genreIds,
+  });
   const item = await prisma.mediaItem.findUnique({
     where: { id: created.id },
     include: withRelations,
@@ -206,6 +225,10 @@ media.post(
       },
     });
     await saveRelations(prisma, created.id, cand.externalIds, cand.credits);
+    await saveGenres(prisma, created.id, cand.type, {
+      genre: cand.genre,
+      genreIds: cand.genreIds,
+    });
     const item = await prisma.mediaItem.findUnique({
       where: { id: created.id },
       include: withRelations,
@@ -340,7 +363,8 @@ media.get("/:id", async (c) => {
   ]);
   if (!item) return c.json({ error: "not_found" }, 404);
 
-  const { relationsFrom, relationsTo, seriesEntries, ...rest } = item;
+  const { relationsFrom, relationsTo, seriesEntries, genres, ...rest } = item;
+  const genreList = genres.map((g) => g.genre);
   const related = [
     ...relationsFrom.map((r) => ({
       id: r.id,
@@ -362,6 +386,7 @@ media.get("/:id", async (c) => {
 
   return c.json({
     ...rest,
+    genres: genreList,
     related,
     series,
     averageRating: agg._avg.stars == null ? null : Number(agg._avg.stars),
