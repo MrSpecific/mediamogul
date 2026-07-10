@@ -1,0 +1,2 @@
+# Copy to `.dev.vars` and fill in your Neon connection string (read by the Worker in dev).
+DATABASE_URL="postgresql://user:password@ep-xxxx-pooler.region.aws.neon.tech/dbname?sslmode=require"

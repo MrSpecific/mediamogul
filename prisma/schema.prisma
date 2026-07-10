@@ -1,0 +1,271 @@
+// mediamogul — media consumption tracking platform.
+// Prisma 7 schema, Rust-free `prisma-client` generator targeting Cloudflare Workers.
+// Docs: https://www.prisma.io/docs/orm/prisma-client/deployment/edge/deploy-to-cloudflare
+//
+// Convention: Prisma-style names in this file (PascalCase models, camelCase
+// fields) mapped to snake_case tables/columns in Postgres via @@map / @map.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../worker/generated/prisma"
+  runtime      = "workerd"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum MediaType {
+  MOVIE
+  TV_SHOW
+  BOOK
+  MAGAZINE
+}
+
+/// How a catalog item got here.
+enum MediaSource {
+  OFFICIAL // curated / trusted
+  USER_SUBMITTED // added by a user by hand
+  SCRAPED // imported from a public source
+}
+
+/// External catalog cross-references.
+enum ExternalSource {
+  IMDB
+  TMDB
+  GOODREADS
+  ISBN
+  OPEN_LIBRARY
+  WIKIDATA
+  CUSTOM
+}
+
+/// State of a single consumption record (a user can have many per media).
+enum EntryStatus {
+  PLANNED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  ABANDONED
+}
+
+enum Visibility {
+  PRIVATE
+  UNLISTED
+  PUBLIC
+}
+
+// ---------------------------------------------------------------------------
+// Users (profile). `id` is the Neon Auth user id (JWT `sub`); rows are
+// upserted on first authenticated request. Neon Auth also maintains its own
+// `neon_auth.users_sync` table — this is our app-owned profile alongside it.
+// ---------------------------------------------------------------------------
+
+model User {
+  id          String   @id // Neon Auth user id
+  username    String   @unique
+  displayName String?  @map("display_name")
+  bio         String?
+  avatarUrl   String?  @map("avatar_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  addedMedia MediaItem[]  @relation("MediaCreatedBy")
+  entries    MediaEntry[]
+  ratings    Rating[]
+  reviews    Review[]
+  lists      MediaList[]
+  savedLists SavedList[]
+  following  Follow[]     @relation("follower") // rows where this user follows someone
+  followers  Follow[]     @relation("following") // rows where this user is followed
+
+  @@index([username])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Media catalog
+// ---------------------------------------------------------------------------
+
+model MediaItem {
+  id               String      @id @default(uuid())
+  type             MediaType
+  title            String
+  sortTitle        String?     @map("sort_title")
+  coverImageUrl    String?     @map("cover_image_url")
+  shortDescription String?     @map("short_description") // one/two-liner for cards
+  synopsis         String? // full description
+  releaseDate      DateTime?   @map("release_date")
+  originalLanguage String?     @map("original_language")
+  /// Type-specific attributes not worth a first-class column, e.g.
+  /// movie: { runtimeMinutes }, tv: { seasons, episodes }, book: { author, isbn, pageCount },
+  /// magazine: { publisher, issueNumber, frequency }.
+  metadata         Json?
+  source           MediaSource @default(USER_SUBMITTED)
+  createdById      String?     @map("created_by_id")
+  createdBy        User?       @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  externalIds ExternalId[]
+  entries     MediaEntry[]
+  ratings     Rating[]
+  reviews     Review[]
+  listItems   MediaListItem[]
+
+  @@index([type])
+  @@index([title])
+  @@index([createdById])
+  @@map("media_items")
+}
+
+model ExternalId {
+  id          String         @id @default(uuid())
+  mediaItemId String         @map("media_item_id")
+  mediaItem   MediaItem      @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  source      ExternalSource
+  value       String
+  url         String?
+
+  @@unique([source, value]) // one catalog item per external id
+  @@unique([mediaItemId, source]) // one id per source per item
+  @@index([mediaItemId])
+  @@map("external_ids")
+}
+
+// ---------------------------------------------------------------------------
+// User activity
+// ---------------------------------------------------------------------------
+
+/// A single watch/read/listen. Multiple rows per (user, media) enable rewatches.
+model MediaEntry {
+  id            String      @id @default(uuid())
+  userId        String      @map("user_id")
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaItemId   String      @map("media_item_id")
+  mediaItem     MediaItem   @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  status        EntryStatus @default(COMPLETED)
+  startedAt     DateTime?   @map("started_at")
+  finishedAt    DateTime?   @map("finished_at")
+  /// Free-form progress marker, e.g. "S2E4" or "p. 210".
+  progress      String?
+  progressValue Int?        @map("progress_value")
+  progressUnit  String?     @map("progress_unit") // "episode" | "page" | "chapter" | "minute" | ...
+  note          String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@index([userId, mediaItemId])
+  @@index([mediaItemId])
+  @@index([userId, finishedAt])
+  @@map("media_entries")
+}
+
+/// 0.5–5 star rating in half-star steps (one per user per media).
+model Rating {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaItemId String    @map("media_item_id")
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  stars       Decimal   @db.Decimal(2, 1)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, mediaItemId])
+  @@index([mediaItemId])
+  @@map("ratings")
+}
+
+model Review {
+  id               String     @id @default(uuid())
+  userId           String     @map("user_id")
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaItemId      String     @map("media_item_id")
+  mediaItem        MediaItem  @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  title            String?
+  body             String
+  visibility       Visibility @default(PUBLIC)
+  containsSpoilers Boolean    @default(false) @map("contains_spoilers")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  @@unique([userId, mediaItemId])
+  @@index([mediaItemId, visibility])
+  @@map("reviews")
+}
+
+// ---------------------------------------------------------------------------
+// Social
+// ---------------------------------------------------------------------------
+
+model Follow {
+  followerId  String   @map("follower_id")
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String   @map("following_id")
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+// ---------------------------------------------------------------------------
+// Lists
+// ---------------------------------------------------------------------------
+
+model MediaList {
+  id          String     @id @default(uuid())
+  ownerId     String     @map("owner_id")
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  visibility  Visibility @default(PRIVATE)
+  /// Which media types may be added. Empty = any type allowed.
+  allowedTypes MediaType[] @map("allowed_types")
+  ranked      Boolean    @default(false)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  items   MediaListItem[]
+  savedBy SavedList[]
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@map("media_lists")
+}
+
+model MediaListItem {
+  id          String    @id @default(uuid())
+  listId      String    @map("list_id")
+  list        MediaList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  mediaItemId String    @map("media_item_id")
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  position    Int       @default(0)
+  note        String?
+  addedAt     DateTime  @default(now()) @map("added_at")
+
+  @@unique([listId, mediaItemId])
+  @@index([listId])
+  @@map("media_list_items")
+}
+
+/// A user following/saving someone else's list. (Collaborative editing of
+/// shared lists is a future addition — see PLAN.md.)
+model SavedList {
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listId    String    @map("list_id")
+  list      MediaList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@id([userId, listId])
+  @@index([listId])
+  @@map("saved_lists")
+}
