@@ -17,6 +17,7 @@ import { ListsPage } from "./pages/ListsPage";
 import { ListDetailPage } from "./pages/ListDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { AdminGenresPage } from "./pages/AdminGenresPage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -40,6 +41,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/lists/:id" element={<ListDetailPage />} />
               <Route path="/u/:username" element={<ProfilePage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/admin/genres" element={<AdminGenresPage />} />
             </Route>
           </Routes>
         </AuthProvider>

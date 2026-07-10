@@ -1,9 +1,12 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { SignedIn, SignedOut, UserButton } from "@neondatabase/auth/react";
 import { Button, Container, Flex, Heading, Text } from "@wlcr/base-ic";
+import { useApiData } from "../lib/hooks";
+import type { Profile } from "../lib/types";
 
 export function AppLayout() {
   const navigate = useNavigate();
+  const { data: me } = useApiData<Profile>("/me");
   return (
     <div className="layout">
       <header className="topbar">
@@ -21,6 +24,7 @@ export function AppLayout() {
               <NavLink to="/catalog">Catalog</NavLink>
               <NavLink to="/lists">Lists</NavLink>
               <NavLink to="/settings">Settings</NavLink>
+              {me?.isAdmin && <NavLink to="/admin/genres">Admin</NavLink>}
               <span className="user-full">
                 <UserButton size="sm" />
               </span>

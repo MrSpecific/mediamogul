@@ -86,6 +86,7 @@ export function ManualMediaForm() {
         .map((name) => ({ role: cr.role, name })),
     );
     if (creditList.length) payload.credits = creditList;
+    if (genreIds.length) payload.genreIds = genreIds;
 
     try {
       const item = await apiSend<{ id: string }>("POST", "/media", payload);
@@ -105,7 +106,7 @@ export function ManualMediaForm() {
           <SegmentedControl
             ariaLabel="Media type"
             value={type}
-            onChange={setType}
+            onChange={changeType}
             options={TYPE_OPTIONS}
           />
         </Field>
@@ -176,6 +177,22 @@ export function ManualMediaForm() {
             />
           </Field>
         ))}
+
+        {genres && genres.length > 0 && (
+          <Field label="Genres" description="Choose any that apply">
+            <ToggleGroup
+              multiple
+              value={genreIds}
+              onValueChange={(v: unknown[]) => setGenreIds(v as string[])}
+            >
+              {genres.map((g) => (
+                <Toggle key={g.id} value={g.id}>
+                  {g.name}
+                </Toggle>
+              ))}
+            </ToggleGroup>
+          </Field>
+        )}
 
         <Field label="Synopsis">
           <Textarea
