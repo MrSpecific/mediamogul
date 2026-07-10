@@ -46,10 +46,16 @@ export function CoverFinderDialog({
     }
   };
 
-  const pick = async (url: string) => {
-    setSavingUrl(url);
+  const pick = async (c: CoverCandidate) => {
+    setSavingUrl(c.url);
     try {
-      await apiSend("POST", `/media/${mediaId}/cover`, { imageUrl: url });
+      await apiSend("POST", `/media/${mediaId}/cover`, {
+        imageUrl: c.url,
+        sourceName: c.source,
+        sourceUrl: c.sourceUrl,
+        license: c.license,
+        creator: c.creator,
+      });
       onChanged?.();
       onOpenChange(false);
     } catch {
@@ -97,7 +103,7 @@ export function CoverFinderDialog({
                 type="button"
                 className="cover-option"
                 disabled={savingUrl !== null}
-                onClick={() => void pick(r.url)}
+                onClick={() => void pick(r)}
                 title={[r.title, r.license, r.creator && `by ${r.creator}`]
                   .filter(Boolean)
                   .join(" · ")}

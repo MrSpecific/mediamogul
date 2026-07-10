@@ -1,8 +1,7 @@
-// Finds Creative-Commons-licensed images via Openverse — a keyless aggregator
-// of CC/public-domain images from Flickr, Wikimedia Commons, museums, and more.
-// Filtered to commercially-usable licenses (important for this app). Official
-// posters are copyrighted and won't appear; results are CC alternatives the
-// user picks from.
+// Finds Creative-Commons / public-domain images via Wikimedia Commons. Commons
+// is all-free by policy and reachable from Workers (same infra as our Wikidata
+// calls, unlike Openverse which blocks Cloudflare egress). Official posters are
+// copyrighted and won't appear — results are CC alternatives the user picks.
 
 export interface CoverCandidate {
   url: string;
@@ -10,21 +9,52 @@ export interface CoverCandidate {
   title?: string;
   creator?: string;
   license?: string;
-  source?: string;
+  source: string;
   sourceUrl?: string;
 }
 
-const OPENVERSE = "https://api.openverse.org/v1/images/";
+const COMMONS = "https://commons.wikimedia.org/w/api.php";
+
+interface CommonsPage {
+  title?: string;
+  imageinfo?: {
+    url?: string;
+    thumburl?: string;
+    descriptionurl?: string;
+    mediatype?: string;
+    extmetadata?: {
+      LicenseShortName?: { value?: string };
+      Artist?: { value?: string };
+    };
+  }[];
+}
+
+const stripHtml = (s?: string): string | undefined =>
+  s
+    ? s
+        .replace(/<[^>]*>/g, "")
+        .replace(/\s+/g, " ")
+        .trim() || undefined
+    : undefined;
 
 export async function searchCovers(query: string): Promise<CoverCandidate[]> {
   const q = query.trim();
   if (!q) return [];
 
-  const url = new URL(OPENVERSE);
-  url.searchParams.set("q", q);
-  // Only licenses that permit commercial use.
-  url.searchParams.set("license_type", "commercial");
-  url.searchParams.set("page_size", "24");
+  const url = new URL(COMMONS);
+  const params: Record<string, string> = {
+    action: "query",
+    format: "json",
+    origin: "*",
+    generator: "search",
+    gsrnamespace: "6", // File: namespace
+    gsrsearch: q,
+    gsrlimit: "24",
+    prop: "imageinfo",
+    iiprop: "url|extmetadata|mediatype",
+    iiurlwidth: "300",
+  };
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
   const res = await fetch(url, {
     headers: {
@@ -32,32 +62,32 @@ export async function searchCovers(query: string): Promise<CoverCandidate[]> {
       "User-Agent": "mediamogul/1.0 (media consumption tracker)",
     },
   });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    console.error("Commons cover search failed", res.status);
+    return [];
+  }
   const data = (await res.json()) as {
-    results?: {
-      url?: string;
-      thumbnail?: string;
-      title?: string;
-      creator?: string;
-      license?: string;
-      license_version?: string;
-      source?: string;
-      foreign_landing_url?: string;
-    }[];
+    query?: { pages?: Record<string, CommonsPage> };
   };
 
-  return (data.results ?? [])
-    .filter((r): r is { url: string } & typeof r => Boolean(r.url))
-    .map((r) => ({
-      url: r.url,
-      thumbnail: r.thumbnail ?? r.url,
-      title: r.title,
-      creator: r.creator,
-      license: [r.license, r.license_version]
-        .filter(Boolean)
-        .join(" ")
-        .toUpperCase(),
-      source: r.source,
-      sourceUrl: r.foreign_landing_url,
-    }));
+  return Object.values(data.query?.pages ?? {}).flatMap((p) => {
+    const info = p.imageinfo?.[0];
+    if (!info?.url) return [];
+    // Skip non-image files (video/audio/pdf).
+    if (info.mediatype && info.mediatype !== "BITMAP" && info.mediatype !== "DRAWING") {
+      return [];
+    }
+    const ex = info.extmetadata ?? {};
+    return [
+      {
+        url: info.url,
+        thumbnail: info.thumburl ?? info.url,
+        title: p.title?.replace(/^File:/, ""),
+        creator: stripHtml(ex.Artist?.value),
+        license: ex.LicenseShortName?.value,
+        source: "Wikimedia Commons",
+        sourceUrl: info.descriptionurl,
+      },
+    ];
+  });
 }

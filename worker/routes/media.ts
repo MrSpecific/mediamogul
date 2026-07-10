@@ -251,10 +251,20 @@ media.get("/:id/cover-options", async (c) => {
 /** Ingest a chosen (CC-licensed) image into R2 and set it as the cover. */
 media.post(
   "/:id/cover",
-  zValidator("json", z.object({ imageUrl: z.string().url() })),
+  zValidator(
+    "json",
+    z.object({
+      imageUrl: z.string().url(),
+      sourceName: z.string().optional(),
+      sourceUrl: z.string().url().optional(),
+      license: z.string().optional(),
+      creator: z.string().optional(),
+    }),
+  ),
   async (c) => {
     const prisma = c.get("prisma");
-    const { imageUrl } = c.req.valid("json");
+    const { imageUrl, sourceName, sourceUrl, license, creator } =
+      c.req.valid("json");
     const res = await fetch(imageUrl).catch(() => null);
     if (!res || !res.ok) return c.json({ error: "fetch_failed" }, 400);
     const contentType = res.headers.get("content-type")?.split(";")[0] ?? "";
@@ -273,6 +283,10 @@ media.post(
         url: stored.url,
         contentType: stored.contentType,
         size: stored.size,
+        sourceName,
+        sourceUrl,
+        license,
+        creator,
         uploadedById: c.get("user").id,
       },
     });

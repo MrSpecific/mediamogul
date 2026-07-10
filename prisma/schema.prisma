@@ -255,6 +255,11 @@ model MediaAsset {
   url          String // delivery URL (Worker /uploads/<key> for R2)
   contentType  String?  @map("content_type")
   size         Int?
+  // Provenance for images sourced from CC libraries (attribution).
+  sourceName   String?  @map("source_name") // e.g. "Wikimedia Commons"
+  sourceUrl    String?  @map("source_url") // attribution/description page
+  license      String? // e.g. "CC BY-SA 4.0", "Public domain"
+  creator      String? // attribution
   uploadedById String?  @map("uploaded_by_id")
   uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now()) @map("created_at")
