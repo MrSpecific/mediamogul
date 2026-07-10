@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { SignedIn, SignedOut, UserButton } from "@neondatabase/auth/react";
 import { Button, Container, Flex, Heading, Text } from "@wlcr/base-ic";
+import { LogoMark } from "./Logo";
 import { useApiData } from "../lib/hooks";
 import type { Profile } from "../lib/types";
 
@@ -16,7 +17,12 @@ export function AppLayout() {
           justify="space-between"
           gap="4"
         >
-          <Link to="/" className="brand">
+          <Link
+            to="/"
+            className="brand"
+            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
+            <LogoMark size={24} />
             mediamogul
           </Link>
           <SignedIn>
@@ -48,6 +54,7 @@ export function AppLayout() {
         <SignedOut>
           <Container>
             <Flex direction="column" gap="4" align="center" className="hero">
+              <LogoMark size={56} />
               <Heading size="8" align="center">
                 Track everything you watch, read, and listen to.
               </Heading>
