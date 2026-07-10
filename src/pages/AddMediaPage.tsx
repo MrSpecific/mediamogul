@@ -19,7 +19,7 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
 const SOURCE_OPTIONS: { value: Source; label: string }[] = [
   { value: "open_library", label: "Books" },
   { value: "wikidata", label: "Movies & TV" },
-  { value: "tmdb", label: "TMDB" },
+  // { value: "tmdb", label: "TMDB" },
 ];
 
 /** Headline credit (author/director/creator) from the type's primary role. */
@@ -93,8 +93,7 @@ export function AddMediaPage() {
           <Text color="gray">
             Search a public source — we pull in the cover, description, and
             external IDs automatically. Books use Open Library; movies & TV use
-            Wikidata (both free to use). TMDB is richer but needs a commercial
-            license.
+            Wikidata.
           </Text>
 
           <SegmentedControl
@@ -104,93 +103,93 @@ export function AddMediaPage() {
             options={SOURCE_OPTIONS}
           />
 
-      <Flex
-        as="form"
-        gap="3"
-        wrap="wrap"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void search();
-        }}
-      >
-        <Input
-          placeholder={
-            source === "open_library"
-              ? "Title, author, or ISBN…"
-              : "Movie or TV title…"
-          }
-          value={q}
-          onChange={(e) => setQ(e.currentTarget.value)}
-        />
-        <Button type="submit" loading={busy}>
-          Search
-        </Button>
-      </Flex>
+          <Flex
+            as="form"
+            gap="3"
+            wrap="wrap"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void search();
+            }}
+          >
+            <Input
+              placeholder={
+                source === "open_library"
+                  ? "Title, author, or ISBN…"
+                  : "Movie or TV title…"
+              }
+              value={q}
+              onChange={(e) => setQ(e.currentTarget.value)}
+            />
+            <Button type="submit" loading={busy}>
+              Search
+            </Button>
+          </Flex>
 
-      {error && <Text color="red">{error}</Text>}
+          {error && <Text color="red">{error}</Text>}
 
-      <Flex direction="column" gap="2">
-        {results?.map((c, i) => {
-          const author = byline(c);
-          return (
-            <Card key={`${c.title}-${i}`} size="2">
-              <Flex gap="3" align="center" justify="space-between">
-                <Flex gap="3" align="center">
-                  {c.coverImageUrl && (
-                    <img
-                      src={c.coverImageUrl}
-                      alt=""
-                      width={44}
-                      height={66}
-                      style={{ objectFit: "cover", borderRadius: 4 }}
-                    />
-                  )}
-                  <Flex direction="column" gap="1">
-                    <Flex gap="2" align="center" wrap="wrap">
-                      <MediaTypeBadge type={c.type} />
-                      {c.releaseDate && (
-                        <Text size="1" color="gray">
-                          {c.releaseDate.slice(0, 4)}
-                        </Text>
+          <Flex direction="column" gap="2">
+            {results?.map((c, i) => {
+              const author = byline(c);
+              return (
+                <Card key={`${c.title}-${i}`} size="2">
+                  <Flex gap="3" align="center" justify="space-between">
+                    <Flex gap="3" align="center">
+                      {c.coverImageUrl && (
+                        <img
+                          src={c.coverImageUrl}
+                          alt=""
+                          width={44}
+                          height={66}
+                          style={{ objectFit: "cover", borderRadius: 4 }}
+                        />
                       )}
-                      {c.existingId && (
-                        <Badge size="1" variant="soft" color="green">
-                          In your catalog
-                        </Badge>
-                      )}
+                      <Flex direction="column" gap="1">
+                        <Flex gap="2" align="center" wrap="wrap">
+                          <MediaTypeBadge type={c.type} />
+                          {c.releaseDate && (
+                            <Text size="1" color="gray">
+                              {c.releaseDate.slice(0, 4)}
+                            </Text>
+                          )}
+                          {c.existingId && (
+                            <Badge size="1" variant="soft" color="green">
+                              In your catalog
+                            </Badge>
+                          )}
+                        </Flex>
+                        <Text weight="medium">{c.title}</Text>
+                        {author && (
+                          <Text size="2" color="gray">
+                            {author}
+                          </Text>
+                        )}
+                      </Flex>
                     </Flex>
-                    <Text weight="medium">{c.title}</Text>
-                    {author && (
-                      <Text size="2" color="gray">
-                        {author}
-                      </Text>
+                    {c.existingId ? (
+                      <Button
+                        variant="soft"
+                        onClick={() => navigate(`/media/${c.existingId}`)}
+                      >
+                        View
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="soft"
+                        onClick={() => void importCandidate(c)}
+                        loading={busy}
+                      >
+                        Add
+                      </Button>
                     )}
                   </Flex>
-                </Flex>
-                {c.existingId ? (
-                  <Button
-                    variant="soft"
-                    onClick={() => navigate(`/media/${c.existingId}`)}
-                  >
-                    View
-                  </Button>
-                ) : (
-                  <Button
-                    variant="soft"
-                    onClick={() => void importCandidate(c)}
-                    loading={busy}
-                  >
-                    Add
-                  </Button>
-                )}
-              </Flex>
-            </Card>
-          );
-        })}
-        {results && results.length === 0 && (
-          <Text color="gray">No matches.</Text>
-        )}
-      </Flex>
+                </Card>
+              );
+            })}
+            {results && results.length === 0 && (
+              <Text color="gray">No matches.</Text>
+            )}
+          </Flex>
         </>
       )}
     </Flex>
