@@ -265,7 +265,10 @@ media.post(
     const prisma = c.get("prisma");
     const { imageUrl, sourceName, sourceUrl, license, creator } =
       c.req.valid("json");
-    const res = await fetch(imageUrl).catch(() => null);
+    // Some CC hosts (e.g. Wikimedia) require a User-Agent or they 403.
+    const res = await fetch(imageUrl, {
+      headers: { "User-Agent": "mediamogul/1.0 (media consumption tracker)" },
+    }).catch(() => null);
     if (!res || !res.ok) return c.json({ error: "fetch_failed" }, 400);
     const contentType = res.headers.get("content-type")?.split(";")[0] ?? "";
     const bytes = await res.arrayBuffer();
@@ -308,6 +311,7 @@ media.get("/:id", async (c) => {
       where: { id },
       include: {
         ...withRelations,
+        createdBy: { select: { username: true, displayName: true } },
         seriesEntries: {
           include: {
             series: { include: { _count: { select: { entries: true } } } },

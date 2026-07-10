@@ -22,6 +22,7 @@ import { MarkCompleteDialog } from "../components/MarkCompleteDialog";
 import { AddToListDialog } from "../components/AddToListDialog";
 import { CoverFinderDialog } from "../components/CoverFinderDialog";
 import { MEDIA_FIELDS, formatFieldValue } from "../../shared/media-fields";
+import { timeAgo } from "../lib/time";
 import {
   RELATION_LABELS,
   type EntryStatus,
@@ -325,6 +326,13 @@ export function MediaDetailPage() {
               {msg}
             </Text>
           )}
+
+          <Text size="1" color="gray">
+            {data.createdBy
+              ? `Added by ${data.createdBy.displayName ?? `@${data.createdBy.username}`} · `
+              : "Added "}
+            {timeAgo(data.createdAt)}
+          </Text>
         </Flex>
       </Flex>
 

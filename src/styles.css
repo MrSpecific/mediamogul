@@ -37,6 +37,19 @@
   text-underline-offset: 4px;
 }
 
+/* Sign-in / sign-up view: centered card, full viewport. */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+.auth-page > * {
+  width: 100%;
+  max-width: 400px;
+}
+
 .topbar-inner {
   flex-wrap: wrap;
   row-gap: 0.5rem;

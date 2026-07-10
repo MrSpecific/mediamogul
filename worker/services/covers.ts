@@ -52,7 +52,8 @@ export async function searchCovers(query: string): Promise<CoverCandidate[]> {
     gsrlimit: "24",
     prop: "imageinfo",
     iiprop: "url|extmetadata|mediatype",
-    iiurlwidth: "300",
+    // Scaled render (not the multi-MB original) — good cover size + small upload.
+    iiurlwidth: "600",
   };
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
@@ -80,7 +81,9 @@ export async function searchCovers(query: string): Promise<CoverCandidate[]> {
     const ex = info.extmetadata ?? {};
     return [
       {
-        url: info.url,
+        // Use the scaled render for both display and ingest (originals can be
+        // tens of MB and exceed the upload cap).
+        url: info.thumburl ?? info.url,
         thumbnail: info.thumburl ?? info.url,
         title: p.title?.replace(/^File:/, ""),
         creator: stripHtml(ex.Artist?.value),

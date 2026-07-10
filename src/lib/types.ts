@@ -113,6 +113,8 @@ export interface MediaDetail extends MediaItem {
   credits: Credit[];
   related: RelatedMedia[];
   series: SeriesMembership[];
+  createdAt: string;
+  createdBy: { username: string; displayName: string | null } | null;
   averageRating: number | null;
   ratingCount: number;
   _count: { entries: number; reviews: number };

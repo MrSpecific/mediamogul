@@ -143,7 +143,6 @@ model MediaItem {
   runtimeMinutes Int?    @map("runtime_minutes") // movies; tv per-episode
   seasons        Int? // tv
   episodes       Int? // tv
-  genre          String? // movies, tv
 
   source      MediaSource @default(USER_SUBMITTED)
   createdById String?     @map("created_by_id")
@@ -153,6 +152,7 @@ model MediaItem {
 
   externalIds   ExternalId[]
   credits       Credit[]
+  genres        MediaGenre[]
   entries       MediaEntry[]
   ratings       Rating[]
   reviews       Review[]
@@ -197,6 +197,31 @@ model Credit {
   @@index([mediaItemId])
   @@index([role, name])
   @@map("credits")
+}
+
+/// A genre/category. `applicableTypes` limits which media types it applies to
+/// (empty = all). New genres can be created when scraping or by admins.
+model Genre {
+  id              String       @id @default(uuid())
+  name            String       @unique
+  slug            String       @unique
+  applicableTypes MediaType[]  @map("applicable_types")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  media           MediaGenre[]
+
+  @@map("genres")
+}
+
+/// Media ↔ genre join (a media item can have several genres).
+model MediaGenre {
+  mediaItemId String    @map("media_item_id")
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  genreId     String    @map("genre_id")
+  genre       Genre     @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([mediaItemId, genreId])
+  @@index([genreId])
+  @@map("media_genres")
 }
 
 /// A directed link between two media items (book → its movie adaptation, a
