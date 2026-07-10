@@ -6,6 +6,7 @@ import {
   type MediaCandidate,
   searchBooks,
   searchScreen,
+  searchScreenWikidata,
 } from "../services/scrape";
 import type { PrismaClient } from "../generated/prisma/client";
 import type { AppEnv } from "../types";
@@ -47,7 +48,11 @@ lookup.get(
   zValidator(
     "query",
     z.object({
-      source: z.enum(["open_library", "tmdb"]).default("open_library"),
+      // open_library = books; wikidata = movies/TV (CC0, commercial-safe);
+      // tmdb = movies/TV (richer, but requires a commercial license).
+      source: z
+        .enum(["open_library", "wikidata", "tmdb"])
+        .default("open_library"),
       q: z.string().optional(),
       isbn: z.string().optional(),
     }),
@@ -65,6 +70,8 @@ lookup.get(
       } else {
         return c.json({ error: "provide q or isbn" }, 400);
       }
+    } else if (source === "wikidata") {
+      candidates = await searchScreenWikidata(q ?? "");
     } else {
       try {
         candidates = await searchScreen(q ?? "", c.env.TMDB_API_KEY);

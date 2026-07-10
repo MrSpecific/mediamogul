@@ -74,7 +74,9 @@ npm run cf-typegen    # regenerate worker-configuration.d.ts from wrangler.jsonc
 ### Optional integrations (secrets)
 
 ```bash
-# Movie/TV scrape-assist (books work without this):
+# Movie/TV scrape-assist — OPTIONAL. Books (Open Library) and movies/TV
+# (Wikidata, CC0) work with no key. TMDB is richer but its free tier is
+# NON-COMMERCIAL only — commercial use needs a paid TMDB agreement.
 npx wrangler secret put TMDB_API_KEY          # a TMDB v3 API key
 
 # Billing (Stripe) — create a Standard product/price first, then:

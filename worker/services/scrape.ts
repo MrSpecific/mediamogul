@@ -109,7 +109,7 @@ export async function searchBooks(
   url.searchParams.set("limit", String(limit));
   url.searchParams.set(
     "fields",
-    "key,title,subtitle,first_publish_year,cover_i,isbn,language,author_name",
+    "key,title,subtitle,first_publish_year,cover_i,isbn,language,author_name,number_of_pages_median,publisher",
   );
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) return [];
@@ -123,6 +123,8 @@ export async function searchBooks(
       isbn?: string[];
       language?: string[];
       author_name?: string[];
+      number_of_pages_median?: number;
+      publisher?: string[];
     }[];
   };
 
@@ -146,9 +148,11 @@ export async function searchBooks(
           ? `${d.first_publish_year}-01-01`
           : undefined,
         originalLanguage: d.language?.[0],
-        metadata: d.author_name?.length
-          ? { author: d.author_name.slice(0, 3).join(", ") }
-          : undefined,
+        metadata: {
+          author: d.author_name?.slice(0, 3).join(", "),
+          pageCount: d.number_of_pages_median,
+          publisher: d.publisher?.[0],
+        },
         externalIds,
       };
     });
@@ -170,30 +174,53 @@ interface TmdbResult {
   popularity?: number;
 }
 
-/** Director (movie) or creator/showrunner (tv) via TMDB, one call per title. */
-async function tmdbCredit(
+interface TmdbDetail {
+  byline?: string; // director (movie) or creator/showrunner (tv)
+  runtimeMinutes?: number;
+  seasons?: number;
+  episodes?: number;
+  genre?: string;
+}
+
+/** One detail call per title → director/showrunner + runtime/genre/seasons. */
+async function tmdbDetail(
   kind: "movie" | "tv",
   id: number,
   apiKey: string,
-): Promise<string | undefined> {
+): Promise<TmdbDetail> {
   try {
+    const r = await fetch(
+      `${TMDB}/${kind}/${id}?api_key=${apiKey}&append_to_response=credits`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!r.ok) return {};
+    const d = (await r.json()) as {
+      runtime?: number;
+      number_of_seasons?: number;
+      number_of_episodes?: number;
+      episode_run_time?: number[];
+      created_by?: { name: string }[];
+      genres?: { name: string }[];
+      credits?: { crew?: { job: string; name: string }[] };
+    };
+    const genre = d.genres?.[0]?.name;
     if (kind === "movie") {
-      const r = await fetch(`${TMDB}/movie/${id}/credits?api_key=${apiKey}`, {
-        headers: { Accept: "application/json" },
-      });
-      if (!r.ok) return undefined;
-      const c = (await r.json()) as { crew?: { job: string; name: string }[] };
-      return c.crew?.find((x) => x.job === "Director")?.name;
+      return {
+        byline: d.credits?.crew?.find((x) => x.job === "Director")?.name,
+        runtimeMinutes: d.runtime || undefined,
+        genre,
+      };
     }
-    const r = await fetch(`${TMDB}/tv/${id}?api_key=${apiKey}`, {
-      headers: { Accept: "application/json" },
-    });
-    if (!r.ok) return undefined;
-    const c = (await r.json()) as { created_by?: { name: string }[] };
-    const names = (c.created_by ?? []).map((x) => x.name).filter(Boolean);
-    return names.length ? names.join(", ") : undefined;
+    const creators = (d.created_by ?? []).map((x) => x.name).filter(Boolean);
+    return {
+      byline: creators.length ? creators.join(", ") : undefined,
+      seasons: d.number_of_seasons || undefined,
+      episodes: d.number_of_episodes || undefined,
+      runtimeMinutes: d.episode_run_time?.[0] || undefined,
+      genre,
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
@@ -222,15 +249,16 @@ export async function searchScreen(
   const items = (data.results ?? []).filter(
     (r) => r.media_type === "movie" || r.media_type === "tv",
   );
-  // Fetch credits for all results in parallel.
-  const credits = await Promise.all(
-    items.map((r) => tmdbCredit(r.media_type as "movie" | "tv", r.id, apiKey)),
+  // Fetch details (credits + runtime/genre/seasons) for all results in parallel.
+  const details = await Promise.all(
+    items.map((r) => tmdbDetail(r.media_type as "movie" | "tv", r.id, apiKey)),
   );
 
   return items.map((r, i) => {
     const isTv = r.media_type === "tv";
     const kind = isTv ? "tv" : "movie";
     const date = isTv ? r.first_air_date : r.release_date;
+    const d = details[i];
     return {
       type: isTv ? ("TV_SHOW" as const) : ("MOVIE" as const),
       title: (isTv ? r.name : r.title) ?? "Untitled",
@@ -240,8 +268,11 @@ export async function searchScreen(
       releaseDate: normalizeDate(date),
       originalLanguage: r.original_language,
       metadata: {
-        tmdbPopularity: r.popularity,
-        ...(isTv ? { showrunner: credits[i] } : { director: credits[i] }),
+        genre: d.genre,
+        runtimeMinutes: d.runtimeMinutes,
+        ...(isTv
+          ? { showrunner: d.byline, seasons: d.seasons, episodes: d.episodes }
+          : { director: d.byline }),
       },
       externalIds: [
         {
@@ -252,6 +283,124 @@ export async function searchScreen(
       ],
     };
   });
+}
+
+const WD_SPARQL = "https://query.wikidata.org/sparql";
+// Wikidata entity-type QIDs → our MediaType.
+const WD_MOVIE = new Set(["Q11424", "Q506240", "Q24856"]); // film, TV film, film series
+const WD_TV = new Set(["Q5398426", "Q1259759"]); // TV series, miniseries
+
+/**
+ * Movie/TV lookup via Wikidata — CC0, safe for commercial use (unlike TMDB's
+ * free tier). Returns metadata; poster images come from Wikimedia Commons (P18)
+ * only when a freely-licensed file exists, so many titles have no cover.
+ */
+export async function searchScreenWikidata(
+  query: string,
+): Promise<MediaCandidate[]> {
+  const q = query.trim();
+  if (!q) return [];
+
+  const sparql = `SELECT ?item ?itemLabel ?itemDescription ?type ?date ?image ?imdb ?directorLabel ?runtime ?seasons ?episodes ?genreLabel WHERE {
+  SERVICE wikibase:mwapi {
+    bd:serviceParam wikibase:api "EntitySearch" .
+    bd:serviceParam wikibase:endpoint "www.wikidata.org" .
+    bd:serviceParam mwapi:search ${JSON.stringify(q)} .
+    bd:serviceParam mwapi:language "en" .
+    ?item wikibase:apiOutputItem mwapi:item .
+  }
+  ?item wdt:P31 ?type .
+  VALUES ?type { wd:Q11424 wd:Q506240 wd:Q24856 wd:Q5398426 wd:Q1259759 }
+  OPTIONAL { ?item wdt:P577 ?date . }
+  OPTIONAL { ?item wdt:P18 ?image . }
+  OPTIONAL { ?item wdt:P345 ?imdb . }
+  OPTIONAL { ?item wdt:P57 ?director . }
+  OPTIONAL { ?item wdt:P2047 ?runtime . }
+  OPTIONAL { ?item wdt:P2437 ?seasons . }
+  OPTIONAL { ?item wdt:P1113 ?episodes . }
+  OPTIONAL { ?item wdt:P136 ?genre . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }
+} LIMIT 30`;
+
+  const url = `${WD_SPARQL}?format=json&query=${encodeURIComponent(sparql)}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/sparql-results+json",
+      "User-Agent": "mediamogul/1.0 (media consumption tracker)",
+    },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    results?: { bindings?: Record<string, { value: string } | undefined>[] };
+  };
+
+  // One item can produce several rows (multiple types/directors) — dedupe by QID.
+  const byId = new Map<string, MediaCandidate>();
+  for (const b of data.results?.bindings ?? []) {
+    const itemUri = b.item?.value;
+    if (!itemUri) continue;
+    const qid = itemUri.split("/").pop() as string;
+    const typeQid = b.type?.value?.split("/").pop() ?? "";
+    const type = WD_TV.has(typeQid)
+      ? ("TV_SHOW" as const)
+      : WD_MOVIE.has(typeQid)
+        ? ("MOVIE" as const)
+        : null;
+    if (!type) continue;
+
+    const director = b.directorLabel?.value;
+    const genre = b.genreLabel?.value;
+    const existing = byId.get(qid);
+    if (existing) {
+      // Extra rows only carry additional director/genre values — fill gaps.
+      const m = existing.metadata ?? {};
+      if (director && type === "MOVIE" && !m.director) m.director = director;
+      if (genre && !m.genre) m.genre = genre;
+      existing.metadata = m;
+      continue;
+    }
+
+    const meta: Record<string, unknown> = {};
+    if (type === "MOVIE" && director) meta.director = director;
+    if (genre) meta.genre = genre;
+    const runtime = b.runtime?.value ? Math.round(Number(b.runtime.value)) : 0;
+    if (runtime) meta.runtimeMinutes = runtime;
+    if (type === "TV_SHOW") {
+      const seasons = Number(b.seasons?.value);
+      const episodes = Number(b.episodes?.value);
+      if (seasons) meta.seasons = seasons;
+      if (episodes) meta.episodes = episodes;
+    }
+
+    const image = b.image?.value;
+    const externalIds: MediaCandidate["externalIds"] = [
+      {
+        source: "WIKIDATA",
+        value: qid,
+        url: `https://www.wikidata.org/entity/${qid}`,
+      },
+    ];
+    if (b.imdb?.value) {
+      externalIds.push({
+        source: "IMDB",
+        value: b.imdb.value,
+        url: `https://www.imdb.com/title/${b.imdb.value}/`,
+      });
+    }
+
+    byId.set(qid, {
+      type,
+      title: b.itemLabel?.value ?? qid,
+      coverImageUrl: image
+        ? `${image.replace(/^http:/, "https:")}?width=500`
+        : undefined,
+      shortDescription: b.itemDescription?.value,
+      releaseDate: normalizeDate(b.date?.value),
+      metadata: Object.keys(meta).length ? meta : undefined,
+      externalIds,
+    });
+  }
+  return [...byId.values()];
 }
 
 function normalizeDate(input?: string): string | undefined {

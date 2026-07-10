@@ -14,7 +14,7 @@ import { apiSend } from "../lib/api";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import type { MediaCandidate, MediaItem } from "../lib/types";
 
-type Source = "open_library" | "tmdb";
+type Source = "open_library" | "wikidata" | "tmdb";
 
 /** Author (books) / director (movies) / creator (tv), from scraped metadata. */
 function byline(c: MediaCandidate): string | undefined {
@@ -70,8 +70,8 @@ export function AddMediaPage() {
       <Heading size="7">Add media</Heading>
       <Text color="gray">
         Search a public source — we pull in the cover, description, and external
-        IDs automatically. Books use Open Library (keyless); movies & TV use
-        TMDB (requires a TMDB_API_KEY).
+        IDs automatically. Books use Open Library; movies & TV use Wikidata
+        (both free to use). TMDB is richer but needs a commercial license.
       </Text>
 
       <Flex
@@ -89,7 +89,8 @@ export function AddMediaPage() {
           placeholder="Source"
         >
           <Select.Item value="open_library">Books</Select.Item>
-          <Select.Item value="tmdb">Movies &amp; TV</Select.Item>
+          <Select.Item value="wikidata">Movies &amp; TV</Select.Item>
+          <Select.Item value="tmdb">Movies &amp; TV (TMDB)</Select.Item>
         </Select>
         <Input
           placeholder={

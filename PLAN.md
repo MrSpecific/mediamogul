@@ -57,8 +57,13 @@ All routes require a Neon Auth session except `GET /api/` (health).
 ## Scrape-assist strategy
 
 - **Books:** Open Library (keyless) — search + ISBN lookup implemented.
-- **Movies/TV:** TMDB `/search/multi` — implemented in
-  `worker/services/scrape.ts`; set `TMDB_API_KEY` (v3 key) to enable.
+- **Movies/TV (default):** **Wikidata** SPARQL — CC0, **safe for commercial
+  use**, keyless. Metadata + IMDb id; poster images only when a freely-licensed
+  Wikimedia Commons file exists (many titles have none).
+- **Movies/TV (opt-in):** **TMDB** `/search/multi` (+ director/showrunner via
+  credits). Richer and has posters, but TMDB's free tier is **non-commercial
+  only** — commercial use requires a paid written agreement with TMDB
+  (https://www.themoviedb.org/api-for-business). Enable with `TMDB_API_KEY`.
 - **Books (alt):** Goodreads has no open API; use ISBN → Open Library instead.
 - Flow: `GET /api/lookup` returns unsaved `MediaCandidate[]`; the user picks one,
   optionally edits, then `POST /api/media/import` creates the catalog row

@@ -21,10 +21,11 @@ import { SettingsPage } from "./pages/SettingsPage";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <Theme
-      accentColor="indigo"
-      grayColor="slate"
+      accentColor="yellow"
+      grayColor="gray"
       radius="medium"
-      appearance="inherit"
+      scaling="100%"
+      appearance="dark"
     >
       <BrowserRouter>
         <AuthProvider>

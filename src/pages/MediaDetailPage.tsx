@@ -21,6 +21,47 @@ import type {
   Visibility,
 } from "../lib/types";
 
+function formatRuntime(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
+}
+
+/** Author (books) / director (movies) / creator (tv), from scraped metadata. */
+function bylineOf(data: MediaDetail): string | undefined {
+  const m = data.metadata ?? {};
+  if (data.type === "BOOK" && typeof m.author === "string") return m.author;
+  if (data.type === "MOVIE" && typeof m.director === "string")
+    return `Directed by ${m.director}`;
+  if (data.type === "TV_SHOW" && typeof m.showrunner === "string")
+    return `Created by ${m.showrunner}`;
+  return undefined;
+}
+
+/** Type-specific facts (runtime, pages, seasons…) for the detail header. */
+function factsOf(data: MediaDetail): { label: string; value: string }[] {
+  const m = data.metadata ?? {};
+  const out: { label: string; value: string }[] = [];
+  const push = (label: string, value: unknown) => {
+    if (value !== undefined && value !== null && value !== "")
+      out.push({ label, value: String(value) });
+  };
+  if (typeof m.genre === "string") push("Genre", m.genre);
+  if (data.type === "BOOK") {
+    push("Pages", m.pageCount);
+    push("Publisher", m.publisher);
+  }
+  if (data.type === "MOVIE" && typeof m.runtimeMinutes === "number")
+    push("Runtime", formatRuntime(m.runtimeMinutes));
+  if (data.type === "TV_SHOW") {
+    push("Seasons", m.seasons);
+    push("Episodes", m.episodes);
+    if (typeof m.runtimeMinutes === "number")
+      push("Episode", formatRuntime(m.runtimeMinutes));
+  }
+  return out;
+}
+
 export function MediaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data, reload } = useApiData<MediaDetail>(id ? `/media/${id}` : null);
@@ -76,9 +117,16 @@ export function MediaDetailPage() {
               style={{ alignSelf: "flex-start" }}
             />
             <Heading size="8">{data.title}</Heading>
-            {data.releaseDate && (
-              <Text color="gray">{new Date(data.releaseDate).getFullYear()}</Text>
-            )}
+            <Flex gap="2" align="center" wrap="wrap">
+              {data.releaseDate && (
+                <Text color="gray">
+                  {new Date(data.releaseDate).getFullYear()}
+                </Text>
+              )}
+              {bylineOf(data) && (
+                <Text color="gray">· {bylineOf(data)}</Text>
+              )}
+            </Flex>
           </Flex>
 
           <Flex align="center" gap="3">
@@ -89,6 +137,21 @@ export function MediaDetailPage() {
                 : "No ratings yet"}
             </Text>
           </Flex>
+
+          {factsOf(data).length > 0 && (
+            <Flex gap="5" wrap="wrap">
+              {factsOf(data).map((f) => (
+                <Flex key={f.label} direction="column">
+                  <Text size="1" color="gray">
+                    {f.label}
+                  </Text>
+                  <Text size="2" weight="medium">
+                    {f.value}
+                  </Text>
+                </Flex>
+              ))}
+            </Flex>
+          )}
 
           {data.synopsis && <Text>{data.synopsis}</Text>}
 
