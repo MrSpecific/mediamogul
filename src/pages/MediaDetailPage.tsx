@@ -31,6 +31,7 @@ import {
   type MediaEntry,
   type MediaItem,
   type MediaRelationType,
+  type Profile,
   type Review,
   type Visibility,
 } from "../lib/types";
@@ -71,6 +72,8 @@ export function MediaDetailPage() {
   const { data: myLists, reload: reloadLists } = useApiData<{
     owned: ListSummary[];
   }>("/me/lists");
+  const { data: me } = useApiData<Profile>("/me");
+  const isAdmin = Boolean(me?.isAdmin);
 
   const [reviewBody, setReviewBody] = useState("");
   const [reviewVis, setReviewVis] = useState<Visibility>("PUBLIC");
@@ -180,6 +183,17 @@ export function MediaDetailPage() {
     setMsg("Added to series.");
     reload();
   };
+  const changeVisibility = async (v: Visibility) => {
+    await apiSend("PATCH", `/media/${id}/moderation`, { visibility: v });
+    reload();
+  };
+  const toggleArchive = async () => {
+    await apiSend("PATCH", `/media/${id}/moderation`, {
+      archived: !data.archivedAt,
+    });
+    setMsg(data.archivedAt ? "Unarchived." : "Archived.");
+    reload();
+  };
 
   return (
     <Flex direction="column" gap="5">
@@ -208,11 +222,19 @@ export function MediaDetailPage() {
         </Flex>
         <Flex direction="column" gap="3" style={{ flex: 1, minWidth: 260 }}>
           <Flex direction="column" gap="1">
-            <MediaTypeBadge
-              type={data.type}
-              size="2"
-              style={{ alignSelf: "flex-start" }}
-            />
+            <Flex gap="2" align="center" wrap="wrap">
+              <MediaTypeBadge type={data.type} size="2" />
+              {data.archivedAt && (
+                <Badge color="red" variant="soft" size="1">
+                  Archived
+                </Badge>
+              )}
+              {data.visibility !== "PUBLIC" && (
+                <Badge color="gray" variant="soft" size="1">
+                  {data.visibility.toLowerCase()}
+                </Badge>
+              )}
+            </Flex>
             <Heading size="8">{data.title}</Heading>
             <Flex gap="2" align="center" wrap="wrap">
               {data.releaseDate && (
@@ -403,82 +425,122 @@ export function MediaDetailPage() {
         </Flex>
       </Flex>
 
-      <Flex direction="column" gap="3">
-        <Heading size="5">Connections</Heading>
+      {(data.related.length > 0 || isAdmin) && (
+        <Flex direction="column" gap="3">
+          <Heading size="5">Connections</Heading>
 
-        {data.related.length > 0 && (
-          <Flex direction="column" gap="2">
-            {data.related.map((r) => (
-              <Flex key={r.id} justify="space-between" align="center" gap="2">
-                <Flex gap="2" align="center" wrap="wrap">
-                  <MediaTypeBadge type={r.media.type} />
-                  <Link
-                    to={`/media/${r.media.id}`}
-                    className="media-card-link"
-                  >
-                    <Text weight="medium">{r.media.title}</Text>
-                  </Link>
-                  <Badge variant="soft" size="1">
-                    {RELATION_LABELS[r.type]}
-                  </Badge>
+          {data.related.length > 0 && (
+            <Flex direction="column" gap="2">
+              {data.related.map((r) => (
+                <Flex key={r.id} justify="space-between" align="center" gap="2">
+                  <Flex gap="2" align="center" wrap="wrap">
+                    <MediaTypeBadge type={r.media.type} />
+                    <Link
+                      to={`/media/${r.media.id}`}
+                      className="media-card-link"
+                    >
+                      <Text weight="medium">{r.media.title}</Text>
+                    </Link>
+                    <Badge variant="soft" size="1">
+                      {RELATION_LABELS[r.type]}
+                    </Badge>
+                  </Flex>
+                  {isAdmin && (
+                    <Button
+                      size="1"
+                      variant="ghost"
+                      onClick={() => void unlinkRelated(r.id)}
+                    >
+                      Remove
+                    </Button>
+                  )}
                 </Flex>
-                <Button
-                  size="1"
-                  variant="ghost"
-                  onClick={() => void unlinkRelated(r.id)}
-                >
-                  Remove
-                </Button>
-              </Flex>
-            ))}
-          </Flex>
-        )}
-
-        <Card size="2">
-          <Flex direction="column" gap="2">
-            <Text weight="medium" size="2">
-              Link related media
-            </Text>
-            <Select
-              value={relType}
-              onValueChange={(v) => setRelType(v as MediaRelationType)}
-            >
-              {(Object.keys(RELATION_LABELS) as MediaRelationType[]).map((t) => (
-                <Select.Item key={t} value={t}>
-                  {RELATION_LABELS[t]}
-                </Select.Item>
               ))}
-            </Select>
-            <MediaPicker excludeId={data.id} onPick={(m) => void linkRelated(m)} />
-          </Flex>
-        </Card>
-
-        <Card size="2">
-          <Flex direction="column" gap="2">
-            <Text weight="medium" size="2">
-              Add to a new series
-            </Text>
-            <Flex gap="2" wrap="wrap" align="end">
-              <Field label="Series title">
-                <Input
-                  value={seriesTitle}
-                  onChange={(e) => setSeriesTitle(e.currentTarget.value)}
-                  placeholder="e.g. The Lord of the Rings"
-                />
-              </Field>
-              <Field label="#">
-                <Input
-                  type="number"
-                  value={seriesPos}
-                  onChange={(e) => setSeriesPos(e.currentTarget.value)}
-                  style={{ width: 72 }}
-                />
-              </Field>
-              <Button onClick={() => void addToSeries()}>Add</Button>
             </Flex>
-          </Flex>
-        </Card>
-      </Flex>
+          )}
+
+          {isAdmin && (
+            <>
+              <Card size="2">
+                <Flex direction="column" gap="2">
+                  <Text weight="medium" size="2">
+                    Link related media
+                  </Text>
+                  <Select
+                    value={relType}
+                    onValueChange={(v) => setRelType(v as MediaRelationType)}
+                  >
+                    {(Object.keys(RELATION_LABELS) as MediaRelationType[]).map(
+                      (t) => (
+                        <Select.Item key={t} value={t}>
+                          {RELATION_LABELS[t]}
+                        </Select.Item>
+                      ),
+                    )}
+                  </Select>
+                  <MediaPicker
+                    excludeId={data.id}
+                    onPick={(m) => void linkRelated(m)}
+                  />
+                </Flex>
+              </Card>
+
+              <Card size="2">
+                <Flex direction="column" gap="2">
+                  <Text weight="medium" size="2">
+                    Add to a new series
+                  </Text>
+                  <Flex gap="2" wrap="wrap" align="end">
+                    <Field label="Series title">
+                      <Input
+                        value={seriesTitle}
+                        onChange={(e) => setSeriesTitle(e.currentTarget.value)}
+                        placeholder="e.g. The Lord of the Rings"
+                      />
+                    </Field>
+                    <Field label="#">
+                      <Input
+                        type="number"
+                        value={seriesPos}
+                        onChange={(e) => setSeriesPos(e.currentTarget.value)}
+                        style={{ width: 72 }}
+                      />
+                    </Field>
+                    <Button onClick={() => void addToSeries()}>Add</Button>
+                  </Flex>
+                </Flex>
+              </Card>
+            </>
+          )}
+        </Flex>
+      )}
+
+      {isAdmin && (
+        <Flex direction="column" gap="3">
+          <Heading size="5">Moderation</Heading>
+          <Card size="2">
+            <Flex gap="3" wrap="wrap" align="end">
+              <Field label="Visibility">
+                <Select
+                  value={data.visibility}
+                  onValueChange={(v) => void changeVisibility(v as Visibility)}
+                >
+                  <Select.Item value="PUBLIC">Public</Select.Item>
+                  <Select.Item value="UNLISTED">Unlisted</Select.Item>
+                  <Select.Item value="PRIVATE">Private</Select.Item>
+                </Select>
+              </Field>
+              <Button
+                variant="soft"
+                color={data.archivedAt ? "green" : "red"}
+                onClick={() => void toggleArchive()}
+              >
+                {data.archivedAt ? "Unarchive" : "Archive"}
+              </Button>
+            </Flex>
+          </Card>
+        </Flex>
+      )}
 
       <Flex direction="column" gap="3">
         <Heading size="5">Reviews</Heading>

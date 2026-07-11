@@ -121,6 +121,8 @@ export interface MediaDetail extends MediaItem {
   genres: { id: string; name: string; slug: string }[];
   related: RelatedMedia[];
   series: SeriesMembership[];
+  visibility: Visibility;
+  archivedAt: string | null;
   createdAt: string;
   createdBy: { username: string; displayName: string | null } | null;
   averageRating: number | null;
