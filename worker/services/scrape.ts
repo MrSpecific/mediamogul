@@ -32,6 +32,9 @@ export interface MediaCandidate {
   episodes?: number;
   genre?: string;
   genreIds?: string[];
+  /** Series membership (e.g. "Harry Potter", position 2), when known. */
+  seriesName?: string;
+  seriesPosition?: number;
   credits?: CandidateCredit[];
   externalIds: { source: ExternalSource; value: string; url?: string }[];
 }
@@ -341,7 +344,7 @@ export async function searchScreenWikidata(
   const q = query.trim();
   if (!q) return [];
 
-  const sparql = `SELECT ?item ?itemLabel ?itemDescription ?type ?date ?image ?imdb ?directorLabel ?runtime ?seasons ?episodes ?genreLabel WHERE {
+  const sparql = `SELECT ?item ?itemLabel ?itemDescription ?type ?date ?image ?imdb ?directorLabel ?runtime ?seasons ?episodes ?genreLabel ?seriesLabel ?ordinal WHERE {
   SERVICE wikibase:mwapi {
     bd:serviceParam wikibase:api "EntitySearch" .
     bd:serviceParam wikibase:endpoint "www.wikidata.org" .
@@ -361,6 +364,7 @@ export async function searchScreenWikidata(
   OPTIONAL { ?item wdt:P2437 ?seasons . }
   OPTIONAL { ?item wdt:P1113 ?episodes . }
   OPTIONAL { ?item wdt:P136 ?genre . }
+  OPTIONAL { ?item p:P179 ?ps . ?ps ps:P179 ?series . OPTIONAL { ?ps pq:P1545 ?ordinal . } }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }
 } LIMIT 40`;
 
@@ -398,6 +402,11 @@ export async function searchScreenWikidata(
     if (existing) {
       if (director && type === "MOVIE") addCredit(existing, "DIRECTOR", director);
       if (genre && !existing.genre) existing.genre = genre;
+      if (b.seriesLabel?.value && !existing.seriesName) {
+        existing.seriesName = b.seriesLabel.value;
+        const ord = Number(b.ordinal?.value);
+        if (ord) existing.seriesPosition = ord;
+      }
       continue;
     }
 
@@ -438,6 +447,11 @@ export async function searchScreenWikidata(
       if (episodes) candidate.episodes = episodes;
     }
     if (director && type === "MOVIE") addCredit(candidate, "DIRECTOR", director);
+    if (b.seriesLabel?.value) {
+      candidate.seriesName = b.seriesLabel.value;
+      const ord = Number(b.ordinal?.value);
+      if (ord) candidate.seriesPosition = ord;
+    }
 
     byId.set(qid, candidate);
   }

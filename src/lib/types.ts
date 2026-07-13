@@ -176,6 +176,8 @@ export interface MediaCandidate {
   episodes?: number;
   genre?: string;
   genreIds?: string[];
+  seriesName?: string;
+  seriesPosition?: number;
   credits?: { role: CreditRole; name: string; externalId?: string }[];
   externalIds: { source: string; value: string; url?: string }[];
   /** Set by /api/lookup when this candidate is already in the catalog. */

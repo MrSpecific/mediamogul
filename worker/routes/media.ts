@@ -57,6 +57,9 @@ const mediaInput = z.object({
   // `genreIds` are chosen explicitly (manual form).
   genre: z.string().max(100).optional(),
   genreIds: z.array(z.string()).optional(),
+  // Series membership — auto-creates/links a Series on save when present.
+  seriesName: z.string().max(300).optional(),
+  seriesPosition: z.number().int().optional(),
   credits: z.array(creditInput).optional(),
   externalIds: z.array(externalIdInput).optional(),
 });
@@ -98,6 +101,51 @@ async function saveGenres(
   const ids = [...(opts.genreIds ?? [])];
   if (opts.genre) ids.push(await resolveGenreId(prisma, opts.genre, type));
   await linkGenres(prisma, mediaItemId, ids);
+}
+
+/**
+ * Find-or-create a Series by (case-insensitive) title and link this item at the
+ * given position. Because the lookup is by title, importing several members of
+ * the same series over time connects them under one Series automatically.
+ */
+async function saveSeries(
+  prisma: AppEnv["Variables"]["prisma"],
+  mediaItemId: string,
+  name: string,
+  position: number | undefined,
+  createdById: string,
+) {
+  const title = name.trim();
+  if (!title) return;
+  const existing = await prisma.series.findFirst({
+    where: { title: { equals: title, mode: "insensitive" } },
+  });
+  const seriesId =
+    existing?.id ??
+    (await prisma.series.create({ data: { title, createdById } })).id;
+
+  // Already linked? Leave its position as-is.
+  const already = await prisma.seriesEntry.findUnique({
+    where: { seriesId_mediaItemId: { seriesId, mediaItemId } },
+  });
+  if (already) return;
+
+  const max = await prisma.seriesEntry.aggregate({
+    where: { seriesId },
+    _max: { position: true },
+  });
+  const append = (max._max.position ?? 0) + 1;
+  // Prefer the source's ordinal, but fall back to append if it collides.
+  const wanted = position && position > 0 ? position : append;
+  try {
+    await prisma.seriesEntry.create({
+      data: { seriesId, mediaItemId, position: wanted },
+    });
+  } catch {
+    await prisma.seriesEntry
+      .create({ data: { seriesId, mediaItemId, position: append } })
+      .catch(() => undefined);
+  }
 }
 
 /** Insert external ids + credits for a media item (no interactive txn needed). */
@@ -263,6 +311,15 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
     genre: data.genre,
     genreIds: data.genreIds,
   });
+  if (data.seriesName) {
+    await saveSeries(
+      prisma,
+      created.id,
+      data.seriesName,
+      data.seriesPosition,
+      c.get("user").id,
+    );
+  }
   const item = await prisma.mediaItem.findUnique({
     where: { id: created.id },
     include: withRelations,
@@ -322,6 +379,15 @@ media.post(
       genre: cand.genre,
       genreIds: cand.genreIds,
     });
+    if (cand.seriesName) {
+      await saveSeries(
+        prisma,
+        created.id,
+        cand.seriesName,
+        cand.seriesPosition,
+        c.get("user").id,
+      );
+    }
     const item = await prisma.mediaItem.findUnique({
       where: { id: created.id },
       include: withRelations,
@@ -1171,12 +1237,15 @@ media.post(
     z.object({
       libbyId: z.string().min(1),
       coverUrl: z.string().url().optional(),
+      seriesName: z.string().max(300).optional(),
+      seriesPosition: z.number().int().optional(),
     }),
   ),
   async (c) => {
     const prisma = c.get("prisma");
     const id = c.req.param("id");
-    const { libbyId, coverUrl } = c.req.valid("json");
+    const { libbyId, coverUrl, seriesName, seriesPosition } =
+      c.req.valid("json");
     const url = libbyTitleUrl(libbyId);
     await prisma.externalId
       .upsert({
@@ -1191,6 +1260,10 @@ media.post(
         sourceName: "Libby / OverDrive",
         sourceUrl: url,
       });
+    }
+    // Libby carries reliable series data — link it up when present.
+    if (seriesName) {
+      await saveSeries(prisma, id, seriesName, seriesPosition, c.get("user").id);
     }
     return c.json({ ok: true, url });
   },

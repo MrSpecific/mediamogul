@@ -10,6 +10,8 @@ export interface LibbyCandidate {
   creator?: string;
   coverUrl?: string;
   format?: string; // "ebook" | "audiobook" | "magazine" | …
+  seriesName?: string;
+  seriesPosition?: number;
   url: string; // public Libby share link
 }
 
@@ -26,6 +28,8 @@ interface ThunderItem {
   firstCreatorName?: string;
   type?: { id?: string };
   covers?: Record<string, { href?: string } | undefined>;
+  series?: string;
+  detailedSeries?: { seriesName?: string; readingOrder?: string };
 }
 
 /** Search a library's OverDrive catalog. Returns normalized candidates. */
@@ -57,6 +61,8 @@ export async function searchLibby(
       coverUrl:
         it.covers?.cover300Wide?.href ?? it.covers?.cover150Wide?.href,
       format: it.type?.id,
+      seriesName: it.detailedSeries?.seriesName ?? it.series,
+      seriesPosition: Number(it.detailedSeries?.readingOrder) || undefined,
       url: libbyTitleUrl(String(it.id)),
     }));
 }

@@ -10,6 +10,8 @@ interface LibbyCandidate {
   creator?: string;
   coverUrl?: string;
   format?: string;
+  seriesName?: string;
+  seriesPosition?: number;
   url: string;
 }
 
@@ -52,6 +54,8 @@ export function LibbyLookup({
       await apiSend("POST", `/media/${mediaId}/libby`, {
         libbyId: cand.id,
         coverUrl: withCover ? cand.coverUrl : undefined,
+        seriesName: cand.seriesName,
+        seriesPosition: cand.seriesPosition,
       });
       onChanged?.();
     } finally {
@@ -107,7 +111,14 @@ export function LibbyLookup({
                       {r.title}
                     </Text>
                     <Text size="1" color="gray">
-                      {[r.creator, r.format].filter(Boolean).join(" · ")}
+                      {[
+                        r.creator,
+                        r.format,
+                        r.seriesName &&
+                          `${r.seriesName}${r.seriesPosition ? ` #${r.seriesPosition}` : ""}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </Text>
                   </Flex>
                 </Flex>
