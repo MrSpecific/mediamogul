@@ -13,6 +13,21 @@ export interface CoverCandidate {
   sourceUrl?: string;
 }
 
+export type CoverSource = "commons" | "loc";
+
+export const COVER_SOURCES: { id: CoverSource; label: string }[] = [
+  { id: "commons", label: "Wikimedia Commons" },
+  { id: "loc", label: "Library of Congress" },
+];
+
+/** Dispatch to a single source (callers query sources in parallel). */
+export function searchCovers(
+  source: CoverSource,
+  query: string,
+): Promise<CoverCandidate[]> {
+  return source === "loc" ? searchLoc(query) : searchCommons(query);
+}
+
 const COMMONS = "https://commons.wikimedia.org/w/api.php";
 
 interface CommonsPage {
@@ -37,7 +52,7 @@ const stripHtml = (s?: string): string | undefined =>
         .trim() || undefined
     : undefined;
 
-export async function searchCovers(query: string): Promise<CoverCandidate[]> {
+async function searchCommons(query: string): Promise<CoverCandidate[]> {
   const q = query.trim();
   if (!q) return [];
 
@@ -90,6 +105,56 @@ export async function searchCovers(query: string): Promise<CoverCandidate[]> {
         license: ex.LicenseShortName?.value,
         source: "Wikimedia Commons",
         sourceUrl: info.descriptionurl,
+      },
+    ];
+  });
+}
+
+// --- Library of Congress (Prints & Photographs) --------------------------
+// Keyless JSON API. Content is historical/archival; rights vary per item and
+// aren't in the search payload, so results are labeled "verify rights".
+
+const LOC = "https://www.loc.gov/pictures/search/";
+
+async function searchLoc(query: string): Promise<CoverCandidate[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const url = new URL(LOC);
+  url.searchParams.set("q", q);
+  url.searchParams.set("fo", "json");
+  url.searchParams.set("c", "40");
+
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "mediamogul/1.0 (media consumption tracker)",
+    },
+  });
+  if (!res.ok) {
+    console.error("LoC cover search failed", res.status);
+    return [];
+  }
+  const data = (await res.json()) as {
+    results?: {
+      title?: string;
+      creator?: string;
+      image?: { full?: string; thumb?: string };
+      links?: { item?: string };
+    }[];
+  };
+
+  return (data.results ?? []).flatMap((r) => {
+    const full = r.image?.full ?? r.image?.thumb;
+    if (!full) return [];
+    return [
+      {
+        url: full,
+        thumbnail: r.image?.thumb ?? full,
+        title: r.title,
+        creator: r.creator,
+        license: "Library of Congress — verify rights",
+        source: "Library of Congress",
+        sourceUrl: r.links?.item,
       },
     ];
   });

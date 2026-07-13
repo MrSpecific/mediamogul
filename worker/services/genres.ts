@@ -1,4 +1,5 @@
 import type { MediaType, PrismaClient } from "../generated/prisma/client";
+import { titleCase } from "../../shared/media-fields";
 
 export const slugify = (name: string): string =>
   name
@@ -30,7 +31,7 @@ export async function resolveGenreId(
     return existing.id;
   }
   const created = await prisma.genre.create({
-    data: { name, slug, applicableTypes: [type] },
+    data: { name: titleCase(name), slug, applicableTypes: [type] },
   });
   return created.id;
 }

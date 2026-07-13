@@ -29,20 +29,29 @@ export function CoverFinderDialog({
   onChanged,
 }: Props) {
   const [q, setQ] = useState(title);
-  const [results, setResults] = useState<CoverCandidate[] | null>(null);
+  const [results, setResults] = useState<CoverCandidate[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [savingUrl, setSavingUrl] = useState<string | null>(null);
 
-  const search = async () => {
+  const SOURCES = ["commons", "loc"] as const;
+
+  // Query every source in parallel and stream results in as each responds.
+  const search = () => {
+    setResults([]);
+    setSearched(true);
     setSearching(true);
-    try {
-      setResults(
-        await apiGet<CoverCandidate[]>(
-          `/media/${mediaId}/cover-options?q=${encodeURIComponent(q)}`,
-        ),
-      );
-    } finally {
-      setSearching(false);
+    let remaining = SOURCES.length;
+    for (const src of SOURCES) {
+      apiGet<CoverCandidate[]>(
+        `/media/${mediaId}/cover-options?source=${src}&q=${encodeURIComponent(q)}`,
+      )
+        .then((rs) => setResults((prev) => [...prev, ...rs]))
+        .catch(() => undefined)
+        .finally(() => {
+          remaining -= 1;
+          if (remaining === 0) setSearching(false);
+        });
     }
   };
 
@@ -69,7 +78,7 @@ export function CoverFinderDialog({
       onOpenChange={onOpenChange}
       size="large"
       title="Find a cover"
-      description="Creative-Commons images from Openverse (Flickr, Wikimedia, museums, and more). Official posters are copyrighted, so pick a CC image that fits."
+      description="Images from Wikimedia Commons and the Library of Congress. Check each result's rights before use — you're responsible for permission to use the artwork."
       content={
         <Flex direction="column" gap="3">
           <Flex
@@ -91,14 +100,14 @@ export function CoverFinderDialog({
             </Button>
           </Flex>
 
-          {results && results.length === 0 && (
+          {searched && !searching && results.length === 0 && (
             <Text color="gray">
-              No Creative-Commons images found. Try a different search.
+              No images found. Try a different search.
             </Text>
           )}
 
           <div className="cover-grid">
-            {results?.map((r) => (
+            {results.map((r) => (
               <button
                 key={r.url}
                 type="button"

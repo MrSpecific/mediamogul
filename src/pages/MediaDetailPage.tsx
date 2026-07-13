@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Badge,
@@ -14,7 +14,8 @@ import {
   Textarea,
 } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
-import { apiSend } from "../lib/api";
+import { apiSend, apiUpload } from "../lib/api";
+import { CopyButton } from "../components/CopyButton";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { MediaPicker } from "../components/MediaPicker";
@@ -83,6 +84,8 @@ export function MediaDetailPage() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [addListOpen, setAddListOpen] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverFileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   if (!data) return <Text color="gray">Loading…</Text>;
@@ -194,6 +197,19 @@ export function MediaDetailPage() {
     setMsg(data.archivedAt ? "Unarchived." : "Archived.");
     reload();
   };
+  const uploadCover = async (file: File | undefined) => {
+    if (!file) return;
+    setCoverUploading(true);
+    setMsg(null);
+    try {
+      await apiUpload(`/media/${id}/cover/upload`, file);
+      reload();
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setCoverUploading(false);
+    }
+  };
 
   return (
     <Flex direction="column" gap="5">
@@ -202,16 +218,42 @@ export function MediaDetailPage() {
           <div className="detail-cover">
             {data.coverImageUrl && <img src={data.coverImageUrl} alt="" />}
           </div>
-          {!data.coverImageUrl &&
-            (data.type === "MOVIE" || data.type === "TV_SHOW") && (
-              <Button
+          {!data.coverImageUrl && (
+            <Flex direction="column" gap="1" align="center">
+              <Flex gap="2">
+                <Button
+                  size="1"
+                  variant="soft"
+                  onClick={() => setCoverOpen(true)}
+                >
+                  Find a cover
+                </Button>
+                <Button
+                  size="1"
+                  variant="soft"
+                  loading={coverUploading}
+                  onClick={() => coverFileRef.current?.click()}
+                >
+                  Upload
+                </Button>
+              </Flex>
+              <input
+                ref={coverFileRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={(e) => void uploadCover(e.currentTarget.files?.[0])}
+              />
+              <Text
                 size="1"
-                variant="soft"
-                onClick={() => setCoverOpen(true)}
+                color="gray"
+                align="center"
+                style={{ maxWidth: 190 }}
               >
-                Find a cover
-              </Button>
-            )}
+                By uploading, you confirm you have permission to use this image.
+              </Text>
+            </Flex>
+          )}
           <CoverFinderDialog
             open={coverOpen}
             onOpenChange={setCoverOpen}
@@ -359,11 +401,11 @@ export function MediaDetailPage() {
               {timeAgo(data.createdAt)}
             </Text>
             {data.visibility === "PUBLIC" && !data.archivedAt && (
-              <Link to={`/m/${data.id}`} className="media-card-link">
-                <Text size="1" color="gray" style={{ textDecoration: "underline" }}>
-                  Public page ↗
-                </Text>
-              </Link>
+              <CopyButton
+                value={`${window.location.origin}/m/${data.id}`}
+                label="Copy share link"
+                copiedLabel="Link copied!"
+              />
             )}
           </Flex>
         </Flex>

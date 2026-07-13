@@ -4,7 +4,7 @@ import { z } from "zod";
 import { type MediaType, Prisma } from "../generated/prisma/client";
 import { lookupBookByIsbn } from "../services/scrape";
 import { uploadImage } from "../services/storage";
-import { searchCovers } from "../services/covers";
+import { type CoverSource, searchCovers } from "../services/covers";
 import { linkGenres, resolveGenreId } from "../services/genres";
 import { requireAdmin } from "../auth";
 import {
@@ -123,12 +123,16 @@ media.get(
       // Comma-separated MediaType list; omit for all types.
       types: z.string().optional(),
       q: z.string().optional(),
+      genre: z.string().optional(), // genre slug
+      credit: z.string().optional(), // person name (author/director/…)
+      order: z.enum(["new", "title", "release"]).default("new"),
       limit: z.coerce.number().int().min(1).max(100).default(20),
       cursor: z.string().optional(),
     }),
   ),
   async (c) => {
-    const { types, q, limit, cursor } = c.req.valid("query");
+    const { types, q, genre, credit, order, limit, cursor } =
+      c.req.valid("query");
     // Public catalog hides archived + non-public items.
     const where: Prisma.MediaItemWhereInput = {
       archivedAt: null,
@@ -141,10 +145,21 @@ media.get(
       };
     }
     if (q) where.title = { contains: q, mode: "insensitive" };
+    if (genre) where.genres = { some: { genre: { slug: genre } } };
+    if (credit) {
+      where.credits = { some: { name: { contains: credit, mode: "insensitive" } } };
+    }
+
+    const orderBy: Prisma.MediaItemOrderByWithRelationInput[] =
+      order === "title"
+        ? [{ title: "asc" }]
+        : order === "release"
+          ? [{ releaseDate: "desc" }, { id: "desc" }]
+          : [{ createdAt: "desc" }, { id: "desc" }];
 
     const rows = await c.get("prisma").mediaItem.findMany({
       where,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy,
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
@@ -273,7 +288,8 @@ media.get("/:id/cover-options", async (c) => {
   });
   if (!item) return c.json({ error: "not_found" }, 404);
   const q = c.req.query("q") || item.title;
-  return c.json(await searchCovers(q));
+  const source: CoverSource = c.req.query("source") === "loc" ? "loc" : "commons";
+  return c.json(await searchCovers(source, q));
 });
 
 /** Ingest a chosen (CC-licensed) image into R2 and set it as the cover. */
@@ -328,6 +344,36 @@ media.post(
     return c.json({ coverImageUrl: stored.url });
   },
 );
+
+/** Upload a cover image directly (raw file body) and set it. The uploader
+ *  asserts they have permission to use the image (recorded on the asset). */
+media.post("/:id/cover/upload", async (c) => {
+  const bytes = await c.req.arrayBuffer();
+  const contentType = c.req.header("content-type") ?? "";
+  let stored;
+  try {
+    stored = await uploadImage(c.env, bytes, contentType);
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 400);
+  }
+  await c.get("prisma").mediaAsset.create({
+    data: {
+      provider: stored.provider,
+      key: stored.key,
+      url: stored.url,
+      contentType: stored.contentType,
+      size: stored.size,
+      sourceName: "User upload",
+      license: "User-provided (permission asserted by uploader)",
+      uploadedById: c.get("user").id,
+    },
+  });
+  await c.get("prisma").mediaItem.update({
+    where: { id: c.req.param("id") },
+    data: { coverImageUrl: stored.url },
+  });
+  return c.json({ coverImageUrl: stored.url });
+});
 
 media.get("/:id", async (c) => {
   const prisma = c.get("prisma");

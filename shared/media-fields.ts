@@ -138,6 +138,10 @@ export const MEDIA_FIELDS: Record<MediaType, MediaTypeConfig> = {
 
 export const mediaTypeLabel = (t: MediaType): string => MEDIA_FIELDS[t].label;
 
+/** Capitalize the first letter of each word (for genre labels, etc.). */
+export const titleCase = (s: string): string =>
+  s.replace(/\b\w/g, (c) => c.toUpperCase());
+
 export function formatRuntime(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
