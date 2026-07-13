@@ -48,9 +48,9 @@ export async function verifyToken(
   };
 }
 
-// App roles come from the NeonDB `role` claim in the JWT. Hierarchy:
-// admin > editor > contributor > user. editor/contributor are defined for
-// later use (content curation) — only `admin` is enforced anywhere today.
+// App roles come from the JWT `role` claim (set via Neon Auth's admin plugin).
+// Hierarchy: admin > editor > contributor > user. editor/contributor are
+// defined for later use (content curation) — only `admin` is enforced today.
 export type AppRole = "admin" | "editor" | "contributor" | "user";
 
 const ROLE_RANK: Record<AppRole, number> = {
@@ -60,9 +60,45 @@ const ROLE_RANK: Record<AppRole, number> = {
   admin: 3,
 };
 
+const APP_ROLES = new Set<string>(["admin", "editor", "contributor", "user"]);
+
+/**
+ * Collect role strings from the JWT. Neon Auth / Better Auth's admin plugin may
+ * encode `role` as a plain string, a comma-separated string, or an array — and
+ * because Neon reuses the top-level `role` claim for Postgres RLS (often
+ * "authenticated"), we also look at common nested locations.
+ */
+function roleClaims(user: AuthUser): string[] {
+  const p = user.payload as Record<string, unknown>;
+  const candidates: unknown[] = [
+    p.role,
+    (p.user as Record<string, unknown> | undefined)?.role,
+    (p.app_metadata as Record<string, unknown> | undefined)?.role,
+  ];
+  const out: string[] = [];
+  for (const c of candidates) {
+    if (typeof c === "string") out.push(...c.split(","));
+    else if (Array.isArray(c)) out.push(...c.map(String));
+  }
+  return out.map((r) => r.trim().toLowerCase()).filter((r) => APP_ROLES.has(r));
+}
+
 export function getRole(user: AuthUser): AppRole {
-  const r = user.payload.role;
-  return r === "admin" || r === "editor" || r === "contributor" ? r : "user";
+  let best: AppRole = "user";
+  for (const r of roleClaims(user)) {
+    if (ROLE_RANK[r as AppRole] > ROLE_RANK[best]) best = r as AppRole;
+  }
+  return best;
+}
+
+/** Emails granted admin regardless of JWT role (comma-separated env var). */
+function adminEmails(env: Env): Set<string> {
+  return new Set(
+    (env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  );
 }
 
 /** True if the user's role is at least `min` in the hierarchy. */
@@ -70,8 +106,15 @@ export function hasRole(user: AuthUser, min: AppRole): boolean {
   return ROLE_RANK[getRole(user)] >= ROLE_RANK[min];
 }
 
-export function isAdmin(user: AuthUser): boolean {
-  return hasRole(user, "admin");
+/**
+ * Admin if the JWT role says so, OR the user's email is in the ADMIN_EMAILS
+ * allowlist. The allowlist is a reliable fallback that doesn't depend on the
+ * auth provider propagating a custom role claim into the token.
+ */
+export function isAdmin(user: AuthUser, env: Env): boolean {
+  if (hasRole(user, "admin")) return true;
+  const email = user.email?.toLowerCase();
+  return Boolean(email && adminEmails(env).has(email));
 }
 
 export type AuthVariables = { user: AuthUser };
@@ -101,9 +144,11 @@ export const requireAuth = createMiddleware<{
 export const requireRole = (min: AppRole) =>
   createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(
     async (c, next) => {
-      if (!hasRole(c.get("user"), min)) {
-        return c.json({ error: "forbidden" }, 403);
-      }
+      const user = c.get("user");
+      // Admin honors the email allowlist as well as the JWT role.
+      const ok =
+        min === "admin" ? isAdmin(user, c.env) : hasRole(user, min);
+      if (!ok) return c.json({ error: "forbidden" }, 403);
       await next();
     },
   );

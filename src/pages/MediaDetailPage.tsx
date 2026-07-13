@@ -1,9 +1,20 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  ImagePlus,
+  ListPlus,
+  RefreshCw,
+  Search,
+  Share2,
+  Shield,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import {
   Badge,
   Button,
   Card,
+  Dialog,
   Field,
   Flex,
   Heading,
@@ -23,6 +34,7 @@ import { MarkCompleteDialog } from "../components/MarkCompleteDialog";
 import { AddToListDialog } from "../components/AddToListDialog";
 import { CoverFinderDialog } from "../components/CoverFinderDialog";
 import { CoverUploadDialog } from "../components/CoverUploadDialog";
+import { RescrapeDialog } from "../components/RescrapeDialog";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   MEDIA_FIELDS,
@@ -70,6 +82,7 @@ function factsOf(data: MediaDetail): { label: string; value: string }[] {
 
 export function MediaDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data, reload } = useApiData<MediaDetail>(id ? `/media/${id}` : null);
   const { data: reviews, reload: reloadReviews } = useApiData<Review[]>(
     id ? `/media/${id}/reviews` : null,
@@ -92,6 +105,9 @@ export function MediaDetailPage() {
   const [addListOpen, setAddListOpen] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [rescrapeOpen, setRescrapeOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   if (!data) return <Text color="gray">Loading…</Text>;
@@ -206,6 +222,16 @@ export function MediaDetailPage() {
     setMsg(data.archivedAt ? "Unarchived." : "Archived.");
     reload();
   };
+  const remove = async () => {
+    setDeleting(true);
+    try {
+      await apiSend("DELETE", `/media/${id}`);
+      navigate("/catalog");
+    } catch (e) {
+      setMsg((e as Error).message);
+      setDeleting(false);
+    }
+  };
   return (
     <Flex direction="column" gap="5">
       <Flex gap="5" wrap="wrap">
@@ -220,14 +246,14 @@ export function MediaDetailPage() {
                 variant="soft"
                 onClick={() => setCoverOpen(true)}
               >
-                Find a cover
+                <Search size={14} aria-hidden /> Find a cover
               </Button>
               <Button
                 size="1"
                 variant="soft"
                 onClick={() => setUploadOpen(true)}
               >
-                Upload
+                <Upload size={14} aria-hidden /> Upload
               </Button>
             </Flex>
           )}
@@ -382,7 +408,7 @@ export function MediaDetailPage() {
 
           <Flex>
             <Button variant="soft" onClick={() => setAddListOpen(true)}>
-              Add to list
+              <ListPlus size={16} aria-hidden /> Add to list
             </Button>
           </Flex>
 
@@ -411,6 +437,7 @@ export function MediaDetailPage() {
                 value={`${window.location.origin}/m/${data.id}`}
                 label="Share"
                 copiedLabel="Link copied!"
+                icon={<Share2 size={14} aria-hidden />}
               />
             )}
           </Flex>
@@ -583,28 +610,102 @@ export function MediaDetailPage() {
 
       {isAdmin && (
         <Flex direction="column" gap="3">
-          <Heading size="5">Moderation</Heading>
+          <Flex gap="2" align="center">
+            <Shield size={18} aria-hidden className="dim-icon" />
+            <Heading size="5">Admin tools</Heading>
+          </Flex>
+
           <Card size="2">
-            <Flex gap="3" wrap="wrap" align="end">
-              <Field label="Visibility">
-                <Select
-                  value={data.visibility}
-                  onValueChange={(v) => void changeVisibility(v as Visibility)}
+            <Flex direction="column" gap="3">
+              <Text size="2" weight="medium">
+                Data &amp; artwork
+              </Text>
+              <Flex gap="2" wrap="wrap">
+                <Button variant="soft" onClick={() => setCoverOpen(true)}>
+                  <Search size={16} aria-hidden /> Find cover
+                </Button>
+                <Button variant="soft" onClick={() => setUploadOpen(true)}>
+                  <ImagePlus size={16} aria-hidden /> Upload cover
+                </Button>
+                <Button variant="soft" onClick={() => setRescrapeOpen(true)}>
+                  <RefreshCw size={16} aria-hidden /> Re-scrape data
+                </Button>
+              </Flex>
+            </Flex>
+          </Card>
+
+          <Card size="2">
+            <Flex gap="3" wrap="wrap" align="end" justify="space-between">
+              <Flex gap="3" wrap="wrap" align="end">
+                <Field label="Visibility">
+                  <Select
+                    value={data.visibility}
+                    onValueChange={(v) =>
+                      void changeVisibility(v as Visibility)
+                    }
+                  >
+                    <Select.Item value="PUBLIC">Public</Select.Item>
+                    <Select.Item value="UNLISTED">Unlisted</Select.Item>
+                    <Select.Item value="PRIVATE">Private</Select.Item>
+                  </Select>
+                </Field>
+                <Button
+                  variant="soft"
+                  color={data.archivedAt ? "green" : "red"}
+                  onClick={() => void toggleArchive()}
                 >
-                  <Select.Item value="PUBLIC">Public</Select.Item>
-                  <Select.Item value="UNLISTED">Unlisted</Select.Item>
-                  <Select.Item value="PRIVATE">Private</Select.Item>
-                </Select>
-              </Field>
+                  {data.archivedAt ? "Unarchive" : "Archive"}
+                </Button>
+              </Flex>
               <Button
                 variant="soft"
-                color={data.archivedAt ? "green" : "red"}
-                onClick={() => void toggleArchive()}
+                color="red"
+                onClick={() => setDeleteOpen(true)}
               >
-                {data.archivedAt ? "Unarchive" : "Archive"}
+                <Trash2 size={16} aria-hidden /> Delete
               </Button>
             </Flex>
           </Card>
+
+          <RescrapeDialog
+            open={rescrapeOpen}
+            onOpenChange={setRescrapeOpen}
+            mediaId={data.id}
+            onChanged={reload}
+          />
+
+          <Dialog
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+            title="Delete this item?"
+            description="This can't be undone."
+            content={
+              <Text size="2" color="gray">
+                “{data.title}” and all of its ratings, reviews, logs, series
+                links, and relations will be permanently removed.
+              </Text>
+            }
+            footer={
+              <Flex gap="2" justify="end">
+                <Button
+                  variant="soft"
+                  color="gray"
+                  onClick={() => setDeleteOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  color="red"
+                  loading={deleting}
+                  onClick={() => void remove()}
+                >
+                  Delete permanently
+                </Button>
+              </Flex>
+            }
+          >
+            <span style={{ display: "none" }} aria-hidden />
+          </Dialog>
         </Flex>
       )}
 

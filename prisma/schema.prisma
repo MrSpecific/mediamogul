@@ -62,6 +62,12 @@ enum EntryStatus {
   ABANDONED
 }
 
+enum MediaAssetKind {
+  COVER // front cover / poster
+  BACKDROP // wide hero/backdrop art
+  OTHER
+}
+
 enum Visibility {
   PRIVATE
   UNLISTED
@@ -155,6 +161,8 @@ model MediaItem {
   externalIds   ExternalId[]
   credits       Credit[]
   genres        MediaGenre[]
+  assets        MediaAsset[]
+  tvSeasons     Season[] // Season rows (distinct from the `seasons` count column)
   entries       MediaEntry[]
   ratings       Rating[]
   reviews       Review[]
@@ -276,23 +284,80 @@ model SeriesEntry {
 /// (R2 today, e.g. Cloudflare Images later); `url` is the delivery URL used as
 /// a MediaItem.coverImageUrl.
 model MediaAsset {
-  id           String   @id @default(uuid())
-  provider     String   @default("r2") // "r2" | "cloudflare_images"
-  key          String // R2 object key or provider image id
-  url          String // delivery URL (Worker /uploads/<key> for R2)
-  contentType  String?  @map("content_type")
-  size         Int?
+  id          String         @id @default(uuid())
+  // Optional owning item. A media item can have many assets (e.g. multiple
+  // cover editions); the display cover is the primary one (MediaItem.cover).
+  mediaItemId String?        @map("media_item_id")
+  mediaItem   MediaItem?     @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  kind        MediaAssetKind @default(COVER)
+  isPrimary   Boolean        @default(false) @map("is_primary")
+  position    Int            @default(0) // manual ordering within a kind
+
+  provider    String  @default("r2") // "r2" | "cloudflare_images"
+  key         String // R2 object key or provider image id
+  url         String // delivery URL (Worker /uploads/<key> for R2)
+  contentType String? @map("content_type")
+  size        Int?
+
+  // Edition metadata (esp. book covers): which printing this artwork is from.
+  edition     String? // e.g. "1st edition", "Deluxe", "UK paperback"
+  editionYear Int?    @map("edition_year")
+  publisher   String? // publisher of this specific edition
+
   // Provenance for images sourced from CC libraries (attribution).
-  sourceName   String?  @map("source_name") // e.g. "Wikimedia Commons"
-  sourceUrl    String?  @map("source_url") // attribution/description page
-  license      String? // e.g. "CC BY-SA 4.0", "Public domain"
-  creator      String? // attribution
+  sourceName String? @map("source_name") // e.g. "Wikimedia Commons"
+  sourceUrl  String? @map("source_url") // attribution/description page
+  license    String? // e.g. "CC BY-SA 4.0", "Public domain"
+  creator    String? // artist / attribution
+
   uploadedById String?  @map("uploaded_by_id")
   uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([uploadedById])
+  @@index([mediaItemId, kind])
   @@map("media_assets")
+}
+
+// ---------------------------------------------------------------------------
+// TV structure: a TV_SHOW MediaItem has Seasons, each with Episodes. Consumption
+// is still logged via MediaEntry (mediaItemId = the show), optionally scoped to
+// a season or episode so "mark whole season watched" fans out per episode.
+// ---------------------------------------------------------------------------
+
+model Season {
+  id          String    @id @default(uuid())
+  mediaItemId String    @map("media_item_id")
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  number      Int // season number (0 = specials)
+  title       String?
+  synopsis    String?
+  airDate     DateTime? @map("air_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  episodes Episode[]
+
+  @@unique([mediaItemId, number])
+  @@index([mediaItemId])
+  @@map("seasons")
+}
+
+model Episode {
+  id             String    @id @default(uuid())
+  seasonId       String    @map("season_id")
+  season         Season    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  number         Int // episode number within the season
+  title          String?
+  synopsis       String?
+  runtimeMinutes Int?      @map("runtime_minutes")
+  airDate        DateTime? @map("air_date")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  entries MediaEntry[]
+
+  @@unique([seasonId, number])
+  @@index([seasonId])
+  @@map("episodes")
 }
 
 // ---------------------------------------------------------------------------
@@ -300,12 +365,16 @@ model MediaAsset {
 // ---------------------------------------------------------------------------
 
 /// A single watch/read/listen. Multiple rows per (user, media) enable rewatches.
+/// For TV, `episodeId` scopes the entry to one episode (show-level entries leave
+/// it null).
 model MediaEntry {
   id            String      @id @default(uuid())
   userId        String      @map("user_id")
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   mediaItemId   String      @map("media_item_id")
   mediaItem     MediaItem   @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  episodeId     String?     @map("episode_id")
+  episode       Episode?    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
   status        EntryStatus @default(COMPLETED)
   startedAt     DateTime?   @map("started_at")
   finishedAt    DateTime?   @map("finished_at")
@@ -320,6 +389,7 @@ model MediaEntry {
   @@index([userId, mediaItemId])
   @@index([mediaItemId])
   @@index([userId, finishedAt])
+  @@index([episodeId])
   @@map("media_entries")
 }
 

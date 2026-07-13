@@ -1,59 +1,79 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Badge, Button, Card, Flex, Heading, Input, Text } from "@wlcr/base-ic";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Badge,
+  Button,
+  Card,
+  Flex,
+  Heading,
+  Input,
+  Text,
+  Toggle,
+  ToggleGroup,
+} from "@wlcr/base-ic";
+import { Check, ExternalLink, Plus, Search } from "lucide-react";
 import { apiSend } from "../lib/api";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { ManualMediaForm } from "../components/ManualMediaForm";
 import { MEDIA_FIELDS } from "../../shared/media-fields";
-import type { MediaCandidate, MediaItem } from "../lib/types";
+import type { MediaCandidate, MediaItem, MediaType } from "../lib/types";
 
-type Source = "open_library" | "wikidata" | "tmdb";
 type Mode = "search" | "manual";
 
 const MODE_OPTIONS: { value: Mode; label: string }[] = [
-  { value: "search", label: "Search a source" },
+  { value: "search", label: "Search" },
   { value: "manual", label: "Enter manually" },
 ];
 
-const SOURCE_OPTIONS: { value: Source; label: string }[] = [
-  { value: "open_library", label: "Books" },
-  { value: "wikidata", label: "Movies & TV" },
-  // { value: "tmdb", label: "TMDB" },
-];
+// Types the unified search can actually return (others are manual-only).
+const SEARCHABLE_TYPES: MediaType[] = ["MOVIE", "TV_SHOW", "BOOK"];
 
 /** Headline credit (author/director/creator) from the type's primary role. */
-function byline(c: MediaCandidate): string | undefined {
+function byline(
+  c: MediaCandidate,
+): { prefix?: string; names: string[] } | undefined {
   const cfg = MEDIA_FIELDS[c.type];
   const role = cfg.primaryCredit;
   if (!role) return undefined;
   const names = (c.credits ?? [])
     .filter((x) => x.role === role)
-    .map((x) => x.name)
-    .join(", ");
-  if (!names) return undefined;
-  const prefix = cfg.credits.find((x) => x.role === role)?.byline;
-  return prefix ? `${prefix} ${names}` : names;
+    .map((x) => x.name);
+  if (!names.length) return undefined;
+  return { prefix: cfg.credits.find((x) => x.role === role)?.byline, names };
 }
 
 export function AddMediaPage() {
   const navigate = useNavigate();
-  const [q, setQ] = useState("");
-  const [source, setSource] = useState<Source>("open_library");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQ = searchParams.get("q") ?? "";
+
+  const [q, setQ] = useState(initialQ);
+  const [types, setTypes] = useState<MediaType[]>(SEARCHABLE_TYPES);
   const [results, setResults] = useState<MediaCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [addingKey, setAddingKey] = useState<string | null>(null);
+  // Keys already imported this session → the new media id (kept so users can
+  // add several items from one search without being navigated away).
+  const [addedKeys, setAddedKeys] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
 
-  async function search() {
+  async function search(query: string) {
+    if (!query.trim()) return;
+    // Keep the query in the URL so the search survives navigating away and back.
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.set("q", query);
+      return p;
+    });
     setSearching(true);
     setError(null);
     try {
       setResults(
         await apiSend<MediaCandidate[]>(
           "GET",
-          `/lookup?source=${source}&q=${encodeURIComponent(q)}`,
+          `/lookup?source=all&q=${encodeURIComponent(query)}`,
         ),
       );
     } catch (e) {
@@ -63,18 +83,41 @@ export function AddMediaPage() {
     }
   }
 
+  // Auto-run the search when arriving with a pre-filled query (e.g. from the
+  // catalog's "add missing media" prompt).
+  const ranInitial = useRef(false);
+  useEffect(() => {
+    if (initialQ && !ranInitial.current) {
+      ranInitial.current = true;
+      void search(initialQ);
+    }
+    // `search` is stable enough for a one-shot; guarded by ranInitial.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQ]);
+
   async function importCandidate(candidate: MediaCandidate, key: string) {
     setAddingKey(key);
     try {
       const item = await apiSend<MediaItem>("POST", "/media/import", {
         candidate,
       });
-      navigate(`/media/${item.id}`);
+      // Stay on the page so the user can keep adding from these results.
+      setAddedKeys((prev) => ({ ...prev, [key]: item.id }));
     } catch (e) {
       setError((e as Error).message);
+    } finally {
       setAddingKey(null);
     }
   }
+
+  // Search for everything credited to a person (from a result's byline).
+  function searchPerson(name: string) {
+    setQ(name);
+    void search(name);
+  }
+
+  const enabled = new Set(types);
+  const visible = results?.filter((c) => enabled.has(c.type)) ?? null;
 
   return (
     <Flex direction="column" gap="4">
@@ -92,17 +135,10 @@ export function AddMediaPage() {
       ) : (
         <>
           <Text color="gray">
-            Search a public source — we pull in the cover, description, and
-            external IDs automatically. Books use Open Library; movies & TV use
-            Wikidata.
+            Search across books, movies, and TV at once — we pull in the cover,
+            description, and external IDs automatically. Toggle off any type you
+            don't want in the results.
           </Text>
-
-          <SegmentedControl
-            ariaLabel="Search source"
-            value={source}
-            onChange={setSource}
-            options={SOURCE_OPTIONS}
-          />
 
           <Flex
             as="form"
@@ -110,28 +146,36 @@ export function AddMediaPage() {
             wrap="wrap"
             onSubmit={(e) => {
               e.preventDefault();
-              void search();
+              void search(q);
             }}
           >
             <Input
               wrapperClassName="grow"
-              placeholder={
-                source === "open_library"
-                  ? "Title, author, or ISBN…"
-                  : "Movie or TV title…"
-              }
+              placeholder="Title, author, director, or ISBN…"
               value={q}
               onChange={(e) => setQ(e.currentTarget.value)}
             />
             <Button type="submit" loading={searching}>
-              Search
+              <Search size={16} aria-hidden /> Search
             </Button>
           </Flex>
+
+          <ToggleGroup
+            multiple
+            value={types}
+            onValueChange={(v: unknown[]) => setTypes(v as MediaType[])}
+          >
+            {SEARCHABLE_TYPES.map((t) => (
+              <Toggle key={t} value={t}>
+                {MEDIA_FIELDS[t].label}
+              </Toggle>
+            ))}
+          </ToggleGroup>
 
           {error && <Text color="red">{error}</Text>}
 
           <Flex direction="column" gap="2">
-            {results?.map((c, i) => {
+            {visible?.map((c, i) => {
               const author = byline(c);
               const key = `${c.title}-${i}`;
               return (
@@ -166,34 +210,64 @@ export function AddMediaPage() {
                         </Text>
                         {author && (
                           <Text size="2" color="gray">
-                            {author}
+                            {author.prefix ? `${author.prefix} ` : ""}
+                            {author.names.map((name, n) => (
+                              <span key={name}>
+                                {n > 0 && ", "}
+                                <button
+                                  type="button"
+                                  className="link-button"
+                                  onClick={() => searchPerson(name)}
+                                >
+                                  {name}
+                                </button>
+                              </span>
+                            ))}
                           </Text>
                         )}
                       </Flex>
                     </Flex>
-                    {c.existingId ? (
-                      <Button
-                        variant="soft"
-                        onClick={() => navigate(`/media/${c.existingId}`)}
-                      >
-                        View
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="soft"
-                        onClick={() => void importCandidate(c, key)}
-                        loading={addingKey === key}
-                        disabled={addingKey !== null}
-                      >
-                        Add
-                      </Button>
-                    )}
+                    {(() => {
+                      const targetId = c.existingId ?? addedKeys[key];
+                      if (targetId) {
+                        return (
+                          <Flex gap="2" align="center" className="shrink">
+                            {addedKeys[key] && !c.existingId && (
+                              <Badge size="1" variant="soft" color="green">
+                                <Check size={12} aria-hidden /> Added
+                              </Badge>
+                            )}
+                            <Button
+                              variant="soft"
+                              color="gray"
+                              onClick={() => navigate(`/media/${targetId}`)}
+                            >
+                              <ExternalLink size={16} aria-hidden /> View
+                            </Button>
+                          </Flex>
+                        );
+                      }
+                      return (
+                        <Button
+                          color="green"
+                          onClick={() => void importCandidate(c, key)}
+                          loading={addingKey === key}
+                          disabled={addingKey === key}
+                        >
+                          <Plus size={16} aria-hidden /> Add
+                        </Button>
+                      );
+                    })()}
                   </Flex>
                 </Card>
               );
             })}
-            {results && results.length === 0 && (
-              <Text color="gray">No matches.</Text>
+            {visible && visible.length === 0 && (
+              <Text color="gray">
+                {results && results.length > 0
+                  ? "No matches for the selected types."
+                  : "No matches."}
+              </Text>
             )}
           </Flex>
         </>

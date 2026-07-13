@@ -2,6 +2,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Badge,
   Button,
+  Card,
   Flex,
   Heading,
   Input,
@@ -10,6 +11,7 @@ import {
   Toggle,
   ToggleGroup,
 } from "@wlcr/base-ic";
+import { ArrowDownWideNarrow, Plus, SearchX } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { MediaCard } from "../components/MediaCard";
 import { titleCase } from "../../shared/media-fields";
@@ -100,7 +102,9 @@ export function CatalogPage() {
     <Flex direction="column" gap="4">
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">
         <Heading size="7">Catalog</Heading>
-        <Button onClick={() => navigate("/catalog/add")}>Add media</Button>
+        <Button onClick={() => navigate("/catalog/add")}>
+          <Plus size={16} aria-hidden /> Add media
+        </Button>
       </Flex>
 
       <Input
@@ -168,30 +172,59 @@ export function CatalogPage() {
             {allSelected ? "Deselect all" : "Select all"}
           </Button>
         </Flex>
-        <Select
-          value={order}
-          onValueChange={(v) =>
-            setParam("order", v === "new" ? null : (v as string))
-          }
-        >
-          {Object.entries(ORDER_LABELS).map(([value, label]) => (
-            <Select.Item key={value} value={value}>
-              {label}
-            </Select.Item>
-          ))}
-        </Select>
+        <Flex gap="2" align="center" className="shrink">
+          <ArrowDownWideNarrow size={16} aria-hidden className="dim-icon" />
+          <Select
+            value={order}
+            onValueChange={(v) =>
+              setParam("order", v === "new" ? null : (v as string))
+            }
+          >
+            {Object.entries(ORDER_LABELS).map(([value, label]) => (
+              <Select.Item key={value} value={value}>
+                {label}
+              </Select.Item>
+            ))}
+          </Select>
+        </Flex>
       </Flex>
 
       {loading && <Text color="gray">Loading…</Text>}
-      {(noneSelected || (data && data.items.length === 0)) && (
-        <Text color="gray">
-          {noneSelected
-            ? "Select a media type to see results."
-            : "No results. Try adjusting your filters."}
-        </Text>
+      {noneSelected && (
+        <Text color="gray">Select a media type to see results.</Text>
+      )}
+      {!noneSelected && data && data.items.length === 0 && (
+        <Card size="3" className="empty-state">
+          <Flex direction="column" align="center" gap="3">
+            <SearchX size={40} aria-hidden className="dim-icon" />
+            <Flex direction="column" align="center" gap="1">
+              <Text weight="medium" size="4" align="center">
+                {q ? `No results for “${q}”` : "Nothing here yet"}
+              </Text>
+              <Text color="gray" align="center" style={{ maxWidth: 380 }}>
+                {q
+                  ? "It might not be in the catalog yet. Search public sources and add it in a couple of clicks."
+                  : "Try adjusting your filters, or add something new to the catalog."}
+              </Text>
+            </Flex>
+            <Button
+              onClick={() =>
+                navigate(
+                  q
+                    ? `/catalog/add?q=${encodeURIComponent(q)}`
+                    : "/catalog/add",
+                )
+              }
+            >
+              <Plus size={16} aria-hidden />{" "}
+              {q ? `Add “${q}”` : "Add media"}
+            </Button>
+          </Flex>
+        </Card>
       )}
       <div className="media-grid">
-        {!noneSelected && data?.items.map((m) => <MediaCard key={m.id} item={m} />)}
+        {!noneSelected &&
+          data?.items.map((m) => <MediaCard key={m.id} item={m} />)}
       </div>
     </Flex>
   );

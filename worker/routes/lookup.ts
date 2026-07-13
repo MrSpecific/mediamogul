@@ -48,11 +48,12 @@ lookup.get(
   zValidator(
     "query",
     z.object({
-      // open_library = books; wikidata = movies/TV (CC0, commercial-safe);
-      // tmdb = movies/TV (richer, but requires a commercial license).
+      // all = unified search across every source; open_library = books;
+      // wikidata = movies/TV (CC0, commercial-safe); tmdb = movies/TV (richer,
+      // but requires a commercial license).
       source: z
-        .enum(["open_library", "wikidata", "tmdb"])
-        .default("open_library"),
+        .enum(["all", "open_library", "wikidata", "tmdb"])
+        .default("all"),
       q: z.string().optional(),
       isbn: z.string().optional(),
     }),
@@ -61,7 +62,20 @@ lookup.get(
     const { source, q, isbn } = c.req.valid("query");
 
     let candidates: MediaCandidate[];
-    if (source === "open_library") {
+    if (source === "all") {
+      if (!q) return c.json({ error: "provide q" }, 400);
+      // Query every free source in parallel; a failing source is skipped
+      // rather than failing the whole search. Interleave so no single source
+      // dominates the top of the list.
+      const settled = await Promise.allSettled([
+        searchBooks(q),
+        searchScreenWikidata(q),
+      ]);
+      const lists = settled.map((s) =>
+        s.status === "fulfilled" ? s.value : [],
+      );
+      candidates = interleave(lists);
+    } else if (source === "open_library") {
       if (isbn) {
         const found = await lookupBookByIsbn(isbn);
         candidates = found ? [found] : [];
@@ -83,3 +97,15 @@ lookup.get(
     return c.json(await annotateExisting(c.get("prisma"), candidates));
   },
 );
+
+/** Round-robin merge so each source contributes near the top of the list. */
+function interleave<T>(lists: T[][]): T[] {
+  const out: T[] = [];
+  const max = Math.max(0, ...lists.map((l) => l.length));
+  for (let i = 0; i < max; i++) {
+    for (const list of lists) {
+      if (i < list.length) out.push(list[i]);
+    }
+  }
+  return out;
+}

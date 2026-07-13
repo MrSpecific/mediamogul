@@ -188,6 +188,20 @@ body {
   color: inherit;
 }
 
+/* A <button> that reads as an inline text link (e.g. byline names). */
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
 .cover {
   aspect-ratio: 2 / 3;
   border-radius: var(--radius-3, 8px);
@@ -263,6 +277,35 @@ body {
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   font-size: 12px;
+}
+
+/* Muted icon accent (sort control, empty states). */
+.dim-icon {
+  color: var(--color-gray-9, #888);
+  flex: none;
+}
+
+/* Catalog empty state */
+.empty-state {
+  padding: 32px 20px;
+}
+
+/* Re-scrape diff rows */
+.diff-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.diff-row input[type="checkbox"] {
+  margin-top: 3px;
+  flex: none;
+}
+
+.diff-old {
+  text-decoration: line-through;
+  color: var(--color-gray-9, #888);
 }
 
 /* Drag-and-drop file picker */

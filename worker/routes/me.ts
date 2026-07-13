@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { getOrCreateUser } from "../db";
-import { isAdmin } from "../auth";
+import { getRole, isAdmin } from "../auth";
 import { username } from "../schemas";
 import type { AppEnv } from "../types";
 
@@ -11,7 +11,21 @@ export const me = new Hono<AppEnv>();
 /** Current user's profile (created on first call), plus admin flag. */
 me.get("/", async (c) => {
   const profile = await getOrCreateUser(c.get("prisma"), c.get("user"));
-  return c.json({ ...profile, isAdmin: isAdmin(c.get("user")) });
+  return c.json({ ...profile, isAdmin: isAdmin(c.get("user"), c.env) });
+});
+
+/**
+ * Diagnostic: the verified JWT claims for the current user. Handy for wiring
+ * up role-based access — shows exactly what the auth provider put in the token.
+ */
+me.get("/claims", (c) => {
+  const user = c.get("user");
+  return c.json({
+    email: user.email,
+    resolvedRole: getRole(user),
+    isAdmin: isAdmin(user, c.env),
+    payload: user.payload,
+  });
 });
 
 me.patch(
