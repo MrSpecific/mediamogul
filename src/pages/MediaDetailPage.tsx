@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Badge,
@@ -14,7 +14,7 @@ import {
   Textarea,
 } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
-import { apiSend, apiUpload } from "../lib/api";
+import { apiSend } from "../lib/api";
 import { CopyButton } from "../components/CopyButton";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
@@ -22,8 +22,13 @@ import { MediaPicker } from "../components/MediaPicker";
 import { MarkCompleteDialog } from "../components/MarkCompleteDialog";
 import { AddToListDialog } from "../components/AddToListDialog";
 import { CoverFinderDialog } from "../components/CoverFinderDialog";
+import { CoverUploadDialog } from "../components/CoverUploadDialog";
 import { StatusBadge } from "../components/StatusBadge";
-import { MEDIA_FIELDS, formatFieldValue } from "../../shared/media-fields";
+import {
+  MEDIA_FIELDS,
+  formatFieldValue,
+  titleCase,
+} from "../../shared/media-fields";
 import { timeAgo } from "../lib/time";
 import {
   RELATION_LABELS,
@@ -37,18 +42,18 @@ import {
   type Visibility,
 } from "../lib/types";
 
-/** Headline credit line (e.g. "Directed by …"), from the type's primary role. */
-function bylineOf(data: MediaDetail): string | undefined {
+/** Headline credit (e.g. "Directed by …") from the type's primary role. */
+function bylineOf(
+  data: MediaDetail,
+): { prefix?: string; names: string[] } | undefined {
   const cfg = MEDIA_FIELDS[data.type];
   const role = cfg.primaryCredit;
   if (!role) return undefined;
   const names = (data.credits ?? [])
     .filter((c) => c.role === role)
-    .map((c) => c.name)
-    .join(", ");
-  if (!names) return undefined;
-  const prefix = cfg.credits.find((c) => c.role === role)?.byline;
-  return prefix ? `${prefix} ${names}` : names;
+    .map((c) => c.name);
+  if (!names.length) return undefined;
+  return { prefix: cfg.credits.find((c) => c.role === role)?.byline, names };
 }
 
 /** Type-specific facts (runtime, pages, seasons…), config-driven. */
@@ -58,7 +63,9 @@ function factsOf(data: MediaDetail): { label: string; value: string }[] {
       label: spec.label,
       value: formatFieldValue(spec, data[spec.key]),
     }))
-    .filter((f): f is { label: string; value: string } => f.value !== undefined);
+    .filter(
+      (f): f is { label: string; value: string } => f.value !== undefined,
+    );
 }
 
 export function MediaDetailPage() {
@@ -84,8 +91,7 @@ export function MediaDetailPage() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [addListOpen, setAddListOpen] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
-  const [coverUploading, setCoverUploading] = useState(false);
-  const coverFileRef = useRef<HTMLInputElement>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   if (!data) return <Text color="gray">Loading…</Text>;
@@ -156,7 +162,10 @@ export function MediaDetailPage() {
   const saveReview = async () => {
     const body = reviewBody || data.you.review?.body;
     if (!body) return;
-    await apiSend("PUT", `/media/${id}/review`, { body, visibility: reviewVis });
+    await apiSend("PUT", `/media/${id}/review`, {
+      body,
+      visibility: reviewVis,
+    });
     setReviewBody("");
     reloadReviews();
     reload();
@@ -197,20 +206,6 @@ export function MediaDetailPage() {
     setMsg(data.archivedAt ? "Unarchived." : "Archived.");
     reload();
   };
-  const uploadCover = async (file: File | undefined) => {
-    if (!file) return;
-    setCoverUploading(true);
-    setMsg(null);
-    try {
-      await apiUpload(`/media/${id}/cover/upload`, file);
-      reload();
-    } catch (e) {
-      setMsg((e as Error).message);
-    } finally {
-      setCoverUploading(false);
-    }
-  };
-
   return (
     <Flex direction="column" gap="5">
       <Flex gap="5" wrap="wrap">
@@ -219,39 +214,21 @@ export function MediaDetailPage() {
             {data.coverImageUrl && <img src={data.coverImageUrl} alt="" />}
           </div>
           {!data.coverImageUrl && (
-            <Flex direction="column" gap="1" align="center">
-              <Flex gap="2">
-                <Button
-                  size="1"
-                  variant="soft"
-                  onClick={() => setCoverOpen(true)}
-                >
-                  Find a cover
-                </Button>
-                <Button
-                  size="1"
-                  variant="soft"
-                  loading={coverUploading}
-                  onClick={() => coverFileRef.current?.click()}
-                >
-                  Upload
-                </Button>
-              </Flex>
-              <input
-                ref={coverFileRef}
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={(e) => void uploadCover(e.currentTarget.files?.[0])}
-              />
-              <Text
+            <Flex gap="2">
+              <Button
                 size="1"
-                color="gray"
-                align="center"
-                style={{ maxWidth: 190 }}
+                variant="soft"
+                onClick={() => setCoverOpen(true)}
               >
-                By uploading, you confirm you have permission to use this image.
-              </Text>
+                Find a cover
+              </Button>
+              <Button
+                size="1"
+                variant="soft"
+                onClick={() => setUploadOpen(true)}
+              >
+                Upload
+              </Button>
             </Flex>
           )}
           <CoverFinderDialog
@@ -259,6 +236,12 @@ export function MediaDetailPage() {
             onOpenChange={setCoverOpen}
             mediaId={data.id}
             title={data.title}
+            onChanged={reload}
+          />
+          <CoverUploadDialog
+            open={uploadOpen}
+            onOpenChange={setUploadOpen}
+            mediaId={data.id}
             onChanged={reload}
           />
         </Flex>
@@ -284,9 +267,26 @@ export function MediaDetailPage() {
                   {new Date(data.releaseDate).getFullYear()}
                 </Text>
               )}
-              {bylineOf(data) && (
-                <Text color="gray">· {bylineOf(data)}</Text>
-              )}
+              {(() => {
+                const b = bylineOf(data);
+                if (!b) return null;
+                return (
+                  <Text color="gray">
+                    · {b.prefix ? `${b.prefix} ` : ""}
+                    {b.names.map((name, i) => (
+                      <span key={name}>
+                        {i > 0 && ", "}
+                        <Link
+                          to={`/catalog?credit=${encodeURIComponent(name)}`}
+                          className="byline-link"
+                        >
+                          {name}
+                        </Link>
+                      </span>
+                    ))}
+                  </Text>
+                );
+              })()}
             </Flex>
             {data.series.length > 0 && (
               <Flex gap="2" wrap="wrap">
@@ -327,9 +327,15 @@ export function MediaDetailPage() {
           {data.genres.length > 0 && (
             <Flex gap="2" wrap="wrap">
               {data.genres.map((g) => (
-                <Badge key={g.id} variant="soft" color="gray">
-                  {g.name}
-                </Badge>
+                <Link
+                  key={g.id}
+                  to={`/catalog?genre=${encodeURIComponent(g.slug)}`}
+                  className="badge-link"
+                >
+                  <Badge variant="soft" color="gray">
+                    {titleCase(g.name)}
+                  </Badge>
+                </Link>
               ))}
             </Flex>
           )}
@@ -403,7 +409,7 @@ export function MediaDetailPage() {
             {data.visibility === "PUBLIC" && !data.archivedAt && (
               <CopyButton
                 value={`${window.location.origin}/m/${data.id}`}
-                label="Copy share link"
+                label="Share"
                 copiedLabel="Link copied!"
               />
             )}
@@ -415,7 +421,11 @@ export function MediaDetailPage() {
 
       <Flex direction="column" gap="3">
         <Heading size="5">Your rating</Heading>
-        <StarRating value={yourStars} onChange={(s) => void rate(s)} size={30} />
+        <StarRating
+          value={yourStars}
+          onChange={(s) => void rate(s)}
+          size={30}
+        />
       </Flex>
 
       <Flex direction="column" gap="3">
@@ -456,7 +466,12 @@ export function MediaDetailPage() {
           {entries?.map((e) => (
             <Card key={e.id} size="1">
               <Flex direction="column" gap="1">
-                <Flex justify="space-between" gap="2" wrap="wrap" align="center">
+                <Flex
+                  justify="space-between"
+                  gap="2"
+                  wrap="wrap"
+                  align="center"
+                >
                   <Flex gap="2" align="center">
                     <StatusBadge status={e.status} />
                     {e.progress && (

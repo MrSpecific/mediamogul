@@ -172,6 +172,22 @@ body {
   color: inherit;
 }
 
+/* Inline byline names link to the credit-filtered catalog. */
+.byline-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.byline-link:hover {
+  text-decoration: underline;
+}
+
+/* Genre badges wrapped in a link — keep the badge's own look. */
+.badge-link {
+  text-decoration: none;
+  color: inherit;
+}
+
 .cover {
   aspect-ratio: 2 / 3;
   border-radius: var(--radius-3, 8px);
@@ -247,6 +263,37 @@ body {
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   font-size: 12px;
+}
+
+/* Drag-and-drop file picker */
+.dropzone {
+  display: grid;
+  place-items: center;
+  padding: 28px 16px;
+  border: 2px dashed var(--color-gray-6, rgba(128, 128, 128, 0.4));
+  border-radius: 10px;
+  background: var(--color-gray-2, rgba(128, 128, 128, 0.08));
+  cursor: pointer;
+  text-align: center;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.dropzone:hover,
+.dropzone:focus-visible {
+  border-color: var(--color-accent-8, #888);
+  outline: none;
+}
+
+.dropzone-active {
+  border-color: var(--color-accent-9, #666);
+  background: var(--color-accent-3, rgba(128, 128, 128, 0.18));
+}
+
+.dropzone-disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* Half-star rating */
