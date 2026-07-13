@@ -15,6 +15,10 @@ function stripe(env: Env): Stripe {
   });
 }
 
+// Webhook signature verification must use WebCrypto on Workers (the default
+// path uses Node's synchronous crypto, which isn't available at the edge).
+const cryptoProvider = Stripe.createSubtleCryptoProvider();
+
 export const billing = new Hono<AppEnv>();
 
 /** Plans + current tier, for the pricing/settings UI. */
@@ -58,7 +62,9 @@ billing.post("/checkout", async (c) => {
   const session = await s.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
+    client_reference_id: profile.id,
     line_items: [{ price: c.env.STRIPE_PRICE_STANDARD, quantity: 1 }],
+    subscription_data: { metadata: { userId: profile.id } },
     success_url: `${origin}/settings?upgraded=1`,
     cancel_url: `${origin}/settings`,
   });
@@ -100,6 +106,8 @@ export async function handleStripeWebhook(
       body,
       signature ?? "",
       c.env.STRIPE_WEBHOOK_SECRET,
+      undefined,
+      cryptoProvider,
     );
   } catch {
     return c.json({ error: "invalid_signature" }, 400);

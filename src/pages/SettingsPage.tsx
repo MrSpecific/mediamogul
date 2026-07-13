@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
@@ -16,9 +18,19 @@ interface PlansResponse {
 }
 
 export function SettingsPage() {
-  const { data } = useApiData<PlansResponse>("/billing/plans");
+  const [params] = useSearchParams();
+  const justUpgraded = params.get("upgraded") === "1";
+  const { data, reload } = useApiData<PlansResponse>("/billing/plans");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The upgrade lands via an async Stripe webhook — poll until the tier flips.
+  const pending = justUpgraded && data != null && data.currentTier !== "STANDARD";
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => reload(), 2500);
+    return () => clearTimeout(t);
+  }, [pending, reload]);
 
   const go = async (path: string) => {
     setBusy(true);
@@ -42,6 +54,11 @@ export function SettingsPage() {
         <Text color="gray">
           Current plan: <Badge>{data?.currentTier ?? "…"}</Badge>
         </Text>
+        {pending && (
+          <Text color="green" size="2">
+            Payment received — finalizing your upgrade…
+          </Text>
+        )}
 
         <Flex gap="3" wrap="wrap">
           {data?.plans.map((p) => {
