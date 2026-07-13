@@ -81,6 +81,7 @@ export function CoverFinderDialog({
             }}
           >
             <Input
+              wrapperClassName="grow"
               value={q}
               onChange={(e) => setQ(e.currentTarget.value)}
               placeholder="Search images…"

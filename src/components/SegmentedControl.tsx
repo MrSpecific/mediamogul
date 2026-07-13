@@ -23,21 +23,23 @@ export function SegmentedControl<T extends string>({
   ariaLabel,
 }: Props<T>) {
   return (
-    <ToggleGroup
-      connected
-      size={size}
-      aria-label={ariaLabel}
-      value={[value]}
-      onValueChange={(next: unknown[]) => {
-        const picked = next[0] as T | undefined;
-        if (picked) onChange(picked); // ignore deselect — keep one always active
-      }}
-    >
-      {options.map((o) => (
-        <Toggle key={o.value} value={o.value}>
-          {o.label}
-        </Toggle>
-      ))}
-    </ToggleGroup>
+    <div className="segmented-scroll">
+      <ToggleGroup
+        connected
+        size={size}
+        aria-label={ariaLabel}
+        value={[value]}
+        onValueChange={(next: unknown[]) => {
+          const picked = next[0] as T | undefined;
+          if (picked) onChange(picked); // ignore deselect — keep one always active
+        }}
+      >
+        {options.map((o) => (
+          <Toggle key={o.value} value={o.value}>
+            {o.label}
+          </Toggle>
+        ))}
+      </ToggleGroup>
+    </div>
   );
 }

@@ -25,5 +25,11 @@
   // requests to /api/* that don't match an asset hit the Worker below.
   "assets": {
     "not_found_handling": "single-page-application",
+    // Expose assets to the Worker (env.ASSETS) and run the Worker first for
+    // public media pages so it can inject per-item OpenGraph tags.
+    "binding": "ASSETS",
+    // The Worker owns these paths (API, public media pages, uploaded images);
+    // everything else is served from static assets / the SPA.
+    "run_worker_first": ["/api/*", "/m/*", "/uploads/*"],
   },
 }

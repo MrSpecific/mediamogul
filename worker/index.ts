@@ -9,6 +9,7 @@ import { lookup } from "./routes/lookup";
 import { series } from "./routes/series";
 import { genres } from "./routes/genres";
 import { billing, handleStripeWebhook } from "./routes/billing";
+import { publicRoutes, renderMediaOg } from "./routes/public";
 import type { AppEnv } from "./types";
 
 const app = new Hono<AppEnv>();
@@ -34,6 +35,13 @@ app.get("/uploads/*", async (c) => {
   headers.set("Cache-Control", "public, max-age=31536000, immutable");
   return new Response(obj.body, { headers });
 });
+
+// Public (unauthenticated) media data.
+app.route("/api/public", publicRoutes);
+
+// Public shareable media page — Worker runs first (see wrangler.jsonc) and
+// injects per-item OpenGraph tags into the SPA shell.
+app.get("/m/:id", renderMediaOg);
 
 // Everything else under /api requires a valid Neon Auth session. Middleware
 // order: verify JWT -> attach Prisma -> ensure the app profile row exists (so

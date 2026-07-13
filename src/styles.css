@@ -1,6 +1,45 @@
 /* App-level layout styles. Component styling comes from @wlcr/base-ic
    (Base UI + CSS Modules + design tokens) — no Tailwind anywhere. */
 
+/* Media never forces horizontal overflow. */
+img,
+svg,
+video {
+  max-width: 100%;
+}
+
+/* Belt-and-suspenders against horizontal scroll on mobile. */
+body {
+  overflow-x: hidden;
+}
+
+/* Inputs at >=16px so iOS doesn't zoom on focus. */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Responsive flex helpers. */
+.shrink {
+  min-width: 0;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+/* Segmented controls scroll rather than overflow on narrow screens. */
+.segmented-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.segmented-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .layout {
   min-height: 100vh;
   display: flex;

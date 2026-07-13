@@ -62,8 +62,10 @@ export function AddToListDialog({
             const state = result[l.id];
             return (
               <Flex key={l.id} justify="space-between" align="center" gap="3">
-                <Flex direction="column">
-                  <Text weight="medium">{l.title}</Text>
+                <Flex direction="column" className="shrink">
+                  <Text weight="medium" truncate>
+                    {l.title}
+                  </Text>
                   <Text size="1" color="gray">
                     {l._count?.items ?? 0} items · {l.visibility.toLowerCase()}
                   </Text>

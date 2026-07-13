@@ -114,6 +114,7 @@ export function AddMediaPage() {
             }}
           >
             <Input
+              wrapperClassName="grow"
               placeholder={
                 source === "open_library"
                   ? "Title, author, or ISBN…"
@@ -136,7 +137,7 @@ export function AddMediaPage() {
               return (
                 <Card key={key} size="2">
                   <Flex gap="3" align="center" justify="space-between">
-                    <Flex gap="3" align="center">
+                    <Flex gap="3" align="center" className="shrink">
                       {c.coverImageUrl && (
                         <img
                           src={c.coverImageUrl}
@@ -146,7 +147,7 @@ export function AddMediaPage() {
                           style={{ objectFit: "cover", borderRadius: 4 }}
                         />
                       )}
-                      <Flex direction="column" gap="1">
+                      <Flex direction="column" gap="1" className="shrink">
                         <Flex gap="2" align="center" wrap="wrap">
                           <MediaTypeBadge type={c.type} />
                           {c.releaseDate && (
@@ -160,7 +161,9 @@ export function AddMediaPage() {
                             </Badge>
                           )}
                         </Flex>
-                        <Text weight="medium">{c.title}</Text>
+                        <Text weight="medium" truncate>
+                          {c.title}
+                        </Text>
                         {author && (
                           <Text size="2" color="gray">
                             {author}

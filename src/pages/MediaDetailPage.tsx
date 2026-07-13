@@ -351,12 +351,21 @@ export function MediaDetailPage() {
             </Text>
           )}
 
-          <Text size="1" color="gray">
-            {data.createdBy
-              ? `Added by ${data.createdBy.displayName ?? `@${data.createdBy.username}`} · `
-              : "Added "}
-            {timeAgo(data.createdAt)}
-          </Text>
+          <Flex gap="3" align="center" wrap="wrap">
+            <Text size="1" color="gray">
+              {data.createdBy
+                ? `Added by ${data.createdBy.displayName ?? `@${data.createdBy.username}`} · `
+                : "Added "}
+              {timeAgo(data.createdAt)}
+            </Text>
+            {data.visibility === "PUBLIC" && !data.archivedAt && (
+              <Link to={`/m/${data.id}`} className="media-card-link">
+                <Text size="1" color="gray" style={{ textDecoration: "underline" }}>
+                  Public page ↗
+                </Text>
+              </Link>
+            )}
+          </Flex>
         </Flex>
       </Flex>
 

@@ -1,0 +1,97 @@
+import { Hono } from "hono";
+import type { Context } from "hono";
+import { getPrisma } from "../db";
+import type { AppEnv } from "../types";
+
+// Public, unauthenticated media data. Only PUBLIC, non-archived items.
+export const publicRoutes = new Hono<{ Bindings: Env }>();
+
+async function loadPublicMedia(env: Env, id: string) {
+  const prisma = getPrisma(env);
+  const item = await prisma.mediaItem.findFirst({
+    where: { id, visibility: "PUBLIC", archivedAt: null },
+    include: {
+      credits: { orderBy: { position: "asc" } },
+      genres: { include: { genre: true } },
+    },
+  });
+  if (!item) return null;
+  const agg = await prisma.rating.aggregate({
+    where: { mediaItemId: id },
+    _avg: { stars: true },
+    _count: true,
+  });
+  const { genres, ...rest } = item;
+  return {
+    ...rest,
+    genres: genres.map((g) => g.genre),
+    averageRating: agg._avg.stars == null ? null : Number(agg._avg.stars),
+    ratingCount: agg._count,
+  };
+}
+
+publicRoutes.get("/media/:id", async (c) => {
+  const media = await loadPublicMedia(c.env, c.req.param("id"));
+  if (!media) return c.json({ error: "not_found" }, 404);
+  return c.json(media);
+});
+
+// --- OpenGraph HTML injection for /m/:id ----------------------------------
+
+class SetAttr {
+  attrName: string;
+  attrValue: string;
+  constructor(name: string, value: string) {
+    this.attrName = name;
+    this.attrValue = value;
+  }
+  element(el: Element) {
+    el.setAttribute(this.attrName, this.attrValue);
+  }
+}
+class SetText {
+  content: string;
+  constructor(content: string) {
+    this.content = content;
+  }
+  element(el: Element) {
+    el.setInnerContent(this.content);
+  }
+}
+
+/**
+ * Serves the SPA shell for /m/:id with per-media OpenGraph tags injected
+ * (title, description, and the cover image) so shared links preview nicely.
+ * Falls back to the unmodified shell when the item isn't public.
+ */
+export async function renderMediaOg(c: Context<AppEnv>): Promise<Response> {
+  const origin = new URL(c.req.url).origin;
+  const shell = await c.env.ASSETS.fetch(new URL("/index.html", origin));
+
+  const id = c.req.param("id");
+  if (!id) return shell;
+  const media = await loadPublicMedia(c.env, id).catch(() => null);
+  if (!media) return shell;
+
+  const abs = (u: string) => new URL(u, origin).toString();
+  const title = media.title;
+  const description =
+    media.shortDescription ||
+    media.synopsis?.slice(0, 200) ||
+    "Track it on mediamogul.";
+  const image = media.coverImageUrl
+    ? abs(media.coverImageUrl)
+    : abs("/og.png");
+
+  return new HTMLRewriter()
+    .on("title", new SetText(`${title} · mediamogul`))
+    .on('meta[property="og:title"]', new SetAttr("content", title))
+    .on('meta[property="og:description"]', new SetAttr("content", description))
+    .on('meta[property="og:image"]', new SetAttr("content", image))
+    .on('meta[property="og:type"]', new SetAttr("content", "article"))
+    .on('meta[property="og:url"]', new SetAttr("content", `${origin}/m/${media.id}`))
+    .on('meta[name="twitter:title"]', new SetAttr("content", title))
+    .on('meta[name="twitter:description"]', new SetAttr("content", description))
+    .on('meta[name="twitter:image"]', new SetAttr("content", image))
+    .transform(shell);
+}

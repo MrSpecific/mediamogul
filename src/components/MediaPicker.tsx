@@ -39,6 +39,7 @@ export function MediaPicker({ onPick, excludeId }: Props) {
         }}
       >
         <Input
+          wrapperClassName="grow"
           placeholder="Search catalog…"
           value={q}
           onChange={(e) => setQ(e.currentTarget.value)}
@@ -49,9 +50,11 @@ export function MediaPicker({ onPick, excludeId }: Props) {
       </Flex>
       {results.map((m) => (
         <Flex key={m.id} justify="space-between" align="center" gap="2">
-          <Flex gap="2" align="center">
+          <Flex gap="2" align="center" className="shrink">
             <MediaTypeBadge type={m.type} />
-            <Text size="2">{m.title}</Text>
+            <Text size="2" truncate>
+              {m.title}
+            </Text>
           </Flex>
           <Button size="1" variant="soft" onClick={() => onPick(m)}>
             Select

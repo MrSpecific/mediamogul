@@ -19,6 +19,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AdminGenresPage } from "./pages/AdminGenresPage";
 import { AccountPage } from "./routes/AccountPage";
+import { PublicMediaPage } from "./pages/PublicMediaPage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -33,6 +34,7 @@ createRoot(document.getElementById("root")!).render(
         <AuthProvider>
           <Routes>
             <Route path="/auth/:pathname" element={<AuthPage />} />
+            <Route path="/m/:id" element={<PublicMediaPage />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/catalog" element={<CatalogPage />} />
