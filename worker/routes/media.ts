@@ -39,6 +39,7 @@ const creditInput = z.object({
 const mediaInput = z.object({
   type: mediaType,
   title: z.string().min(1).max(500),
+  subtitle: z.string().max(500).optional(),
   sortTitle: z.string().max(500).optional(),
   // Accepts absolute URLs (scraped) and relative /uploads/… paths (our R2).
   coverImageUrl: z.string().max(1000).optional(),
@@ -244,6 +245,7 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
     data: {
       type: data.type,
       title: data.title,
+      subtitle: data.subtitle,
       sortTitle: data.sortTitle,
       coverImageUrl: data.coverImageUrl,
       shortDescription: data.shortDescription,
@@ -303,6 +305,7 @@ media.post(
       data: {
         type: cand.type,
         title: cand.title,
+        subtitle: cand.subtitle,
         coverImageUrl: cand.coverImageUrl,
         shortDescription: cand.shortDescription,
         synopsis: cand.synopsis,
@@ -1037,6 +1040,7 @@ media.post("/:id/rescrape", requireAdmin, async (c) => {
     candidate,
     current: {
       title: item.title,
+      subtitle: item.subtitle,
       shortDescription: item.shortDescription,
       synopsis: item.synopsis,
       coverImageUrl: item.coverImageUrl,
@@ -1068,6 +1072,7 @@ media.post(
       patch: z
         .object({
           title: z.string().min(1).max(500).optional(),
+          subtitle: z.string().max(500).nullable().optional(),
           shortDescription: z.string().max(500).nullable().optional(),
           synopsis: z.string().nullable().optional(),
           releaseDate: z.coerce.date().nullable().optional(),

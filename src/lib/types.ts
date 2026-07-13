@@ -24,6 +24,7 @@ export interface MediaItem {
   id: string;
   type: MediaType;
   title: string;
+  subtitle: string | null;
   coverImageUrl: string | null;
   shortDescription: string | null;
   synopsis: string | null;
@@ -163,6 +164,7 @@ export interface MediaDetail extends MediaItem {
 export interface MediaCandidate {
   type: MediaType;
   title: string;
+  subtitle?: string;
   coverImageUrl?: string;
   shortDescription?: string;
   synopsis?: string;

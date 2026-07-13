@@ -19,6 +19,7 @@ export interface CandidateCredit {
 export interface MediaCandidate {
   type: MediaType;
   title: string;
+  subtitle?: string;
   coverImageUrl?: string;
   shortDescription?: string;
   synopsis?: string;
@@ -157,7 +158,8 @@ export async function searchBooks(
       if (isbn) externalIds.push({ source: "ISBN", value: isbn });
       return {
         type: "BOOK" as const,
-        title: d.subtitle ? `${d.title}: ${d.subtitle}` : d.title!,
+        title: d.title!,
+        subtitle: d.subtitle,
         coverImageUrl: d.cover_i
           ? `${OL_COVERS}/b/id/${d.cover_i}-L.jpg`
           : isbn
@@ -310,8 +312,22 @@ export async function searchScreen(
 // ---------------------------------------------------------------------------
 
 const WD_SPARQL = "https://query.wikidata.org/sparql";
-const WD_MOVIE = new Set(["Q11424", "Q506240", "Q24856"]); // film, TV film, film series
-const WD_TV = new Set(["Q5398426", "Q1259759"]); // TV series, miniseries
+// film, TV film, film series, documentary film, animated film
+const WD_MOVIE = new Set([
+  "Q11424",
+  "Q506240",
+  "Q24856",
+  "Q93204",
+  "Q202866",
+]);
+// TV series, miniseries, anime series, web series, animated TV series
+const WD_TV = new Set([
+  "Q5398426",
+  "Q1259759",
+  "Q63952888",
+  "Q526877",
+  "Q581714",
+]);
 
 /**
  * Movie/TV lookup via Wikidata — CC0, safe for commercial use. Returns
@@ -336,7 +352,7 @@ export async function searchScreenWikidata(
     ?item wikibase:apiOutputItem mwapi:item .
   }
   ?item wdt:P31 ?type .
-  VALUES ?type { wd:Q11424 wd:Q506240 wd:Q24856 wd:Q5398426 wd:Q1259759 }
+  VALUES ?type { wd:Q11424 wd:Q506240 wd:Q24856 wd:Q93204 wd:Q202866 wd:Q5398426 wd:Q1259759 wd:Q63952888 wd:Q526877 wd:Q581714 }
   OPTIONAL { ?item wdt:P577 ?date . }
   OPTIONAL { ?item wdt:P18 ?image . }
   OPTIONAL { ?item wdt:P345 ?imdb . }
