@@ -15,13 +15,11 @@
     "NEON_AUTH_URL": "https://ep-empty-sound-a6ukfuft.neonauth.us-west-2.aws.neon.tech/neondb/auth",
     // Comma-separated emails granted admin regardless of JWT role. Reliable
     // fallback when the auth provider doesn't propagate a custom role claim.
-    "ADMIN_EMAILS": "will@wlcr.io",
+    "ADMIN_EMAILS": "will@wlcr.io,william.christenson@gmail.com",
   },
   // Object storage for uploaded cover images (dev uses a local simulated
   // bucket automatically; the "mediamogul" bucket backs production).
-  "r2_buckets": [
-    { "binding": "MEDIA_BUCKET", "bucket_name": "mediamogul" },
-  ],
+  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "mediamogul" }],
   // The React SPA is served from Cloudflare static assets. The Vite plugin sets
   // `directory` automatically from the client build output. Navigation requests
   // that don't match an asset fall back to index.html (client-side routing);
