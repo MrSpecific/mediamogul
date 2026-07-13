@@ -16,6 +16,9 @@
     // Comma-separated emails granted admin regardless of JWT role. Reliable
     // fallback when the auth provider doesn't propagate a custom role claim.
     "ADMIN_EMAILS": "will@wlcr.io,william.christenson@gmail.com",
+    // Any large public library's OverDrive key — used to resolve Libby title
+    // ids (the id is stable across libraries).
+    "LIBBY_LIBRARY_KEY": "lapl",
   },
   // Object storage for uploaded cover images (dev uses a local simulated
   // bucket automatically; the "mediamogul" bucket backs production).

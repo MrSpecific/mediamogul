@@ -11,6 +11,7 @@ import {
 import { deleteImage, uploadImage } from "../services/storage";
 import { type CoverSource, searchCovers } from "../services/covers";
 import { linkGenres, resolveGenreId } from "../services/genres";
+import { libbyTitleUrl, searchLibby } from "../services/libby";
 import { requireAdmin } from "../auth";
 import {
   creditRole,
@@ -1145,5 +1146,52 @@ media.post(
       include: withRelations,
     });
     return c.json(updated);
+  },
+);
+
+// --- Libby / OverDrive linking ---------------------------------------------
+
+/** Admin: search Libby for this item (defaults to the item's title). */
+media.get("/:id/libby/search", requireAdmin, async (c) => {
+  const item = await c.get("prisma").mediaItem.findUnique({
+    where: { id: c.req.param("id") },
+    select: { title: true },
+  });
+  if (!item) return c.json({ error: "not_found" }, 404);
+  const q = c.req.query("q") || item.title;
+  return c.json(await searchLibby(q, c.env.LIBBY_LIBRARY_KEY));
+});
+
+/** Admin: link a Libby title id to this item, optionally adopting its cover. */
+media.post(
+  "/:id/libby",
+  requireAdmin,
+  zValidator(
+    "json",
+    z.object({
+      libbyId: z.string().min(1),
+      coverUrl: z.string().url().optional(),
+    }),
+  ),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const id = c.req.param("id");
+    const { libbyId, coverUrl } = c.req.valid("json");
+    const url = libbyTitleUrl(libbyId);
+    await prisma.externalId
+      .upsert({
+        where: { mediaItemId_source: { mediaItemId: id, source: "LIBBY" } },
+        create: { mediaItemId: id, source: "LIBBY", value: libbyId, url },
+        update: { value: libbyId, url },
+      })
+      .catch(() => null);
+    if (coverUrl) {
+      await ingestRemoteCover(c, id, {
+        imageUrl: coverUrl,
+        sourceName: "Libby / OverDrive",
+        sourceUrl: url,
+      });
+    }
+    return c.json({ ok: true, url });
   },
 );

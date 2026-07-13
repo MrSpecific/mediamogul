@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  ExternalLink,
   ListPlus,
   RefreshCw,
   Search,
@@ -36,6 +37,8 @@ import { CoverUploadDialog } from "../components/CoverUploadDialog";
 import { RescrapeDialog } from "../components/RescrapeDialog";
 import { TvSeasons } from "../components/TvSeasons";
 import { CoverManager } from "../components/CoverManager";
+import { Cover } from "../components/Cover";
+import { LibbyLookup } from "../components/LibbyLookup";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   MEDIA_FIELDS,
@@ -114,6 +117,7 @@ export function MediaDetailPage() {
 
   // Admin affordances only render when an admin flips into admin mode.
   const showAdmin = isAdmin && adminMode;
+  const libby = data?.externalIds?.find((e) => e.source === "LIBBY");
 
   if (!data) return <Text color="gray">Loading…</Text>;
 
@@ -258,9 +262,12 @@ export function MediaDetailPage() {
 
       <Flex gap="5" wrap="wrap">
         <Flex direction="column" gap="2" align="center">
-          <div className="detail-cover">
-            {data.coverImageUrl && <img src={data.coverImageUrl} alt="" />}
-          </div>
+          <Cover
+            type={data.type}
+            title={data.title}
+            src={data.coverImageUrl}
+            className="detail-cover"
+          />
           {showAdmin ? (
             <CoverManager
               mediaId={data.id}
@@ -317,6 +324,11 @@ export function MediaDetailPage() {
               )}
             </Flex>
             <Heading size="8">{data.title}</Heading>
+            {data.subtitle && (
+              <Text size="4" color="gray">
+                {data.subtitle}
+              </Text>
+            )}
             <Flex gap="2" align="center" wrap="wrap">
               {data.releaseDate && (
                 <Text color="gray">
@@ -347,10 +359,12 @@ export function MediaDetailPage() {
             {data.series.length > 0 && (
               <Flex gap="2" wrap="wrap">
                 {data.series.map((s) => (
-                  <Badge key={s.id} variant="soft" color="gray">
-                    {MEDIA_FIELDS[data.type].label} {s.position} of {s.total} ·{" "}
-                    {s.title}
-                  </Badge>
+                  <Link key={s.id} to={`/series/${s.id}`} className="badge-link">
+                    <Badge variant="soft" color="gray">
+                      {MEDIA_FIELDS[data.type].label} {s.position} of {s.total} ·{" "}
+                      {s.title}
+                    </Badge>
+                  </Link>
                 ))}
               </Flex>
             )}
@@ -397,6 +411,19 @@ export function MediaDetailPage() {
           )}
 
           {data.synopsis && <Text>{data.synopsis}</Text>}
+
+          {libby?.url && (
+            <Flex>
+              <a
+                href={libby.url}
+                target="_blank"
+                rel="noreferrer"
+                className="ext-link"
+              >
+                <ExternalLink size={14} aria-hidden /> Borrow on Libby
+              </a>
+            </Flex>
+          )}
 
           <Flex gap="2" wrap="wrap" align="center">
             {active ? (
@@ -660,6 +687,20 @@ export function MediaDetailPage() {
               <Text size="1" color="gray">
                 Cover artwork is managed above, next to the cover.
               </Text>
+            </Flex>
+          </Card>
+
+          <Card size="2">
+            <Flex direction="column" gap="2">
+              <Text size="2" weight="medium">
+                Libby / OverDrive
+              </Text>
+              <LibbyLookup
+                mediaId={data.id}
+                title={data.title}
+                currentLibbyId={libby?.value}
+                onChanged={reload}
+              />
             </Flex>
           </Card>
 

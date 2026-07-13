@@ -50,6 +50,7 @@ enum ExternalSource {
   ISBN
   OPEN_LIBRARY
   WIKIDATA
+  LIBBY
   CUSTOM
 }
 

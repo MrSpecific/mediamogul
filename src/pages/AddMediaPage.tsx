@@ -49,7 +49,8 @@ export function AddMediaPage() {
   const initialQ = searchParams.get("q") ?? "";
 
   const [q, setQ] = useState(initialQ);
-  const [types, setTypes] = useState<MediaType[]>(SEARCHABLE_TYPES);
+  // Empty = include all searchable types; toggling narrows to those picked.
+  const [types, setTypes] = useState<MediaType[]>([]);
   const [results, setResults] = useState<MediaCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [page, setPage] = useState(1);
@@ -140,7 +141,8 @@ export function AddMediaPage() {
   }
 
   const enabled = new Set(types);
-  const visible = results?.filter((c) => enabled.has(c.type)) ?? null;
+  const visible =
+    results?.filter((c) => types.length === 0 || enabled.has(c.type)) ?? null;
 
   return (
     <Flex direction="column" gap="4">
@@ -231,6 +233,11 @@ export function AddMediaPage() {
                         <Text weight="medium" truncate>
                           {c.title}
                         </Text>
+                        {c.subtitle && (
+                          <Text size="1" color="gray" truncate>
+                            {c.subtitle}
+                          </Text>
+                        )}
                         {author && (
                           <Text size="2" color="gray">
                             {author.prefix ? `${author.prefix} ` : ""}

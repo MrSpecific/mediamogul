@@ -22,6 +22,7 @@ export const externalSource = z.enum([
   "ISBN",
   "OPEN_LIBRARY",
   "WIKIDATA",
+  "LIBBY",
   "CUSTOM",
 ]);
 export const entryStatus = z.enum([

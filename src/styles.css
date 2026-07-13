@@ -188,6 +188,21 @@ body {
   color: inherit;
 }
 
+/* External source link (e.g. Borrow on Libby). */
+.ext-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-accent-11, #7cc);
+  text-decoration: none;
+}
+
+.ext-link:hover {
+  text-decoration: underline;
+}
+
 /* A <button> that reads as an inline text link (e.g. byline names). */
 .link-button {
   padding: 0;
@@ -288,6 +303,59 @@ body {
 /* Catalog empty state */
 .empty-state {
   padding: 32px 20px;
+}
+
+/* Cover artwork + generated fallback */
+.cover-art {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-3, 8px);
+  overflow: hidden;
+  background: var(--gray-a3, rgba(128, 128, 128, 0.12));
+}
+
+.cover-art-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.cover-art-icon {
+  width: 30%;
+  height: auto;
+  opacity: 0.85;
+}
+
+.cover-art-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.cover-art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.cover-art-img.loaded {
+  opacity: 1;
 }
 
 /* Admin cover manager (under the detail cover) */

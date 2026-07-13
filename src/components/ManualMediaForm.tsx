@@ -29,6 +29,7 @@ export function ManualMediaForm() {
   const navigate = useNavigate();
   const [type, setType] = useState<MediaType>("MOVIE");
   const [title, setTitle] = useState("");
+  const [subtitle, setSubtitle] = useState("");
   const [releaseDate, setReleaseDate] = useState("");
   const [synopsis, setSynopsis] = useState("");
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export function ManualMediaForm() {
     setSaving(true);
     setError(null);
     const payload: Record<string, unknown> = { type, title: title.trim() };
+    if (subtitle.trim()) payload.subtitle = subtitle.trim();
     if (releaseDate) payload.releaseDate = releaseDate;
     if (synopsis.trim()) payload.synopsis = synopsis.trim();
     if (coverUrl) payload.coverImageUrl = coverUrl;
@@ -139,6 +141,13 @@ export function ManualMediaForm() {
                 value={title}
                 onChange={(e) => setTitle(e.currentTarget.value)}
                 placeholder="Title"
+              />
+            </Field>
+            <Field label="Subtitle">
+              <Input
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.currentTarget.value)}
+                placeholder="Subtitle or tagline (optional)"
               />
             </Field>
             <Field label="Release date">
