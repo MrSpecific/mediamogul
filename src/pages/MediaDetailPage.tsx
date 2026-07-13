@@ -35,6 +35,7 @@ import { AddToListDialog } from "../components/AddToListDialog";
 import { CoverFinderDialog } from "../components/CoverFinderDialog";
 import { CoverUploadDialog } from "../components/CoverUploadDialog";
 import { RescrapeDialog } from "../components/RescrapeDialog";
+import { TvSeasons } from "../components/TvSeasons";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   MEDIA_FIELDS,
@@ -481,6 +482,10 @@ export function MediaDetailPage() {
           <Button onClick={() => void saveReview()}>Save review</Button>
         </Flex>
       </Flex>
+
+      {data.type === "TV_SHOW" && (
+        <TvSeasons mediaId={data.id} isAdmin={isAdmin} />
+      )}
 
       <Flex direction="column" gap="3">
         <Heading size="5">Your journey</Heading>

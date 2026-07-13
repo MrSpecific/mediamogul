@@ -290,6 +290,57 @@ body {
   padding: 32px 20px;
 }
 
+/* TV episode rows */
+.episode-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.episode-row:hover {
+  background: var(--color-gray-3, rgba(128, 128, 128, 0.12));
+}
+
+.episode-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 1.5px solid var(--color-gray-7, #999);
+  border-radius: 4px;
+  color: #fff;
+}
+
+.episode-row.watched .episode-check {
+  background: var(--color-accent-9, #2c8);
+  border-color: var(--color-accent-9, #2c8);
+}
+
+.episode-num {
+  width: 22px;
+  flex: none;
+  color: var(--color-gray-9, #888);
+  text-align: right;
+}
+
+.episode-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.episode-row.watched .episode-title {
+  color: var(--color-gray-10, #aaa);
+}
+
 /* Re-scrape diff rows */
 .diff-row {
   display: flex;

@@ -102,6 +102,31 @@ export interface RelatedMedia {
   media: MediaItem;
 }
 
+export interface Episode {
+  id: string;
+  seasonId: string;
+  number: number;
+  title: string | null;
+  synopsis: string | null;
+  runtimeMinutes: number | null;
+  airDate: string | null;
+}
+
+export interface Season {
+  id: string;
+  mediaItemId: string;
+  number: number;
+  title: string | null;
+  synopsis: string | null;
+  airDate: string | null;
+  episodes: Episode[];
+}
+
+export interface SeasonsResponse {
+  seasons: Season[];
+  watchedEpisodeIds: string[];
+}
+
 export interface SeriesMembership {
   id: string; // series id
   title: string;
