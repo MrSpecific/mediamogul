@@ -491,10 +491,53 @@ media.post("/:id/cover/upload", async (c) => {
 
 /** All cover assets for an item (primary first, then by position). */
 media.get("/:id/covers", async (c) => {
-  const covers = await c.get("prisma").mediaAsset.findMany({
-    where: { mediaItemId: c.req.param("id"), kind: "COVER" },
-    orderBy: [{ isPrimary: "desc" }, { position: "asc" }, { createdAt: "asc" }],
+  const prisma = c.get("prisma");
+  const id = c.req.param("id");
+  const order = [
+    { isPrimary: "desc" },
+    { position: "asc" },
+    { createdAt: "asc" },
+  ] satisfies Prisma.MediaAssetOrderByWithRelationInput[];
+
+  let covers = await prisma.mediaAsset.findMany({
+    where: { mediaItemId: id, kind: "COVER" },
+    orderBy: order,
   });
+
+  // Backfill: older covers (scraped imports, pre-linking uploads) live only on
+  // `coverImageUrl` with no linked asset. Represent the current cover as an
+  // asset the first time the manager loads it, so it's visible + manageable.
+  const item = await prisma.mediaItem.findUnique({
+    where: { id },
+    select: { coverImageUrl: true },
+  });
+  const url = item?.coverImageUrl;
+  if (url && !covers.some((cv) => cv.url === url)) {
+    const isR2 = url.startsWith("/uploads/");
+    const created = await prisma.mediaAsset
+      .create({
+        data: {
+          mediaItemId: id,
+          kind: "COVER",
+          isPrimary: true,
+          provider: isR2 ? "r2" : "external",
+          key: isR2 ? url.slice("/uploads/".length) : url,
+          url,
+        },
+      })
+      .catch(() => null);
+    if (created) {
+      await prisma.mediaAsset.updateMany({
+        where: { mediaItemId: id, kind: "COVER", isPrimary: true, id: { not: created.id } },
+        data: { isPrimary: false },
+      });
+      covers = await prisma.mediaAsset.findMany({
+        where: { mediaItemId: id, kind: "COVER" },
+        orderBy: order,
+      });
+    }
+  }
+
   return c.json(covers);
 });
 
