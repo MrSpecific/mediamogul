@@ -44,3 +44,12 @@ export async function uploadImage(
     size: bytes.byteLength,
   };
 }
+
+/** Delete a stored object. No-op for non-R2 providers (nothing to remove). */
+export async function deleteImage(
+  env: Env,
+  provider: string,
+  key: string,
+): Promise<void> {
+  if (provider === "r2") await env.MEDIA_BUCKET.delete(key);
+}

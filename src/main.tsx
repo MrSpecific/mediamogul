@@ -21,6 +21,11 @@ import { AdminGenresPage } from "./pages/AdminGenresPage";
 import { AccountPage } from "./routes/AccountPage";
 import { PublicMediaPage } from "./pages/PublicMediaPage";
 
+// The app is dark-themed. Neon Auth's UI (Tailwind) keys its dark palette off a
+// `.dark` ancestor, so ensure it's present on <html> regardless of the static
+// index.html (also covers production and survives HMR of this module).
+document.documentElement.classList.add("dark");
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <Theme

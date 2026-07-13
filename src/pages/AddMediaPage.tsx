@@ -52,12 +52,22 @@ export function AddMediaPage() {
   const [types, setTypes] = useState<MediaType[]>(SEARCHABLE_TYPES);
   const [results, setResults] = useState<MediaCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [addingKey, setAddingKey] = useState<string | null>(null);
   // Keys already imported this session → the new media id (kept so users can
   // add several items from one search without being navigated away).
   const [addedKeys, setAddedKeys] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
+
+  async function fetchPage(query: string, pg: number): Promise<MediaCandidate[]> {
+    return apiSend<MediaCandidate[]>(
+      "GET",
+      `/lookup?source=all&q=${encodeURIComponent(query)}&page=${pg}`,
+    );
+  }
 
   async function search(query: string) {
     if (!query.trim()) return;
@@ -69,17 +79,30 @@ export function AddMediaPage() {
     });
     setSearching(true);
     setError(null);
+    setPage(1);
     try {
-      setResults(
-        await apiSend<MediaCandidate[]>(
-          "GET",
-          `/lookup?source=all&q=${encodeURIComponent(query)}`,
-        ),
-      );
+      const rs = await fetchPage(query, 1);
+      setResults(rs);
+      setHasMore(rs.length > 0);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function loadMore() {
+    const next = page + 1;
+    setLoadingMore(true);
+    try {
+      const rs = await fetchPage(q, next);
+      setResults((prev) => [...(prev ?? []), ...rs]);
+      setHasMore(rs.length > 0);
+      setPage(next);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -268,6 +291,17 @@ export function AddMediaPage() {
                   ? "No matches for the selected types."
                   : "No matches."}
               </Text>
+            )}
+            {results && results.length > 0 && hasMore && (
+              <Flex justify="center">
+                <Button
+                  variant="soft"
+                  loading={loadingMore}
+                  onClick={() => void loadMore()}
+                >
+                  Show more
+                </Button>
+              </Flex>
             )}
           </Flex>
         </>

@@ -63,17 +63,21 @@ const ROLE_RANK: Record<AppRole, number> = {
 const APP_ROLES = new Set<string>(["admin", "editor", "contributor", "user"]);
 
 /**
- * Collect role strings from the JWT. Neon Auth / Better Auth's admin plugin may
- * encode `role` as a plain string, a comma-separated string, or an array — and
- * because Neon reuses the top-level `role` claim for Postgres RLS (often
- * "authenticated"), we also look at common nested locations.
+ * Collect app-role strings from the JWT. Neon Auth signs a GoTrue/Supabase-
+ * compatible token: the top-level `role` claim is hardcoded to "authenticated"
+ * (the Postgres RLS role), and the Better Auth user's real `role` field is
+ * moved into `user_metadata`. So the app role lives at `user_metadata.role`.
+ * We also check a few other common spots, and accept string / CSV / array.
  */
 function roleClaims(user: AuthUser): string[] {
   const p = user.payload as Record<string, unknown>;
+  const meta = (key: string) =>
+    (p[key] as Record<string, unknown> | undefined)?.role;
   const candidates: unknown[] = [
-    p.role,
-    (p.user as Record<string, unknown> | undefined)?.role,
-    (p.app_metadata as Record<string, unknown> | undefined)?.role,
+    meta("user_metadata"), // Neon Auth puts the Better Auth role here
+    meta("app_metadata"),
+    meta("user"),
+    p.role, // usually "authenticated" (RLS role) — ignored unless it's an app role
   ];
   const out: string[] = [];
   for (const c of candidates) {

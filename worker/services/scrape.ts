@@ -120,10 +120,12 @@ export async function lookupBookByIsbn(
 export async function searchBooks(
   query: string,
   limit = 10,
+  page = 1,
 ): Promise<MediaCandidate[]> {
   const url = new URL(`${OL}/search.json`);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(limit));
+  if (page > 1) url.searchParams.set("page", String(page));
   url.searchParams.set(
     "fields",
     "key,title,subtitle,first_publish_year,cover_i,isbn,language,author_name,number_of_pages_median,publisher",
@@ -318,6 +320,7 @@ const WD_TV = new Set(["Q5398426", "Q1259759"]); // TV series, miniseries
  */
 export async function searchScreenWikidata(
   query: string,
+  offset = 0,
 ): Promise<MediaCandidate[]> {
   const q = query.trim();
   if (!q) return [];
@@ -328,6 +331,8 @@ export async function searchScreenWikidata(
     bd:serviceParam wikibase:endpoint "www.wikidata.org" .
     bd:serviceParam mwapi:search ${JSON.stringify(q)} .
     bd:serviceParam mwapi:language "en" .
+    bd:serviceParam mwapi:limit "40" .
+    ${offset > 0 ? `bd:serviceParam mwapi:continue "${offset}" .` : ""}
     ?item wikibase:apiOutputItem mwapi:item .
   }
   ?item wdt:P31 ?type .

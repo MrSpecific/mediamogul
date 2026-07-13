@@ -134,6 +134,7 @@ model MediaItem {
   id               String    @id @default(uuid())
   type             MediaType
   title            String
+  subtitle         String? // e.g. a book's subtitle or a film's tagline
   sortTitle        String?   @map("sort_title")
   coverImageUrl    String?   @map("cover_image_url")
   shortDescription String?   @map("short_description") // one/two-liner for cards

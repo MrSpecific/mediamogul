@@ -8,7 +8,7 @@ import {
   searchBooks,
   searchScreenWikidata,
 } from "../services/scrape";
-import { uploadImage } from "../services/storage";
+import { deleteImage, uploadImage } from "../services/storage";
 import { type CoverSource, searchCovers } from "../services/covers";
 import { linkGenres, resolveGenreId } from "../services/genres";
 import { requireAdmin } from "../auth";
@@ -476,6 +476,8 @@ media.delete("/:id/covers/:assetId", requireAdmin, async (c) => {
   });
   if (!asset) return c.json({ error: "not_found" }, 404);
   await prisma.mediaAsset.delete({ where: { id: asset.id } });
+  // Remove the underlying file too (R2), not just the DB record.
+  await deleteImage(c.env, asset.provider, asset.key).catch(() => undefined);
   if (asset.isPrimary) {
     const next = await prisma.mediaAsset.findFirst({
       where: { mediaItemId: id, kind: "COVER" },

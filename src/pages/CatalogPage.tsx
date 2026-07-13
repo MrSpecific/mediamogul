@@ -40,12 +40,13 @@ export function CatalogPage() {
   const credit = searchParams.get("credit") ?? "";
   const order = searchParams.get("order") ?? "new";
   const typesParam = searchParams.get("types");
+  // No types selected = no type filter (show everything). Selecting types
+  // narrows to those.
   const types = typesParam
-    ? (typesParam.split(",").filter((t) =>
-        (ALL_TYPES as string[]).includes(t),
-      ) as MediaType[])
-    : ALL_TYPES;
-  const allSelected = types.length === ALL_TYPES.length;
+    ? (typesParam
+        .split(",")
+        .filter((t) => (ALL_TYPES as string[]).includes(t)) as MediaType[])
+    : [];
 
   // Set/clear a single URL param without disturbing the others.
   const setParam = (key: string, value: string | null) => {
@@ -60,41 +61,25 @@ export function CatalogPage() {
     );
   };
 
-  const setTypes = (next: MediaType[]) => {
-    setSearchParams(
-      (prev) => {
-        const p = new URLSearchParams(prev);
-        // All-selected is the default (drop param); none-selected is explicit.
-        if (next.length === 0) p.set("types", "none");
-        else if (next.length < ALL_TYPES.length) p.set("types", next.join(","));
-        else p.delete("types");
-        return p;
-      },
-      { replace: true },
-    );
-  };
+  const setTypes = (next: MediaType[]) =>
+    setParam("types", next.length ? next.join(",") : null);
 
   // Genre list to resolve the active slug → label.
   const { data: genres } = useApiData<Genre[]>("/genres");
   const activeGenre = genres?.find((g) => g.slug === genre);
 
-  // Build the request. `types=none` (user deselected all) => no results.
+  // Build the request. No `types` => all types.
   const reqParams = new URLSearchParams();
   if (q) reqParams.set("q", q);
   if (genre) reqParams.set("genre", genre);
   if (credit) reqParams.set("credit", credit);
   if (order && order !== "new") reqParams.set("order", order);
-  if (typesParam === "none") {
-    reqParams.set("types", "");
-  } else if (!allSelected) {
-    reqParams.set("types", types.join(","));
-  }
+  if (types.length) reqParams.set("types", types.join(","));
 
-  const noneSelected = typesParam === "none";
   const { data, loading } = useApiData<{
     items: MediaItem[];
     nextCursor: string | null;
-  }>(noneSelected ? null : `/media?${reqParams.toString()}`);
+  }>(`/media?${reqParams.toString()}`);
 
   const hasActiveFilter = Boolean(genre || credit);
 
@@ -155,7 +140,7 @@ export function CatalogPage() {
         <Flex gap="2" align="center" wrap="wrap">
           <ToggleGroup
             multiple
-            value={noneSelected ? [] : types}
+            value={types}
             onValueChange={(v: unknown[]) => setTypes(v as MediaType[])}
           >
             {MEDIA_TYPES.map((t) => (
@@ -164,13 +149,11 @@ export function CatalogPage() {
               </Toggle>
             ))}
           </ToggleGroup>
-          <Button
-            size="1"
-            variant="ghost"
-            onClick={() => setTypes(allSelected ? [] : ALL_TYPES)}
-          >
-            {allSelected ? "Deselect all" : "Select all"}
-          </Button>
+          {types.length > 0 && (
+            <Button size="1" variant="ghost" onClick={() => setTypes([])}>
+              Clear
+            </Button>
+          )}
         </Flex>
         <Flex gap="2" align="center" className="shrink">
           <ArrowDownWideNarrow size={16} aria-hidden className="dim-icon" />
@@ -190,10 +173,7 @@ export function CatalogPage() {
       </Flex>
 
       {loading && <Text color="gray">Loading…</Text>}
-      {noneSelected && (
-        <Text color="gray">Select a media type to see results.</Text>
-      )}
-      {!noneSelected && data && data.items.length === 0 && (
+      {data && data.items.length === 0 && (
         <Card size="3" className="empty-state">
           <Flex direction="column" align="center" gap="3">
             <SearchX size={40} aria-hidden className="dim-icon" />
@@ -223,8 +203,7 @@ export function CatalogPage() {
         </Card>
       )}
       <div className="media-grid">
-        {!noneSelected &&
-          data?.items.map((m) => <MediaCard key={m.id} item={m} />)}
+        {data?.items.map((m) => <MediaCard key={m.id} item={m} />)}
       </div>
     </Flex>
   );

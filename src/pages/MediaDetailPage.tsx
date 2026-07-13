@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ImagePlus,
   ListPlus,
   RefreshCw,
   Search,
@@ -36,6 +35,7 @@ import { CoverFinderDialog } from "../components/CoverFinderDialog";
 import { CoverUploadDialog } from "../components/CoverUploadDialog";
 import { RescrapeDialog } from "../components/RescrapeDialog";
 import { TvSeasons } from "../components/TvSeasons";
+import { CoverManager } from "../components/CoverManager";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   MEDIA_FIELDS,
@@ -109,7 +109,11 @@ export function MediaDetailPage() {
   const [rescrapeOpen, setRescrapeOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [adminMode, setAdminMode] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // Admin affordances only render when an admin flips into admin mode.
+  const showAdmin = isAdmin && adminMode;
 
   if (!data) return <Text color="gray">Loading…</Text>;
 
@@ -235,28 +239,53 @@ export function MediaDetailPage() {
   };
   return (
     <Flex direction="column" gap="5">
+      {isAdmin && (
+        <Flex justify="end" align="center" gap="2">
+          <Text size="1" color="gray">
+            {adminMode ? "Editing as admin" : ""}
+          </Text>
+          <Button
+            size="1"
+            variant={adminMode ? "solid" : "soft"}
+            color={adminMode ? "amber" : "gray"}
+            onClick={() => setAdminMode((v) => !v)}
+          >
+            <Shield size={14} aria-hidden />
+            {adminMode ? "Admin mode: on" : "Admin mode"}
+          </Button>
+        </Flex>
+      )}
+
       <Flex gap="5" wrap="wrap">
         <Flex direction="column" gap="2" align="center">
           <div className="detail-cover">
             {data.coverImageUrl && <img src={data.coverImageUrl} alt="" />}
           </div>
-          {!data.coverImageUrl && (
-            <Flex gap="2">
-              <Button
-                size="1"
-                variant="soft"
-                onClick={() => setCoverOpen(true)}
-              >
-                <Search size={14} aria-hidden /> Find a cover
-              </Button>
-              <Button
-                size="1"
-                variant="soft"
-                onClick={() => setUploadOpen(true)}
-              >
-                <Upload size={14} aria-hidden /> Upload
-              </Button>
-            </Flex>
+          {showAdmin ? (
+            <CoverManager
+              mediaId={data.id}
+              title={data.title}
+              onChanged={reload}
+            />
+          ) : (
+            !data.coverImageUrl && (
+              <Flex gap="2">
+                <Button
+                  size="1"
+                  variant="soft"
+                  onClick={() => setCoverOpen(true)}
+                >
+                  <Search size={14} aria-hidden /> Find a cover
+                </Button>
+                <Button
+                  size="1"
+                  variant="soft"
+                  onClick={() => setUploadOpen(true)}
+                >
+                  <Upload size={14} aria-hidden /> Upload
+                </Button>
+              </Flex>
+            )
           )}
           <CoverFinderDialog
             open={coverOpen}
@@ -484,7 +513,7 @@ export function MediaDetailPage() {
       </Flex>
 
       {data.type === "TV_SHOW" && (
-        <TvSeasons mediaId={data.id} isAdmin={isAdmin} />
+        <TvSeasons mediaId={data.id} isAdmin={showAdmin} />
       )}
 
       <Flex direction="column" gap="3">
@@ -523,7 +552,7 @@ export function MediaDetailPage() {
         </Flex>
       </Flex>
 
-      {(data.related.length > 0 || isAdmin) && (
+      {(data.related.length > 0 || showAdmin) && (
         <Flex direction="column" gap="3">
           <Heading size="5">Connections</Heading>
 
@@ -543,7 +572,7 @@ export function MediaDetailPage() {
                       {RELATION_LABELS[r.type]}
                     </Badge>
                   </Flex>
-                  {isAdmin && (
+                  {showAdmin && (
                     <Button
                       size="1"
                       variant="ghost"
@@ -557,7 +586,7 @@ export function MediaDetailPage() {
             </Flex>
           )}
 
-          {isAdmin && (
+          {showAdmin && (
             <>
               <Card size="2">
                 <Flex direction="column" gap="2">
@@ -613,7 +642,7 @@ export function MediaDetailPage() {
         </Flex>
       )}
 
-      {isAdmin && (
+      {showAdmin && (
         <Flex direction="column" gap="3">
           <Flex gap="2" align="center">
             <Shield size={18} aria-hidden className="dim-icon" />
@@ -621,21 +650,16 @@ export function MediaDetailPage() {
           </Flex>
 
           <Card size="2">
-            <Flex direction="column" gap="3">
+            <Flex direction="column" gap="2" align="start">
               <Text size="2" weight="medium">
-                Data &amp; artwork
+                Data
               </Text>
-              <Flex gap="2" wrap="wrap">
-                <Button variant="soft" onClick={() => setCoverOpen(true)}>
-                  <Search size={16} aria-hidden /> Find cover
-                </Button>
-                <Button variant="soft" onClick={() => setUploadOpen(true)}>
-                  <ImagePlus size={16} aria-hidden /> Upload cover
-                </Button>
-                <Button variant="soft" onClick={() => setRescrapeOpen(true)}>
-                  <RefreshCw size={16} aria-hidden /> Re-scrape data
-                </Button>
-              </Flex>
+              <Button variant="soft" onClick={() => setRescrapeOpen(true)}>
+                <RefreshCw size={16} aria-hidden /> Re-scrape data
+              </Button>
+              <Text size="1" color="gray">
+                Cover artwork is managed above, next to the cover.
+              </Text>
             </Flex>
           </Card>
 

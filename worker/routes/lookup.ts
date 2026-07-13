@@ -56,10 +56,13 @@ lookup.get(
         .default("all"),
       q: z.string().optional(),
       isbn: z.string().optional(),
+      page: z.coerce.number().int().min(1).max(50).default(1),
     }),
   ),
   async (c) => {
-    const { source, q, isbn } = c.req.valid("query");
+    const { source, q, isbn, page } = c.req.valid("query");
+    const BOOKS_PER_PAGE = 20;
+    const SCREEN_PER_PAGE = 40;
 
     let candidates: MediaCandidate[];
     if (source === "all") {
@@ -68,8 +71,8 @@ lookup.get(
       // rather than failing the whole search. Interleave so no single source
       // dominates the top of the list.
       const settled = await Promise.allSettled([
-        searchBooks(q),
-        searchScreenWikidata(q),
+        searchBooks(q, BOOKS_PER_PAGE, page),
+        searchScreenWikidata(q, (page - 1) * SCREEN_PER_PAGE),
       ]);
       const lists = settled.map((s) =>
         s.status === "fulfilled" ? s.value : [],
