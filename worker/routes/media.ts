@@ -47,6 +47,7 @@ const mediaInput = z.object({
   coverImageUrl: z.string().max(1000).optional(),
   shortDescription: z.string().max(500).optional(),
   synopsis: z.string().optional(),
+  wikipediaUrl: z.string().url().max(1000).optional(),
   releaseDate: z.coerce.date().optional(),
   originalLanguage: z.string().max(20).optional(),
   publisher: z.string().max(300).optional(),
@@ -196,6 +197,7 @@ async function importScrapeCandidate(
       coverImageUrl: cand.coverImageUrl,
       shortDescription: cand.shortDescription,
       synopsis: cand.synopsis,
+      wikipediaUrl: cand.wikipediaUrl,
       releaseDate: cand.releaseDate ? new Date(cand.releaseDate) : undefined,
       originalLanguage: cand.originalLanguage,
       ...columnData(cand),
@@ -353,6 +355,7 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
       coverImageUrl: data.coverImageUrl,
       shortDescription: data.shortDescription,
       synopsis: data.synopsis,
+      wikipediaUrl: data.wikipediaUrl,
       releaseDate: data.releaseDate,
       originalLanguage: data.originalLanguage,
       ...columnData(data),
@@ -421,6 +424,7 @@ media.post(
         coverImageUrl: cand.coverImageUrl,
         shortDescription: cand.shortDescription,
         synopsis: cand.synopsis,
+        wikipediaUrl: cand.wikipediaUrl,
         releaseDate: cand.releaseDate ? new Date(cand.releaseDate) : undefined,
         originalLanguage: cand.originalLanguage,
         ...columnData(cand),
@@ -1347,6 +1351,23 @@ media.post(
 );
 
 // --- Libby / OverDrive linking ---------------------------------------------
+
+media.put(
+  "/:id/wikipedia",
+  requireAdmin,
+  zValidator("json", z.object({ url: z.string().url().max(1000).nullable() })),
+  async (c) => {
+    const item = await c.get("prisma").mediaItem
+      .update({
+        where: { id: c.req.param("id") },
+        data: { wikipediaUrl: c.req.valid("json").url },
+        select: { wikipediaUrl: true },
+      })
+      .catch(() => null);
+    if (!item) return c.json({ error: "not_found" }, 404);
+    return c.json(item);
+  },
+);
 
 /** Admin: search Libby for this item (defaults to the item's title). */
 media.get("/:id/libby/search", requireAdmin, async (c) => {

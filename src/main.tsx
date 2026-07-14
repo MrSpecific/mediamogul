@@ -18,6 +18,7 @@ import { ListDetailPage } from "./pages/ListDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AdminGenresPage } from "./pages/AdminGenresPage";
+import { AdminSubmissionsPage } from "./pages/AdminSubmissionsPage";
 import { SeriesPage } from "./pages/SeriesPage";
 import { StatsPage } from "./pages/StatsPage";
 import { AccountPage } from "./routes/AccountPage";
@@ -55,6 +56,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/account/:pathname" element={<AccountPage />} />
               <Route path="/admin/genres" element={<AdminGenresPage />} />
+              <Route path="/admin/submissions" element={<AdminSubmissionsPage />} />
             </Route>
           </Routes>
         </AuthProvider>

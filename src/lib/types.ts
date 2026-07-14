@@ -28,6 +28,7 @@ export interface MediaItem {
   coverImageUrl: string | null;
   shortDescription: string | null;
   synopsis: string | null;
+  wikipediaUrl: string | null;
   releaseDate: string | null;
   publisher: string | null;
   pageCount: number | null;
@@ -168,6 +169,7 @@ export interface MediaCandidate {
   coverImageUrl?: string;
   shortDescription?: string;
   synopsis?: string;
+  wikipediaUrl?: string;
   releaseDate?: string;
   publisher?: string;
   pageCount?: number;

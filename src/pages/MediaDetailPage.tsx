@@ -40,6 +40,8 @@ import { RescrapeDialog } from "../components/RescrapeDialog";
 import { TvSeasons } from "../components/TvSeasons";
 import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { LibbyLookup } from "../components/LibbyLookup";
+import { WikipediaLinkEditor } from "../components/WikipediaLinkEditor";
+import { MediaFeedbackDialog } from "../components/MediaFeedbackDialog";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   MEDIA_FIELDS,
@@ -460,6 +462,16 @@ export function MediaDetailPage() {
               </a>
             </Flex>
           )}
+          {data.wikipediaUrl && (
+            <Flex>
+              <a href={data.wikipediaUrl} target="_blank" rel="noreferrer" className="ext-link">
+                <ExternalLink size={14} aria-hidden /> Wikipedia
+              </a>
+            </Flex>
+          )}
+          <Flex>
+            <MediaFeedbackDialog media={data} />
+          </Flex>
 
           <Flex gap="2" wrap="wrap" align="center">
             {active ? (
@@ -735,6 +747,17 @@ export function MediaDetailPage() {
                 mediaId={data.id}
                 title={data.title}
                 currentLibbyId={libby?.value}
+                onChanged={reload}
+              />
+            </Flex>
+          </Card>
+
+          <Card size="2">
+            <Flex direction="column" gap="2">
+              <Text size="2" weight="medium">Wikipedia</Text>
+              <WikipediaLinkEditor
+                mediaId={data.id}
+                currentUrl={data.wikipediaUrl}
                 onChanged={reload}
               />
             </Flex>

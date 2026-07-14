@@ -14,11 +14,13 @@ import {
   ToggleGroup,
 } from "@wlcr/base-ic";
 import { Pencil } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { MEDIA_TYPES, type Genre, type MediaType } from "../lib/types";
 
 export function AdminGenresPage() {
+  const navigate = useNavigate();
   const { data: genres, reload } = useApiData<Genre[]>("/genres");
   const [name, setName] = useState("");
   const [types, setTypes] = useState<MediaType[]>([]);
@@ -106,7 +108,10 @@ export function AdminGenresPage() {
 
   return (
     <Flex direction="column" gap="5">
-      <Heading size="7">Genres</Heading>
+      <Flex justify="space-between" align="center" gap="3" wrap="wrap">
+        <Heading size="7">Genres</Heading>
+        <Button variant="soft" onClick={() => navigate("/admin/submissions")}>Content submissions</Button>
+      </Flex>
       {msg && (
         <Text color="green" size="2">
           {msg}

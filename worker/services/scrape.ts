@@ -23,6 +23,7 @@ export interface MediaCandidate {
   coverImageUrl?: string;
   shortDescription?: string;
   synopsis?: string;
+  wikipediaUrl?: string;
   releaseDate?: string; // ISO date
   originalLanguage?: string;
   publisher?: string;

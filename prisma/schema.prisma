@@ -95,6 +95,21 @@ enum CreditRole {
   OTHER
 }
 
+enum ContentSubmissionKind {
+  MEDIA_EDIT
+  NEW_MEDIA
+  DUPLICATE
+  INCORRECT_INFO
+  ABUSE
+  OTHER
+}
+
+enum ContentSubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ---------------------------------------------------------------------------
 // Users (profile). `id` is the Neon Auth user id (JWT `sub`); rows are
 // upserted on first authenticated request. Neon Auth also maintains its own
@@ -113,20 +128,22 @@ model User {
   createdAt            DateTime         @default(now()) @map("created_at")
   updatedAt            DateTime         @updatedAt @map("updated_at")
 
-  addedMedia     MediaItem[]  @relation("MediaCreatedBy")
-  uploadedAssets MediaAsset[]
-  entries        MediaEntry[]
-  ratings        Rating[]
-  reviews        Review[]
-  lists          MediaList[]
-  savedLists     SavedList[]
-  starredLists   StarredList[]
-  collaborations ListCollaborator[] @relation("collaborator")
-  sentListInvites ListCollaborator[] @relation("inviter")
-  notifications  Notification[]     @relation("recipient")
-  actedNotifications Notification[]  @relation("actor")
-  following      Follow[]     @relation("follower") // rows where this user follows someone
-  followers      Follow[]     @relation("following") // rows where this user is followed
+  addedMedia                 MediaItem[]         @relation("MediaCreatedBy")
+  uploadedAssets             MediaAsset[]
+  entries                    MediaEntry[]
+  ratings                    Rating[]
+  reviews                    Review[]
+  lists                      MediaList[]
+  savedLists                 SavedList[]
+  starredLists               StarredList[]
+  collaborations             ListCollaborator[]  @relation("collaborator")
+  sentListInvites            ListCollaborator[]  @relation("inviter")
+  notifications              Notification[]      @relation("recipient")
+  actedNotifications         Notification[]      @relation("actor")
+  following                  Follow[]            @relation("follower") // rows where this user follows someone
+  followers                  Follow[]            @relation("following") // rows where this user is followed
+  contentSubmissions         ContentSubmission[] @relation("submissionAuthor")
+  reviewedContentSubmissions ContentSubmission[] @relation("submissionReviewer")
 
   @@index([username])
   @@map("users")
@@ -147,6 +164,7 @@ model MediaItem {
   synopsis         String? // full description
   releaseDate      DateTime? @map("release_date")
   originalLanguage String?   @map("original_language")
+  wikipediaUrl     String?   @map("wikipedia_url")
 
   // Type-specific attributes as first-class columns. Only the ones relevant to
   // a given media type are populated. People (authors/directors/…) are modeled
@@ -165,23 +183,52 @@ model MediaItem {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  externalIds   ExternalId[]
-  credits       Credit[]
-  genres        MediaGenre[]
-  assets        MediaAsset[]
-  tvSeasons     Season[] // Season rows (distinct from the `seasons` count column)
-  entries       MediaEntry[]
-  ratings       Rating[]
-  reviews       Review[]
-  listItems     MediaListItem[]
-  seriesEntries SeriesEntry[]
-  relationsFrom MediaRelation[] @relation("relationsFrom")
-  relationsTo   MediaRelation[] @relation("relationsTo")
+  externalIds       ExternalId[]
+  credits           Credit[]
+  genres            MediaGenre[]
+  assets            MediaAsset[]
+  tvSeasons         Season[] // Season rows (distinct from the `seasons` count column)
+  entries           MediaEntry[]
+  ratings           Rating[]
+  reviews           Review[]
+  listItems         MediaListItem[]
+  seriesEntries     SeriesEntry[]
+  relationsFrom     MediaRelation[]     @relation("relationsFrom")
+  relationsTo       MediaRelation[]     @relation("relationsTo")
+  feedback          ContentSubmission[] @relation("submissionTarget")
+  duplicateFeedback ContentSubmission[] @relation("submissionDuplicate")
 
   @@index([type])
   @@index([title])
   @@index([createdById])
   @@map("media_items")
+}
+
+/// Flexible user contributions and reports. Proposed changes live in JSON so
+/// the workflow can grow without a schema change for every editable field.
+model ContentSubmission {
+  id                   String                  @id @default(uuid())
+  kind                 ContentSubmissionKind
+  status               ContentSubmissionStatus @default(PENDING)
+  submitterId          String                  @map("submitter_id")
+  submitter            User                    @relation("submissionAuthor", fields: [submitterId], references: [id], onDelete: Cascade)
+  targetMediaItemId    String?                 @map("target_media_item_id")
+  targetMediaItem      MediaItem?              @relation("submissionTarget", fields: [targetMediaItemId], references: [id], onDelete: Cascade)
+  duplicateMediaItemId String?                 @map("duplicate_media_item_id")
+  duplicateMediaItem   MediaItem?              @relation("submissionDuplicate", fields: [duplicateMediaItemId], references: [id], onDelete: SetNull)
+  proposedData         Json?                   @map("proposed_data")
+  message              String?
+  reviewerId           String?                 @map("reviewer_id")
+  reviewer             User?                   @relation("submissionReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  adminNote            String?                 @map("admin_note")
+  reviewedAt           DateTime?               @map("reviewed_at")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([submitterId])
+  @@index([targetMediaItemId])
+  @@map("content_submissions")
 }
 
 model ExternalId {

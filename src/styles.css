@@ -227,6 +227,16 @@ body {
   line-height: 1.6;
 }
 
+.submission-json {
+  margin: 0;
+  padding: 0.75rem;
+  overflow-x: auto;
+  border-radius: var(--radius-3, 8px);
+  background: var(--gray-a3, rgba(128, 128, 128, 0.12));
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+}
+
 /* Inline byline names link to the credit-filtered catalog. */
 .byline-link {
   color: inherit;

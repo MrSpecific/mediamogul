@@ -17,6 +17,7 @@ import { LoadMore } from "../components/LoadMore";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { ManualMediaForm } from "../components/ManualMediaForm";
+import { NewMediaSuggestionDialog } from "../components/NewMediaSuggestionDialog";
 import { MEDIA_FIELDS } from "../../shared/media-fields";
 import type { MediaCandidate, MediaItem, MediaType } from "../lib/types";
 
@@ -206,7 +207,10 @@ export function AddMediaPage() {
 
   return (
     <Flex direction="column" gap="4">
-      <Heading size="7">Add media</Heading>
+      <Flex justify="space-between" align="center" gap="3" wrap="wrap">
+        <Heading size="7">Add media</Heading>
+        <NewMediaSuggestionDialog />
+      </Flex>
 
       <SegmentedControl
         ariaLabel="Add mode"

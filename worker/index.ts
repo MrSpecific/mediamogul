@@ -10,6 +10,7 @@ import { series } from "./routes/series";
 import { genres } from "./routes/genres";
 import { notifications } from "./routes/notifications";
 import { billing, handleStripeWebhook } from "./routes/billing";
+import { submissions } from "./routes/submissions";
 import { publicRoutes, renderMediaOg } from "./routes/public";
 import type { AppEnv } from "./types";
 
@@ -64,6 +65,7 @@ api.route("/series", series);
 api.route("/genres", genres);
 api.route("/notifications", notifications);
 api.route("/billing", billing);
+api.route("/submissions", submissions);
 
 app.route("/api", api);
 

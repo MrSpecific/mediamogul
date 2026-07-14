@@ -23,7 +23,7 @@ const BASE_MENU_LINKS = [
 ];
 
 const ADMIN_MENU_LINK = {
-  href: "/admin/genres",
+  href: "/admin/submissions",
   label: "Admin",
   icon: <Shield size={16} aria-hidden />,
   signedIn: true,

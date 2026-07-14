@@ -17,6 +17,7 @@ interface PublicMedia {
   covers: CoverInfo[];
   shortDescription: string | null;
   synopsis: string | null;
+  wikipediaUrl: string | null;
   releaseDate: string | null;
   credits: Credit[];
   genres: { id: string; name: string; slug: string }[];
@@ -127,6 +128,13 @@ export function PublicMediaPage() {
                 shortDescription={media.shortDescription}
                 synopsis={media.synopsis}
               />
+              {media.wikipediaUrl && (
+                <Flex>
+                  <a href={media.wikipediaUrl} target="_blank" rel="noreferrer" className="ext-link">
+                    Wikipedia
+                  </a>
+                </Flex>
+              )}
               <Flex>
                 <Button size="3" onClick={() => navigate("/auth/sign-in")}>
                   Track this on mediamogul
