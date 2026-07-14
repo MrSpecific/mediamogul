@@ -13,6 +13,7 @@ import {
 } from "@wlcr/base-ic";
 import { Check, ExternalLink, Layers, Plus, Search } from "lucide-react";
 import { apiSend } from "../lib/api";
+import { LoadMore } from "../components/LoadMore";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { ManualMediaForm } from "../components/ManualMediaForm";
@@ -348,17 +349,11 @@ export function AddMediaPage() {
                   : "No matches."}
               </Text>
             )}
-            {results && results.length > 0 && hasMore && (
-              <Flex justify="center">
-                <Button
-                  variant="soft"
-                  loading={loadingMore}
-                  onClick={() => void loadMore()}
-                >
-                  Show more
-                </Button>
-              </Flex>
-            )}
+            <LoadMore
+              hasMore={Boolean(results && results.length > 0 && hasMore)}
+              loading={loadingMore}
+              onLoadMore={() => void loadMore()}
+            />
           </Flex>
         </>
       )}

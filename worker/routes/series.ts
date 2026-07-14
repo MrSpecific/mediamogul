@@ -67,6 +67,58 @@ series.post(
   },
 );
 
+// Reorder the whole series. Body lists every current mediaItemId in the
+// desired order; positions are rewritten to 1..N to match.
+series.put(
+  "/:id/order",
+  requireAdmin,
+  zValidator(
+    "json",
+    z.object({ order: z.array(z.string().min(1)).min(1) }),
+  ),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const seriesId = c.req.param("id");
+    const { order } = c.req.valid("json");
+
+    // The payload must be a permutation of the series' current entries —
+    // reject anything else so a stale client can't drop or invent members.
+    const existing = await prisma.seriesEntry.findMany({
+      where: { seriesId },
+      select: { mediaItemId: true },
+    });
+    const existingIds = new Set(existing.map((e) => e.mediaItemId));
+    const orderSet = new Set(order);
+    if (
+      order.length !== existingIds.size ||
+      orderSet.size !== order.length ||
+      !order.every((mediaItemId) => existingIds.has(mediaItemId))
+    ) {
+      return c.json({ error: "order_mismatch" }, 400);
+    }
+
+    // Two phases in one transaction to sidestep the (seriesId, position)
+    // unique constraint: first park every row at a negative position (which
+    // can't clash with any existing positive one), then assign 1..N.
+    await prisma.$transaction([
+      ...order.map((mediaItemId, i) =>
+        prisma.seriesEntry.update({
+          where: { seriesId_mediaItemId: { seriesId, mediaItemId } },
+          data: { position: -(i + 1) },
+        }),
+      ),
+      ...order.map((mediaItemId, i) =>
+        prisma.seriesEntry.update({
+          where: { seriesId_mediaItemId: { seriesId, mediaItemId } },
+          data: { position: i + 1 },
+        }),
+      ),
+    ]);
+
+    return c.json({ ok: true });
+  },
+);
+
 series.delete("/:id/items/:mediaItemId", requireAdmin, async (c) => {
   const res = await c.get("prisma").seriesEntry.deleteMany({
     where: {
