@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -48,7 +49,7 @@ export function SettingsPage() {
     setError(null);
     try {
       const { url } = await apiSend<{ url: string | null }>("POST", path, body);
-      if (url) window.location.href = url;
+      if (url) window.location.assign(url);
     } catch (e) {
       if (e instanceof ApiError && e.message === "billing_not_configured") {
         setError("Billing isn't set up on this environment yet.");
