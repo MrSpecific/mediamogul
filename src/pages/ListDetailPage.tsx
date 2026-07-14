@@ -16,6 +16,7 @@ import { apiSend, ApiError } from "../lib/api";
 import { MediaCard } from "../components/MediaCard";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StarButton } from "../components/StarButton";
+import { VISIBILITY_OPTIONS } from "../lib/visibility";
 import type { ListDetail } from "../lib/types";
 
 /** Owner-editable "why it's on the list" note. Saving upserts via the same
@@ -156,11 +157,17 @@ export function ListDetailPage() {
           <Heading size="7">{data.title}</Heading>
           {data.description && <Text color="gray">{data.description}</Text>}
           <Flex gap="2" wrap="wrap">
-            <Badge variant="soft">{data.visibility.toLowerCase()}</Badge>
+            <Badge variant="soft">
+              {
+                VISIBILITY_OPTIONS.find(
+                  (option) =>
+                    option.value.toLowerCase() ===
+                    data.visibility.toLowerCase(),
+                )?.label
+              }
+            </Badge>
             {data.allowedTypes.length ? (
-              data.allowedTypes.map((t) => (
-                <MediaTypeBadge key={t} type={t} />
-              ))
+              data.allowedTypes.map((t) => <MediaTypeBadge key={t} type={t} />)
             ) : (
               <Badge variant="outline">Any type</Badge>
             )}

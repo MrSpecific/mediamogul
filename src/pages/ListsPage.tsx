@@ -16,12 +16,7 @@ import { apiSend } from "../lib/api";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StarButton } from "../components/StarButton";
 import type { ListSummary, Visibility } from "../lib/types";
-
-const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
-  { value: "PRIVATE", label: "Private" },
-  { value: "UNLISTED", label: "Unlisted" },
-  { value: "PUBLIC", label: "Public" },
-];
+import { VISIBILITY_OPTIONS } from "../lib/visibility";
 
 function ListRow({
   list,
