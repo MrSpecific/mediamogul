@@ -14,6 +14,7 @@ import {
 import { Check, ExternalLink, Layers, Plus, Search } from "lucide-react";
 import { api, apiSend } from "../lib/api";
 import { LoadMore } from "../components/LoadMore";
+import { Spinner } from "../components/Spinner";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { ManualMediaForm } from "../components/ManualMediaForm";
@@ -208,7 +209,10 @@ export function AddMediaPage() {
   return (
     <Flex direction="column" gap="4">
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">
-        <Heading size="7">Add media</Heading>
+        <Flex align="center" gap="3">
+          <Heading size="7">Add media</Heading>
+          {searching && <Spinner size={18} />}
+        </Flex>
         <NewMediaSuggestionDialog />
       </Flex>
 
@@ -293,7 +297,14 @@ export function AddMediaPage() {
             </Text>
           )}
 
-          <Flex direction="column" gap="2">
+          <Flex
+            direction="column"
+            gap="2"
+            // Dim + settle while searching, then ease results back in. Stable
+            // (no remount) so "load more" appends without re-animating.
+            className="results"
+            data-loading={searching || undefined}
+          >
             {visible?.map((c, i) => {
               const author = byline(c);
               const key = `${c.title}-${i}`;

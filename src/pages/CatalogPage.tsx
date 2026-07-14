@@ -15,6 +15,7 @@ import { ArrowDownWideNarrow, Plus, SearchX } from "lucide-react";
 import { useApiData, usePaginatedApi } from "../lib/hooks";
 import { MediaCard } from "../components/MediaCard";
 import { LoadMore } from "../components/LoadMore";
+import { Spinner } from "../components/Spinner";
 import { titleCase } from "../../shared/media-fields";
 import {
   MEDIA_TYPES,
@@ -90,7 +91,10 @@ export function CatalogPage() {
   return (
     <Flex direction="column" gap="4">
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">
-        <Heading size="7">Catalog</Heading>
+        <Flex align="center" gap="3">
+          <Heading size="7">Catalog</Heading>
+          {loading && <Spinner size={18} />}
+        </Flex>
         <Button onClick={() => navigate("/catalog/add")}>
           <Plus size={16} aria-hidden /> Add media
         </Button>
@@ -191,39 +195,44 @@ export function CatalogPage() {
         </Flex>
       </Flex>
 
-      {loading && <Text color="gray">Loading…</Text>}
-      {!loading && items.length === 0 && (
-        <Card size="3" className="empty-state">
-          <Flex direction="column" align="center" gap="3">
-            <SearchX size={40} aria-hidden className="dim-icon" />
-            <Flex direction="column" align="center" gap="1">
-              <Text weight="medium" size="4" align="center">
-                {q ? `No results for “${q}”` : "Nothing here yet"}
-              </Text>
-              <Text color="gray" align="center" style={{ maxWidth: 380 }}>
-                {q
-                  ? "It might not be in the catalog yet. Search public sources and add it in a couple of clicks."
-                  : "Try adjusting your filters, or add something new to the catalog."}
-              </Text>
+      {/* Stable container (no remount): old results stay in place but dim +
+          settle while a new filter loads, then ease back in when results
+          arrive. No layout shift, no flash of empty state. */}
+      <div className="results" data-loading={loading || undefined}>
+        {!loading && items.length === 0 ? (
+          <Card size="3" className="empty-state">
+            <Flex direction="column" align="center" gap="3">
+              <SearchX size={40} aria-hidden className="dim-icon" />
+              <Flex direction="column" align="center" gap="1">
+                <Text weight="medium" size="4" align="center">
+                  {q ? `No results for “${q}”` : "Nothing here yet"}
+                </Text>
+                <Text color="gray" align="center" style={{ maxWidth: 380 }}>
+                  {q
+                    ? "It might not be in the catalog yet. Search public sources and add it in a couple of clicks."
+                    : "Try adjusting your filters, or add something new to the catalog."}
+                </Text>
+              </Flex>
+              <Button
+                onClick={() =>
+                  navigate(
+                    q
+                      ? `/catalog/add?q=${encodeURIComponent(q)}`
+                      : "/catalog/add",
+                  )
+                }
+              >
+                <Plus size={16} aria-hidden /> {q ? `Add “${q}”` : "Add media"}
+              </Button>
             </Flex>
-            <Button
-              onClick={() =>
-                navigate(
-                  q
-                    ? `/catalog/add?q=${encodeURIComponent(q)}`
-                    : "/catalog/add",
-                )
-              }
-            >
-              <Plus size={16} aria-hidden /> {q ? `Add “${q}”` : "Add media"}
-            </Button>
-          </Flex>
-        </Card>
-      )}
-      <div className="media-grid">
-        {items.map((m) => (
-          <MediaCard key={m.id} item={m} />
-        ))}
+          </Card>
+        ) : (
+          <div className="media-grid">
+            {items.map((m) => (
+              <MediaCard key={m.id} item={m} />
+            ))}
+          </div>
+        )}
       </div>
 
       <LoadMore hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
