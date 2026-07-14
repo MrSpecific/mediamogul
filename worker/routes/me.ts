@@ -5,7 +5,7 @@ import { getOrCreateUser } from "../db";
 import { getRole, isAdmin } from "../auth";
 import { requireFeature } from "../tiers";
 import { username } from "../schemas";
-import type { MediaType } from "../generated/prisma/client";
+import type { MediaType, Prisma } from "../generated/prisma/client";
 import type { AppEnv } from "../types";
 
 export const me = new Hono<AppEnv>();
@@ -70,6 +70,23 @@ me.get("/stats", requireFeature("advancedStats"), async (c) => {
   });
 });
 
+/**
+ * Live username availability check for the profile editor. Validates format
+ * and uniqueness (the caller's own current username counts as available).
+ */
+me.get("/username-available", async (c) => {
+  const parsed = username.safeParse(c.req.query("username") ?? "");
+  if (!parsed.success) {
+    return c.json({ available: false, reason: "invalid" });
+  }
+  const existing = await c.get("prisma").user.findUnique({
+    where: { username: parsed.data },
+    select: { id: true },
+  });
+  const available = !existing || existing.id === c.get("user").id;
+  return c.json({ available, reason: available ? null : "taken" });
+});
+
 /** Current user's profile (created on first call), plus admin flag. */
 me.get("/", async (c) => {
   const profile = await getOrCreateUser(c.get("prisma"), c.get("user"));
@@ -132,17 +149,36 @@ me.get("/entries", async (c) => {
 me.get("/lists", async (c) => {
   const prisma = c.get("prisma");
   const uid = c.get("user").id;
+  // A few items per list for the card preview thumbnails.
+  const previewItems: Prisma.MediaList$itemsArgs = {
+    take: 6,
+    orderBy: [{ position: "asc" }, { addedAt: "asc" }],
+    select: {
+      id: true,
+      mediaItem: {
+        select: { id: true, type: true, title: true, coverImageUrl: true },
+      },
+    },
+  };
+
   const [owned, saved, collabs, starredRows] = await Promise.all([
     prisma.mediaList.findMany({
       where: { ownerId: uid },
       orderBy: { updatedAt: "desc" },
-      include: { _count: { select: { items: true } } },
+      include: {
+        _count: { select: { items: true, collaborators: true } },
+        items: previewItems,
+      },
     }),
     prisma.savedList.findMany({
       where: { userId: uid },
       include: {
         list: {
-          include: { _count: { select: { items: true } }, owner: true },
+          include: {
+            _count: { select: { items: true, collaborators: true } },
+            items: previewItems,
+            owner: true,
+          },
         },
       },
     }),
@@ -150,7 +186,11 @@ me.get("/lists", async (c) => {
       where: { userId: uid, status: "ACCEPTED" },
       include: {
         list: {
-          include: { _count: { select: { items: true } }, owner: true },
+          include: {
+            _count: { select: { items: true, collaborators: true } },
+            items: previewItems,
+            owner: true,
+          },
         },
       },
     }),

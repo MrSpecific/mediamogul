@@ -64,7 +64,7 @@ export const DEFAULT_TIER: TierId = "FREE";
 
 /** "$1.99/mo" or "Free". */
 export function formatPrice(cents: number): string {
-  return cents === 0 ? "Free" : `$${(cents / 100).toFixed(2)}/mo`;
+  return cents === 0 ? "$0.00" : `$${(cents / 100).toFixed(2)}/mo`;
 }
 
 /** Whether a tier unlocks a feature. Use for gating on client and server. */

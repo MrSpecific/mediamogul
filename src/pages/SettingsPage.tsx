@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { ProfileSettings } from "../components/ProfileSettings";
 
 interface Plan {
   id: string;
@@ -47,6 +48,8 @@ export function SettingsPage() {
   return (
     <Flex direction="column" gap="5">
       <Heading size="7">Settings</Heading>
+
+      <ProfileSettings />
 
       <Flex direction="column" gap="3">
         <Heading size="4">Subscription</Heading>

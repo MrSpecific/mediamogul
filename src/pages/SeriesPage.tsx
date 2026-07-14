@@ -153,11 +153,12 @@ export function SeriesPage() {
               className="media-card-link grow"
             >
               <Card asButton size="2">
-                <Flex gap="3" align="center">
+                <Flex gap="2" align="start" px="2">
                   <Text
                     size="5"
                     color="gray"
-                    style={{ width: 32, flex: "none" }}
+                    weight="bold"
+                    style={{ width: 24, flex: "none" }}
                   >
                     {position}
                   </Text>
@@ -168,7 +169,12 @@ export function SeriesPage() {
                       src={mediaItem.coverImageUrl}
                     />
                   </div>
-                  <Flex direction="column" gap="1" className="shrink">
+                  <Flex
+                    direction="column"
+                    align="start"
+                    gap="1"
+                    className="shrink"
+                  >
                     <MediaTypeBadge type={mediaItem.type} />
                     <Text weight="medium" truncate>
                       {mediaItem.title}

@@ -1,6 +1,7 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { BookOpen, Info } from "lucide-react";
-import { Button, Dialog, Flex, Text } from "@wlcr/base-ic";
+import { Button, Dialog, Flex } from "@wlcr/base-ic";
 
 interface Props {
   shortDescription?: string | null;
@@ -43,7 +44,20 @@ export function MediaDescriptions({ shortDescription, synopsis }: Props) {
         size="large"
         title={title}
         content={
-          <Text className="media-description-content">{content}</Text>
+          <div className="markdown-content">
+            <ReactMarkdown
+              components={{
+                a: ({ href, title, children }) => (
+                  <a href={href} title={title} target="_blank" rel="noreferrer">
+                    {children}
+                  </a>
+                ),
+                img: ({ alt }) => (alt ? <em>{alt}</em> : null),
+              }}
+            >
+              {content ?? ""}
+            </ReactMarkdown>
+          </div>
         }
         footer={
           <Flex justify="end">

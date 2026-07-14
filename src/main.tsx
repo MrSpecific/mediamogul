@@ -23,6 +23,7 @@ import { SeriesPage } from "./pages/SeriesPage";
 import { StatsPage } from "./pages/StatsPage";
 import { AccountPage } from "./routes/AccountPage";
 import { PublicMediaPage } from "./pages/PublicMediaPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 
 // The app is dark-themed. Neon Auth's UI (Tailwind) keys its dark palette off a
 // `.dark` ancestor, so ensure it's present on <html> regardless of the static
@@ -50,6 +51,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/media/:id" element={<MediaDetailPage />} />
               <Route path="/series/:id" element={<SeriesPage />} />
               <Route path="/lists" element={<ListsPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/lists/:id" element={<ListDetailPage />} />
               <Route path="/u/:username" element={<ProfilePage />} />

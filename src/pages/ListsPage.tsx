@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  Badge,
   Button,
   Card,
   Dialog,
@@ -10,13 +11,17 @@ import {
   Input,
   Text,
 } from "@wlcr/base-ic";
-import { Plus } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { Cover } from "../components/Cover";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StarButton } from "../components/StarButton";
 import type { ListSummary, Visibility } from "../lib/types";
 import { VISIBILITY_OPTIONS } from "../lib/visibility";
+
+const visLabel = (v: Visibility) =>
+  VISIBILITY_OPTIONS.find((o) => o.value === v)?.label ?? v;
 
 function ListRow({
   list,
@@ -25,23 +30,70 @@ function ListRow({
   list: ListSummary;
   onStarChange: () => void;
 }) {
+  const items = list.items ?? [];
+  const count = list._count?.items ?? 0;
+  const collaborators = list._count?.collaborators ?? 0;
+  const extra = count - items.length;
+
   return (
     <Card size="2">
-      <Flex justify="space-between" align="center" gap="3">
-        <Link to={`/lists/${list.id}`} className="media-card-link grow">
-          <Flex direction="column">
-            <Text weight="medium">{list.title}</Text>
+      <Flex direction="column" gap="2">
+        <Flex justify="space-between" align="start" gap="3">
+          <Link to={`/lists/${list.id}`} className="media-card-link grow">
+            <Flex direction="column" gap="1">
+              <Text weight="medium">{list.title}</Text>
+              {list.description && (
+                <Text size="1" color="gray" truncate>
+                  {list.description}
+                </Text>
+              )}
+            </Flex>
+          </Link>
+          <StarButton
+            listId={list.id}
+            starred={!!list.isStarred}
+            onChange={onStarChange}
+          />
+        </Flex>
+
+        <Link to={`/lists/${list.id}`} className="media-card-link">
+          {items.length > 0 ? (
+            <div className="list-preview-row">
+              {items.map((it) => (
+                <div className="list-preview-cover" key={it.id}>
+                  <Cover
+                    type={it.mediaItem.type}
+                    title={it.mediaItem.title}
+                    src={it.mediaItem.coverImageUrl}
+                  />
+                </div>
+              ))}
+              {extra > 0 && (
+                <div className="list-preview-more">
+                  <Text size="1" color="gray">
+                    +{extra}
+                  </Text>
+                </div>
+              )}
+            </div>
+          ) : (
             <Text size="1" color="gray">
-              {list._count?.items ?? 0} items · {list.visibility.toLowerCase()}
-              {list.owner ? ` · by @${list.owner.username}` : ""}
+              No items yet.
             </Text>
-          </Flex>
+          )}
         </Link>
-        <StarButton
-          listId={list.id}
-          starred={!!list.isStarred}
-          onChange={onStarChange}
-        />
+
+        <Flex gap="2" align="center" wrap="wrap">
+          <Text size="1" color="gray">
+            {count} {count === 1 ? "item" : "items"} · {visLabel(list.visibility)}
+            {list.owner ? ` · by @${list.owner.username}` : ""}
+          </Text>
+          {collaborators > 0 && (
+            <Badge size="1" variant="soft" color="gray">
+              <Users size={11} aria-hidden /> {collaborators}
+            </Badge>
+          )}
+        </Flex>
       </Flex>
     </Card>
   );

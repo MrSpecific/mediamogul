@@ -3,6 +3,7 @@ import { SignedIn, SignedOut, UserButton } from "@neondatabase/auth/react";
 import { Button, Container, Flex, Heading, Text } from "@wlcr/base-ic";
 import { BarChart3, CreditCard, Shield } from "lucide-react";
 import { LogoMark } from "./Logo";
+import { NotificationsBell } from "./NotificationsBell";
 import { useApiData } from "../lib/hooks";
 import type { Profile } from "../lib/types";
 
@@ -56,6 +57,7 @@ export function AppLayout() {
             <Flex as="nav" align="center" gap="4">
               <NavLink to="/catalog">Catalog</NavLink>
               <NavLink to="/lists">Lists</NavLink>
+              <NotificationsBell />
               <span className="user-full">
                 <UserButton size="sm" additionalLinks={menuLinks} />
               </span>

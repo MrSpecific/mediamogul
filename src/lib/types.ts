@@ -187,6 +187,11 @@ export interface MediaCandidate {
   existingId?: string;
 }
 
+export interface ListItemPreview {
+  id: string;
+  mediaItem: Pick<MediaItem, "id" | "type" | "title" | "coverImageUrl">;
+}
+
 export interface ListSummary {
   id: string;
   title: string;
@@ -195,7 +200,8 @@ export interface ListSummary {
   allowedTypes: MediaType[];
   ranked: boolean;
   isStarred?: boolean;
-  _count?: { items: number };
+  items?: ListItemPreview[];
+  _count?: { items: number; collaborators?: number };
   owner?: { username: string; displayName: string | null };
 }
 

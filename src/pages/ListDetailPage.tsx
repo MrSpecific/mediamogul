@@ -6,16 +6,16 @@ import {
   Card,
   Flex,
   Heading,
-  Input,
   Text,
   Textarea,
 } from "@wlcr/base-ic";
-import { Check, NotebookPen, UserPlus, X } from "lucide-react";
+import { Check, NotebookPen, Users, X } from "lucide-react";
 import { useApiData } from "../lib/hooks";
-import { apiSend, ApiError } from "../lib/api";
+import { apiSend } from "../lib/api";
 import { MediaCard } from "../components/MediaCard";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StarButton } from "../components/StarButton";
+import { ManageCollaboratorsDialog } from "../components/ManageCollaboratorsDialog";
 import { VISIBILITY_OPTIONS } from "../lib/visibility";
 import type { ListDetail } from "../lib/types";
 
@@ -98,9 +98,7 @@ function ListItemNote({
 export function ListDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data, reload } = useApiData<ListDetail>(id ? `/lists/${id}` : null);
-  const [inviteName, setInviteName] = useState("");
-  const [inviting, setInviting] = useState(false);
-  const [inviteMsg, setInviteMsg] = useState<string | null>(null);
+  const [manageOpen, setManageOpen] = useState(false);
 
   if (!data) return <Text color="gray">Loading…</Text>;
 
@@ -112,42 +110,16 @@ export function ListDetailPage() {
     await apiSend("DELETE", `/lists/${id}/items/${itemId}`);
     reload();
   };
-  const invite = async () => {
-    const uname = inviteName.trim().replace(/^@/, "");
-    if (!uname) return;
-    setInviting(true);
-    setInviteMsg(null);
-    try {
-      await apiSend("POST", `/lists/${id}/invite`, { username: uname });
-      setInviteName("");
-      setInviteMsg(`Invited @${uname}.`);
-      reload();
-    } catch (e) {
-      const code = e instanceof ApiError ? e.message : "failed";
-      setInviteMsg(
-        code === "user_not_found"
-          ? "No user with that username."
-          : code === "already_collaborator"
-            ? "They're already a collaborator."
-            : code === "cannot_invite_self"
-              ? "You can't invite yourself."
-              : "Couldn't send the invite.",
-      );
-    } finally {
-      setInviting(false);
-    }
-  };
   const respondInvite = async (accept: boolean) => {
     await apiSend("POST", `/lists/${id}/collaboration/respond`, { accept });
-    reload();
-  };
-  const removeCollaborator = async (userId: string) => {
-    await apiSend("DELETE", `/lists/${id}/collaborators/${userId}`);
     reload();
   };
   const acceptedCollaborators = data.collaborators.filter(
     (x) => x.status === "ACCEPTED",
   );
+  const pendingCount = data.collaborators.filter(
+    (x) => x.status === "PENDING",
+  ).length;
   const showCollaborators = data.isOwner || acceptedCollaborators.length > 0;
 
   return (
@@ -218,74 +190,50 @@ export function ListDetailPage() {
       {showCollaborators && (
         <Card size="2">
           <Flex direction="column" gap="2">
-            <Text weight="medium">Collaborators</Text>
-            {data.collaborators.length === 0 && (
-              <Text size="1" color="gray">
-                No collaborators yet — invite someone below.
-              </Text>
-            )}
-            {(data.isOwner ? data.collaborators : acceptedCollaborators).map(
-              (col) => (
-                <Flex key={col.userId} justify="space-between" align="center">
-                  <Text size="2">
-                    @{col.user.username}
-                    {col.status === "PENDING" && (
-                      <Badge
-                        size="1"
-                        variant="soft"
-                        color="gray"
-                        style={{ marginLeft: 6 }}
-                      >
-                        pending
-                      </Badge>
-                    )}
-                  </Text>
-                  {data.isOwner && (
-                    <Button
-                      size="1"
-                      variant="ghost"
-                      color="red"
-                      onClick={() => void removeCollaborator(col.userId)}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </Flex>
-              ),
-            )}
-            {data.isOwner && (
-              <Flex
-                as="form"
-                gap="2"
-                align="center"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void invite();
-                }}
-              >
-                <Input
-                  wrapperClassName="grow"
-                  placeholder="Invite by @username"
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.currentTarget.value)}
-                />
+            <Flex justify="space-between" align="center" gap="2" wrap="wrap">
+              <Text weight="medium">Collaborators</Text>
+              {data.isOwner && (
                 <Button
-                  type="submit"
                   size="1"
-                  loading={inviting}
-                  disabled={!inviteName.trim()}
+                  variant="soft"
+                  onClick={() => setManageOpen(true)}
                 >
-                  <UserPlus size={14} aria-hidden /> Invite
+                  <Users size={14} aria-hidden /> Manage collaborators
                 </Button>
+              )}
+            </Flex>
+            {acceptedCollaborators.length === 0 ? (
+              <Text size="1" color="gray">
+                {data.isOwner
+                  ? "No collaborators yet — invite someone to co-edit."
+                  : "No collaborators yet."}
+              </Text>
+            ) : (
+              <Flex gap="2" wrap="wrap">
+                {acceptedCollaborators.map((col) => (
+                  <Badge key={col.userId} variant="soft" color="gray">
+                    @{col.user.username}
+                  </Badge>
+                ))}
               </Flex>
             )}
-            {inviteMsg && (
+            {data.isOwner && pendingCount > 0 && (
               <Text size="1" color="gray">
-                {inviteMsg}
+                {pendingCount} pending invitation{pendingCount === 1 ? "" : "s"}
               </Text>
             )}
           </Flex>
         </Card>
+      )}
+
+      {data.isOwner && (
+        <ManageCollaboratorsDialog
+          open={manageOpen}
+          onOpenChange={setManageOpen}
+          listId={data.id}
+          collaborators={data.collaborators}
+          onChanged={reload}
+        />
       )}
 
       {data.items.length === 0 && (
