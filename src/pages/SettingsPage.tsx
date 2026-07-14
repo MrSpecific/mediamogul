@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";

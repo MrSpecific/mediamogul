@@ -1,9 +1,26 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { SignedIn, SignedOut, UserButton } from "@neondatabase/auth/react";
 import { Button, Container, Flex, Heading, Text } from "@wlcr/base-ic";
+import { BarChart3, CreditCard } from "lucide-react";
 import { LogoMark } from "./Logo";
 import { useApiData } from "../lib/hooks";
 import type { Profile } from "../lib/types";
+
+// Extra items appended to the UserButton dropdown (router-aware links).
+const USER_MENU_LINKS = [
+  {
+    href: "/stats",
+    label: "Stats",
+    icon: <BarChart3 size={16} aria-hidden />,
+    signedIn: true,
+  },
+  {
+    href: "/settings",
+    label: "Plans & billing",
+    icon: <CreditCard size={16} aria-hidden />,
+    signedIn: true,
+  },
+];
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -31,10 +48,10 @@ export function AppLayout() {
               <NavLink to="/lists">Lists</NavLink>
               {me?.isAdmin && <NavLink to="/admin/genres">Admin</NavLink>}
               <span className="user-full">
-                <UserButton size="sm" />
+                <UserButton size="sm" additionalLinks={USER_MENU_LINKS} />
               </span>
               <span className="user-compact">
-                <UserButton size="icon" />
+                <UserButton size="icon" additionalLinks={USER_MENU_LINKS} />
               </span>
             </Flex>
           </SignedIn>

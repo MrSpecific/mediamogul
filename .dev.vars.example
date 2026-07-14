@@ -1,2 +1,18 @@
-# Copy to `.dev.vars` and fill in your Neon connection string (read by the Worker in dev).
+# Copy to `.dev.vars` — secrets the Worker reads in local dev (miniflare).
+# Non-secret config (NEON_AUTH_URL, ADMIN_EMAILS, LIBBY_LIBRARY_KEY) lives in
+# wrangler.jsonc `vars`, not here.
+
+# Neon pooled connection string (same value as DATABASE_URL in .env).
 DATABASE_URL="postgresql://user:password@ep-xxxx-pooler.region.aws.neon.tech/dbname?sslmode=require"
+
+# --- Optional integrations ---------------------------------------------------
+
+# Movie/TV scrape-assist. Books (Open Library) and movies/TV (Wikidata, CC0)
+# work with NO key. TMDB is richer but its free tier is non-commercial only.
+# TMDB_API_KEY=""
+
+# Billing (Stripe). Leave unset to keep billing dormant (endpoints return 501).
+# Create a recurring $1.99/mo price in Stripe, then fill all three:
+# STRIPE_SECRET_KEY="sk_test_..."
+# STRIPE_PRICE_STANDARD="price_..."          # the Standard plan price id
+# STRIPE_WEBHOOK_SECRET="whsec_..."          # from `stripe listen` (dev) or the dashboard

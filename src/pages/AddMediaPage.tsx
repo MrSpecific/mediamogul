@@ -11,7 +11,7 @@ import {
   Toggle,
   ToggleGroup,
 } from "@wlcr/base-ic";
-import { Check, ExternalLink, Plus, Search } from "lucide-react";
+import { Check, ExternalLink, Layers, Plus, Search } from "lucide-react";
 import { apiSend } from "../lib/api";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -63,7 +63,10 @@ export function AddMediaPage() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
 
-  async function fetchPage(query: string, pg: number): Promise<MediaCandidate[]> {
+  async function fetchPage(
+    query: string,
+    pg: number,
+  ): Promise<MediaCandidate[]> {
     return apiSend<MediaCandidate[]>(
       "GET",
       `/lookup?source=all&q=${encodeURIComponent(query)}&page=${pg}`,
@@ -140,6 +143,34 @@ export function AddMediaPage() {
     void search(name);
   }
 
+  // Import every title in a candidate's series in one go (Wikidata-backed).
+  const [seriesBusy, setSeriesBusy] = useState<string | null>(null);
+  const [seriesMsg, setSeriesMsg] = useState<string | null>(null);
+  async function importSeries(cand: MediaCandidate) {
+    if (!cand.seriesId) return;
+    setSeriesBusy(cand.seriesId);
+    setSeriesMsg(null);
+    try {
+      const r = await apiSend<{
+        total: number;
+        created: number;
+        existed: number;
+      }>("POST", "/media/import-series", {
+        source: "wikidata",
+        seriesId: cand.seriesId,
+      });
+      setSeriesMsg(
+        `${cand.seriesName}: added ${r.created} title${r.created === 1 ? "" : "s"}` +
+          (r.existed ? `, ${r.existed} already in your catalog` : ""),
+      );
+      if (q) await search(q); // refresh "in catalog" flags
+    } catch (e) {
+      setSeriesMsg((e as Error).message);
+    } finally {
+      setSeriesBusy(null);
+    }
+  }
+
   const enabled = new Set(types);
   const visible =
     results?.filter((c) => types.length === 0 || enabled.has(c.type)) ?? null;
@@ -179,6 +210,7 @@ export function AddMediaPage() {
               placeholder="Title, author, director, or ISBN…"
               value={q}
               onChange={(e) => setQ(e.currentTarget.value)}
+              // autofocus={true}
             />
             <Button type="submit" loading={searching}>
               <Search size={16} aria-hidden /> Search
@@ -198,6 +230,11 @@ export function AddMediaPage() {
           </ToggleGroup>
 
           {error && <Text color="red">{error}</Text>}
+          {seriesMsg && (
+            <Text color="green" size="2">
+              {seriesMsg}
+            </Text>
+          )}
 
           <Flex direction="column" gap="2">
             {visible?.map((c, i) => {
@@ -254,6 +291,18 @@ export function AddMediaPage() {
                               </span>
                             ))}
                           </Text>
+                        )}
+                        {c.seriesId && c.seriesName && (
+                          <Button
+                            size="1"
+                            variant="ghost"
+                            loading={seriesBusy === c.seriesId}
+                            onClick={() => void importSeries(c)}
+                            style={{ alignSelf: "start" }}
+                          >
+                            <Layers size={13} aria-hidden /> Add all in{" "}
+                            {c.seriesName}
+                          </Button>
                         )}
                       </Flex>
                     </Flex>

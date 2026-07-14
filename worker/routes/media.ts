@@ -7,6 +7,7 @@ import {
   lookupBookByIsbn,
   searchBooks,
   searchScreenWikidata,
+  searchWikidataSeriesMembers,
 } from "../services/scrape";
 import { deleteImage, uploadImage } from "../services/storage";
 import { type CoverSource, searchCovers } from "../services/covers";
@@ -166,6 +167,57 @@ async function saveRelations(
       data: credits.map((cr, i) => ({ ...cr, mediaItemId, position: i })),
     });
   }
+}
+
+/**
+ * Persist a scraped candidate (create + external ids + credits + genres +
+ * series), deduping on external id. Returns the item id and whether it already
+ * existed. Shared by /import (isbn path) and /import-series.
+ */
+async function importScrapeCandidate(
+  prisma: AppEnv["Variables"]["prisma"],
+  cand: MediaCandidate,
+  userId: string,
+): Promise<{ id: string; existed: boolean }> {
+  if (cand.externalIds?.length) {
+    const existing = await prisma.externalId.findFirst({
+      where: {
+        OR: cand.externalIds.map((e) => ({ source: e.source, value: e.value })),
+      },
+      select: { mediaItemId: true },
+    });
+    if (existing) return { id: existing.mediaItemId, existed: true };
+  }
+  const created = await prisma.mediaItem.create({
+    data: {
+      type: cand.type,
+      title: cand.title,
+      subtitle: cand.subtitle,
+      coverImageUrl: cand.coverImageUrl,
+      shortDescription: cand.shortDescription,
+      synopsis: cand.synopsis,
+      releaseDate: cand.releaseDate ? new Date(cand.releaseDate) : undefined,
+      originalLanguage: cand.originalLanguage,
+      ...columnData(cand),
+      source: "SCRAPED",
+      createdById: userId,
+    },
+  });
+  await saveRelations(prisma, created.id, cand.externalIds, cand.credits);
+  await saveGenres(prisma, created.id, cand.type, {
+    genre: cand.genre,
+    genreIds: cand.genreIds,
+  });
+  if (cand.seriesName) {
+    await saveSeries(
+      prisma,
+      created.id,
+      cand.seriesName,
+      cand.seriesPosition,
+      userId,
+    );
+  }
+  return { id: created.id, existed: false };
 }
 
 /**
@@ -393,6 +445,40 @@ media.post(
       include: withRelations,
     });
     return c.json(item, 201);
+  },
+);
+
+/**
+ * Import every member of a series at once (e.g. all 8 Harry Potter films) and
+ * link them into one Series. Currently backed by Wikidata (movies/TV).
+ */
+media.post(
+  "/import-series",
+  zValidator(
+    "json",
+    z.object({
+      source: z.literal("wikidata"),
+      seriesId: z.string().min(1), // Wikidata QID
+    }),
+  ),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const { seriesId } = c.req.valid("json");
+    const members = await searchWikidataSeriesMembers(seriesId);
+    if (members.length === 0) return c.json({ error: "no_members" }, 404);
+
+    let created = 0;
+    let existed = 0;
+    // Sequential: each import dedupes + links into the shared Series row.
+    for (const m of members) {
+      const r = await importScrapeCandidate(prisma, m, c.get("user").id).catch(
+        () => null,
+      );
+      if (!r) continue;
+      if (r.existed) existed += 1;
+      else created += 1;
+    }
+    return c.json({ total: members.length, created, existed });
   },
 );
 

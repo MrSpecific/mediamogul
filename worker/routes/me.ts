@@ -3,10 +3,72 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { getOrCreateUser } from "../db";
 import { getRole, isAdmin } from "../auth";
+import { requireFeature } from "../tiers";
 import { username } from "../schemas";
+import type { MediaType } from "../generated/prisma/client";
 import type { AppEnv } from "../types";
 
 export const me = new Hono<AppEnv>();
+
+/**
+ * Consumption stats for the current user. Gated behind the `advancedStats`
+ * feature (Standard tier) — free users get 402 and the UI shows an upgrade
+ * prompt.
+ */
+me.get("/stats", requireFeature("advancedStats"), async (c) => {
+  const prisma = c.get("prisma");
+  const userId = c.get("user").id;
+
+  const [completed, statusGroups, ratingGroups, ratingAgg, reviews, lists] =
+    await Promise.all([
+      prisma.mediaEntry.findMany({
+        where: { userId, status: "COMPLETED" },
+        select: { mediaItemId: true, finishedAt: true, mediaItem: { select: { type: true } } },
+      }),
+      prisma.mediaEntry.groupBy({ by: ["status"], where: { userId }, _count: true }),
+      prisma.rating.groupBy({ by: ["stars"], where: { userId }, _count: true }),
+      prisma.rating.aggregate({ where: { userId }, _avg: { stars: true }, _count: true }),
+      prisma.review.count({ where: { userId } }),
+      prisma.mediaList.count({ where: { ownerId: userId } }),
+    ]);
+
+  const year = new Date().getUTCFullYear();
+  const byType: Record<string, { completions: number; titles: number }> = {};
+  const distinctByType: Record<string, Set<string>> = {};
+  const distinct = new Set<string>();
+  let thisYear = 0;
+  for (const e of completed) {
+    const t = e.mediaItem.type as MediaType;
+    byType[t] ??= { completions: 0, titles: 0 };
+    distinctByType[t] ??= new Set();
+    byType[t].completions += 1;
+    distinctByType[t].add(e.mediaItemId);
+    distinct.add(e.mediaItemId);
+    if (e.finishedAt && e.finishedAt.getUTCFullYear() === year) thisYear += 1;
+  }
+  for (const t of Object.keys(byType)) byType[t].titles = distinctByType[t].size;
+
+  const statusCounts: Record<string, number> = {};
+  for (const g of statusGroups) statusCounts[g.status] = g._count;
+
+  const distribution: Record<string, number> = {};
+  for (const g of ratingGroups) distribution[Number(g.stars).toString()] = g._count;
+
+  return c.json({
+    completions: completed.length,
+    distinctTitles: distinct.size,
+    thisYear,
+    byType,
+    statusCounts,
+    ratings: {
+      count: ratingAgg._count,
+      average: ratingAgg._avg.stars == null ? null : Number(ratingAgg._avg.stars),
+      distribution,
+    },
+    reviews,
+    lists,
+  });
+});
 
 /** Current user's profile (created on first call), plus admin flag. */
 me.get("/", async (c) => {

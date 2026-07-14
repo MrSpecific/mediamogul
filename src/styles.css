@@ -1,6 +1,42 @@
 /* App-level layout styles. Component styling comes from @wlcr/base-ic
    (Base UI + CSS Modules + design tokens) — no Tailwind anywhere. */
 
+/* The Neon Auth UI (Tailwind) derives its palette from these base variables
+   (`--neon-*: var(--foreground, …)` etc.) and only flips to dark under a
+   `.dark` ancestor. The app is always dark, so pin the base variables to dark
+   values directly — this guarantees readable auth/account pages (e.g. the
+   settings sidebar nav) regardless of the `.dark` class cascade. Nothing else
+   in the app reads these names. */
+:root {
+  --background: oklch(14.5% 0 0);
+  --foreground: oklch(98.5% 0 0);
+  --card: oklch(20.5% 0 0);
+  --card-foreground: oklch(98.5% 0 0);
+  --popover: oklch(20.5% 0 0);
+  --popover-foreground: oklch(98.5% 0 0);
+  --primary: oklch(92.2% 0 0);
+  --primary-foreground: oklch(20.5% 0 0);
+  --secondary: oklch(26.9% 0 0);
+  --secondary-foreground: oklch(98.5% 0 0);
+  --muted: oklch(26.9% 0 0);
+  --muted-foreground: oklch(70.8% 0 0);
+  --accent: oklch(26.9% 0 0);
+  --accent-foreground: oklch(98.5% 0 0);
+  --destructive: oklch(70.4% 0.191 22.216);
+  --destructive-foreground: oklch(70.4% 0.191 22.216);
+  --border: oklch(100% 0 0 / 10%);
+  --input: oklch(100% 0 0 / 15%);
+  --ring: oklch(55.6% 0 0);
+  --sidebar: oklch(20.5% 0 0);
+  --sidebar-foreground: oklch(98.5% 0 0);
+  --sidebar-primary: oklch(48.8% 0.243 264.376);
+  --sidebar-primary-foreground: oklch(98.5% 0 0);
+  --sidebar-accent: oklch(26.9% 0 0);
+  --sidebar-accent-foreground: oklch(98.5% 0 0);
+  --sidebar-border: oklch(100% 0 0 / 10%);
+  --sidebar-ring: oklch(55.6% 0 0);
+}
+
 /* Media never forces horizontal overflow. */
 img,
 svg,
@@ -303,6 +339,33 @@ body {
 /* Catalog empty state */
 .empty-state {
   padding: 32px 20px;
+}
+
+/* Stats page */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.stat-card {
+  min-width: 0;
+}
+
+.bar-track {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--color-gray-4, rgba(128, 128, 128, 0.2));
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--color-accent-9, #e0871b);
+  min-width: 2px;
+  transition: width 200ms ease;
 }
 
 /* Cover artwork + generated fallback */

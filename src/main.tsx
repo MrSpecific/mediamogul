@@ -19,6 +19,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AdminGenresPage } from "./pages/AdminGenresPage";
 import { SeriesPage } from "./pages/SeriesPage";
+import { StatsPage } from "./pages/StatsPage";
 import { AccountPage } from "./routes/AccountPage";
 import { PublicMediaPage } from "./pages/PublicMediaPage";
 
@@ -48,6 +49,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/media/:id" element={<MediaDetailPage />} />
               <Route path="/series/:id" element={<SeriesPage />} />
               <Route path="/lists" element={<ListsPage />} />
+              <Route path="/stats" element={<StatsPage />} />
               <Route path="/lists/:id" element={<ListDetailPage />} />
               <Route path="/u/:username" element={<ProfilePage />} />
               <Route path="/settings" element={<SettingsPage />} />

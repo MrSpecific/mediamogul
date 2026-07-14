@@ -35,6 +35,8 @@ export interface MediaCandidate {
   /** Series membership (e.g. "Harry Potter", position 2), when known. */
   seriesName?: string;
   seriesPosition?: number;
+  /** Source-specific series id, for fetching all members (e.g. Wikidata QID). */
+  seriesId?: string;
   credits?: CandidateCredit[];
   externalIds: { source: ExternalSource; value: string; url?: string }[];
 }
@@ -332,28 +334,11 @@ const WD_TV = new Set([
   "Q581714",
 ]);
 
-/**
- * Movie/TV lookup via Wikidata — CC0, safe for commercial use. Returns
- * metadata; poster images come from Wikimedia Commons (P18) only when a
- * freely-licensed file exists, so many titles have no cover.
- */
-export async function searchScreenWikidata(
-  query: string,
-  offset = 0,
-): Promise<MediaCandidate[]> {
-  const q = query.trim();
-  if (!q) return [];
-
-  const sparql = `SELECT ?item ?itemLabel ?itemDescription ?type ?date ?image ?imdb ?directorLabel ?runtime ?seasons ?episodes ?genreLabel ?seriesLabel ?ordinal WHERE {
-  SERVICE wikibase:mwapi {
-    bd:serviceParam wikibase:api "EntitySearch" .
-    bd:serviceParam wikibase:endpoint "www.wikidata.org" .
-    bd:serviceParam mwapi:search ${JSON.stringify(q)} .
-    bd:serviceParam mwapi:language "en" .
-    bd:serviceParam mwapi:limit "40" .
-    ${offset > 0 ? `bd:serviceParam mwapi:continue "${offset}" .` : ""}
-    ?item wikibase:apiOutputItem mwapi:item .
-  }
+// Shared SELECT + body (everything after the item selector) for the movie/TV
+// queries, so both free-text search and series-member lookup parse identically.
+const SCREEN_SELECT =
+  "SELECT ?item ?itemLabel ?itemDescription ?type ?date ?image ?imdb ?directorLabel ?runtime ?seasons ?episodes ?genreLabel ?series ?seriesLabel ?ordinal";
+const SCREEN_BODY = `
   ?item wdt:P31 ?type .
   VALUES ?type { wd:Q11424 wd:Q506240 wd:Q24856 wd:Q93204 wd:Q202866 wd:Q5398426 wd:Q1259759 wd:Q63952888 wd:Q526877 wd:Q581714 }
   OPTIONAL { ?item wdt:P577 ?date . }
@@ -363,11 +348,11 @@ export async function searchScreenWikidata(
   OPTIONAL { ?item wdt:P2047 ?runtime . }
   OPTIONAL { ?item wdt:P2437 ?seasons . }
   OPTIONAL { ?item wdt:P1113 ?episodes . }
-  OPTIONAL { ?item wdt:P136 ?genre . }
-  OPTIONAL { ?item p:P179 ?ps . ?ps ps:P179 ?series . OPTIONAL { ?ps pq:P1545 ?ordinal . } }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }
-} LIMIT 40`;
+  OPTIONAL { ?item wdt:P136 ?genre . }`;
+const SCREEN_LABEL = `  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }`;
 
+/** Run a movie/TV SPARQL query and dedupe rows into candidates. */
+async function runScreenQuery(sparql: string): Promise<MediaCandidate[]> {
   const url = `${WD_SPARQL}?format=json&query=${encodeURIComponent(sparql)}`;
   const res = await fetch(url, {
     headers: {
@@ -397,16 +382,20 @@ export async function searchScreenWikidata(
 
     const director = b.directorLabel?.value;
     const genre = b.genreLabel?.value;
+    const setSeries = (cand: MediaCandidate) => {
+      if (b.seriesLabel?.value && !cand.seriesName) {
+        cand.seriesName = b.seriesLabel.value;
+        cand.seriesId = b.series?.value?.split("/").pop();
+        const ord = Number(b.ordinal?.value);
+        if (ord) cand.seriesPosition = ord;
+      }
+    };
 
     const existing = byId.get(qid);
     if (existing) {
       if (director && type === "MOVIE") addCredit(existing, "DIRECTOR", director);
       if (genre && !existing.genre) existing.genre = genre;
-      if (b.seriesLabel?.value && !existing.seriesName) {
-        existing.seriesName = b.seriesLabel.value;
-        const ord = Number(b.ordinal?.value);
-        if (ord) existing.seriesPosition = ord;
-      }
+      setSeries(existing);
       continue;
     }
 
@@ -447,15 +436,59 @@ export async function searchScreenWikidata(
       if (episodes) candidate.episodes = episodes;
     }
     if (director && type === "MOVIE") addCredit(candidate, "DIRECTOR", director);
-    if (b.seriesLabel?.value) {
-      candidate.seriesName = b.seriesLabel.value;
-      const ord = Number(b.ordinal?.value);
-      if (ord) candidate.seriesPosition = ord;
-    }
+    setSeries(candidate);
 
     byId.set(qid, candidate);
   }
   return [...byId.values()];
+}
+
+/**
+ * Movie/TV lookup via Wikidata — CC0, safe for commercial use. Returns
+ * metadata; poster images come from Wikimedia Commons (P18) only when a
+ * freely-licensed file exists, so many titles have no cover.
+ */
+export async function searchScreenWikidata(
+  query: string,
+  offset = 0,
+): Promise<MediaCandidate[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const sparql = `${SCREEN_SELECT} WHERE {
+  SERVICE wikibase:mwapi {
+    bd:serviceParam wikibase:api "EntitySearch" .
+    bd:serviceParam wikibase:endpoint "www.wikidata.org" .
+    bd:serviceParam mwapi:search ${JSON.stringify(q)} .
+    bd:serviceParam mwapi:language "en" .
+    bd:serviceParam mwapi:limit "40" .
+    ${offset > 0 ? `bd:serviceParam mwapi:continue "${offset}" .` : ""}
+    ?item wikibase:apiOutputItem mwapi:item .
+  }${SCREEN_BODY}
+  OPTIONAL { ?item p:P179 ?ps . ?ps ps:P179 ?series . OPTIONAL { ?ps pq:P1545 ?ordinal . } }
+${SCREEN_LABEL}
+} LIMIT 40`;
+  return runScreenQuery(sparql);
+}
+
+/**
+ * All movie/TV members of a Wikidata series (by QID), each carrying its series
+ * ordinal so they can be imported + linked in reading/release order.
+ */
+export async function searchWikidataSeriesMembers(
+  seriesQid: string,
+): Promise<MediaCandidate[]> {
+  if (!/^Q\d+$/.test(seriesQid)) return [];
+  const sparql = `${SCREEN_SELECT} WHERE {
+  ?item p:P179 ?ps .
+  ?ps ps:P179 wd:${seriesQid} .
+  BIND(wd:${seriesQid} AS ?series)
+  OPTIONAL { ?ps pq:P1545 ?ordinal . }${SCREEN_BODY}
+${SCREEN_LABEL}
+} LIMIT 100`;
+  const members = await runScreenQuery(sparql);
+  return members.sort(
+    (a, b) => (a.seriesPosition ?? 1e9) - (b.seriesPosition ?? 1e9),
+  );
 }
 
 function normalizeDate(input?: string): string | undefined {

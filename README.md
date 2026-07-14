@@ -29,7 +29,7 @@ Request ─┬─ /api/*  → Hono ─ requireAuth (verify Neon Auth JWT) ─ Pr
   the Neon driver adapter — the setup that runs on Workers.
 - The Neon Auth server is a separate origin, so the SPA sends the Neon Auth
   **JWT** as `Authorization: Bearer …`; the Worker verifies it against the
-  JWKS at `<NEON_AUTH_URL>/jwt`.
+  JWKS at `<NEON_AUTH_URL>/.well-known/jwks.json`.
 
 ## Prerequisites
 
@@ -59,7 +59,18 @@ Add the Neon Auth URLs:
 - `VITE_NEON_AUTH_URL` in `.env` — the client URL from **Neon Console → Auth →
   Configuration** (used by the browser; `VITE_`-prefixed so Vite exposes it).
 - `NEON_AUTH_URL` in [`wrangler.jsonc`](wrangler.jsonc) `vars` — the **same**
-  URL (the Worker verifies JWTs against `<NEON_AUTH_URL>/jwt`).
+  URL (the Worker verifies JWTs against `<NEON_AUTH_URL>/.well-known/jwks.json`).
+
+### Non-secret config (`wrangler.jsonc` → `vars`)
+
+These are plain config, committed in [`wrangler.jsonc`](wrangler.jsonc) (run
+`npm run cf-typegen` after changing them):
+
+| Var | Purpose |
+| --- | --- |
+| `NEON_AUTH_URL` | Neon Auth origin the Worker verifies JWTs against. |
+| `ADMIN_EMAILS` | Comma-separated emails granted the admin role. Admin also resolves from the JWT's `user_metadata.role` (set a user to `admin` in Neon Auth); the allowlist is a reliable fallback. |
+| `LIBBY_LIBRARY_KEY` | Any large public library's OverDrive key (default `lapl`) used to resolve stable Libby/OverDrive title ids. |
 
 Then create the tables and generate types:
 
@@ -73,21 +84,44 @@ npm run cf-typegen    # regenerate worker-configuration.d.ts from wrangler.jsonc
 
 ### Optional integrations (secrets)
 
-```bash
-# Movie/TV scrape-assist — OPTIONAL. Books (Open Library) and movies/TV
-# (Wikidata, CC0) work with no key. TMDB is richer but its free tier is
-# NON-COMMERCIAL only — commercial use needs a paid TMDB agreement.
-npx wrangler secret put TMDB_API_KEY          # a TMDB v3 API key
+All optional — set as Wrangler secrets for production, or add to `.dev.vars`
+for local dev (see [`.dev.vars.example`](.dev.vars.example)).
 
-# Billing (Stripe) — create a Standard product/price first, then:
-npx wrangler secret put STRIPE_SECRET_KEY
-npx wrangler secret put STRIPE_WEBHOOK_SECRET  # from your Stripe webhook endpoint
-npx wrangler secret put STRIPE_PRICE_STANDARD  # the $1.99/mo price id
+**Scrape-assist (TMDB)** — books (Open Library) and movies/TV (Wikidata, CC0)
+already work with **no key**; TMDB is only a richer, opt-in movie/TV source and
+its free tier is non-commercial only:
+
+```bash
+npx wrangler secret put TMDB_API_KEY          # a TMDB v3 API key
 ```
 
-Point a Stripe webhook at `POST /api/billing/webhook` (subscription events). For
-local dev, add these to `.dev.vars` instead. Pricing/tiers live in
-[`shared/tiers.ts`](shared/tiers.ts).
+**Billing (Stripe)** — until all three are set, billing endpoints return `501`
+and the app runs free-tier only. Setup:
+
+1. In Stripe, create a product with a **recurring $1.99/mo price**; copy its
+   price id (`price_…`). Amount/tiers are mirrored in
+   [`shared/tiers.ts`](shared/tiers.ts).
+2. Set the secrets (test-mode keys first):
+
+   ```bash
+   npx wrangler secret put STRIPE_SECRET_KEY      # sk_test_… / sk_live_…
+   npx wrangler secret put STRIPE_PRICE_STANDARD  # the price_… id
+   npx wrangler secret put STRIPE_WEBHOOK_SECRET  # whsec_… (step 3)
+   ```
+3. Add a webhook endpoint in Stripe → `https://<your-domain>/api/billing/webhook`,
+   subscribed to `customer.subscription.created`, `.updated`, and `.deleted`.
+   Its signing secret is `STRIPE_WEBHOOK_SECRET`.
+
+The webhook keeps `User.tier` in sync; tier limits/features are enforced
+server-side ([`worker/tiers.ts`](worker/tiers.ts)).
+
+**Local Stripe testing** — the CLI forwards events and prints a `whsec_…` to put
+in `.dev.vars`:
+
+```bash
+stripe listen --forward-to localhost:5173/api/billing/webhook
+stripe trigger customer.subscription.created   # or use card 4242 4242 4242 4242 in Checkout
+```
 
 ### Google sign-in
 
@@ -132,10 +166,11 @@ src/
   lib/                  api.ts (bearer-token fetch), hooks.ts, types.ts
 worker/
   index.ts              Hono app; mounts /api routes, health is public
-  auth.ts               JWKS verify + requireAuth middleware
+  auth.ts               JWKS verify + requireAuth/requireAdmin + role resolution
   db.ts                 per-request Prisma client + getOrCreateUser
-  routes/               me, users, media, lists, lookup
-  services/scrape.ts    Open Library (books) + TMDB stub
+  routes/               me, users, media, lists, lookup, series, genres, billing
+  services/             scrape (Open Library + Wikidata), covers (CC search),
+                        libby (OverDrive), storage (R2), genres
   generated/prisma/     generated client (git-ignored)
 shared/
   tiers.ts              billing tiers + feature flags (Free, Standard $1.99/mo)
@@ -158,9 +193,12 @@ prisma.config.ts        Prisma 7 CLI config
 ## Notes
 
 - **Secrets:** `.env`, `.dev.vars` are git-ignored. In production the Worker
-  reads `DATABASE_URL` from a Wrangler secret.
-- **Neon Auth JWKS path** is assumed to be `<NEON_AUTH_URL>/jwt`
-  ([`worker/auth.ts`](worker/auth.ts)); confirm in the Neon Console.
+  reads secrets (`DATABASE_URL`, Stripe, TMDB) from Wrangler secrets.
+- **Neon Auth JWKS** is verified at `<NEON_AUTH_URL>/.well-known/jwks.json`
+  ([`worker/auth.ts`](worker/auth.ts)).
 - **Ratings** are half-star decimals (0.5–5).
-- **Scrape-assist:** books work today (Open Library, keyless); movies/TV need a
-  `TMDB_API_KEY` secret and implementing `searchScreen()`.
+- **Scrape-assist:** unified search across Open Library (books) + Wikidata
+  (movies/TV) — both keyless. TMDB is an optional richer movie/TV source.
+- **Cover art:** Creative-Commons search (Wikimedia Commons, Library of
+  Congress), direct upload, or scraped from a linked source (Open Library,
+  Libby/OverDrive); a CSS placeholder is generated when none exists.
