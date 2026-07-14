@@ -25,6 +25,10 @@ import {
 
 const ALL_TYPES = MEDIA_TYPES.map((t) => t.value);
 
+// Divisible by every column count the grid uses (6/4/3/2) so each page fills
+// complete rows — see `.media-grid` in styles.css.
+const PAGE_SIZE = 24;
+
 const ORDER_LABELS: Record<string, string> = {
   new: "Recently added",
   title: "Title (A–Z)",
@@ -71,6 +75,7 @@ export function CatalogPage() {
 
   // Build the request. No `types` => all types.
   const reqParams = new URLSearchParams();
+  reqParams.set("limit", String(PAGE_SIZE));
   if (q) reqParams.set("q", q);
   if (genre) reqParams.set("genre", genre);
   if (credit) reqParams.set("credit", credit);

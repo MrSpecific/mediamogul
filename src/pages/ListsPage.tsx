@@ -14,6 +14,7 @@ import { Plus } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { SegmentedControl } from "../components/SegmentedControl";
+import { StarButton } from "../components/StarButton";
 import type { ListSummary, Visibility } from "../lib/types";
 
 const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
@@ -22,17 +23,31 @@ const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
   { value: "PUBLIC", label: "Public" },
 ];
 
-function ListRow({ list }: { list: ListSummary }) {
+function ListRow({
+  list,
+  onStarChange,
+}: {
+  list: ListSummary;
+  onStarChange: () => void;
+}) {
   return (
     <Card size="2">
-      <Link to={`/lists/${list.id}`} className="media-card-link">
-        <Flex justify="space-between" align="center" gap="3">
-          <Text weight="medium">{list.title}</Text>
-          <Text size="1" color="gray">
-            {list._count?.items ?? 0} items · {list.visibility.toLowerCase()}
-          </Text>
-        </Flex>
-      </Link>
+      <Flex justify="space-between" align="center" gap="3">
+        <Link to={`/lists/${list.id}`} className="media-card-link grow">
+          <Flex direction="column">
+            <Text weight="medium">{list.title}</Text>
+            <Text size="1" color="gray">
+              {list._count?.items ?? 0} items · {list.visibility.toLowerCase()}
+              {list.owner ? ` · by @${list.owner.username}` : ""}
+            </Text>
+          </Flex>
+        </Link>
+        <StarButton
+          listId={list.id}
+          starred={!!list.isStarred}
+          onChange={onStarChange}
+        />
+      </Flex>
     </Card>
   );
 }
@@ -41,6 +56,7 @@ export function ListsPage() {
   const { data, reload } = useApiData<{
     owned: ListSummary[];
     saved: ListSummary[];
+    shared: ListSummary[];
   }>("/me/lists");
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -126,15 +142,24 @@ export function ListsPage() {
           <Text color="gray">No lists yet.</Text>
         )}
         {data?.owned.map((l) => (
-          <ListRow key={l.id} list={l} />
+          <ListRow key={l.id} list={l} onStarChange={reload} />
         ))}
       </Flex>
+
+      {data && data.shared.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Heading size="4">Shared with you</Heading>
+          {data.shared.map((l) => (
+            <ListRow key={l.id} list={l} onStarChange={reload} />
+          ))}
+        </Flex>
+      )}
 
       {data && data.saved.length > 0 && (
         <Flex direction="column" gap="3">
           <Heading size="4">Saved lists</Heading>
           {data.saved.map((l) => (
-            <ListRow key={l.id} list={l} />
+            <ListRow key={l.id} list={l} onStarChange={reload} />
           ))}
         </Flex>
       )}

@@ -192,15 +192,48 @@ export interface ListSummary {
   visibility: Visibility;
   allowedTypes: MediaType[];
   ranked: boolean;
+  isStarred?: boolean;
   _count?: { items: number };
   owner?: { username: string; displayName: string | null };
+}
+
+export type CollaboratorStatus = "PENDING" | "ACCEPTED";
+
+export interface ListCollaborator {
+  userId: string;
+  status: CollaboratorStatus;
+  invitedById: string;
+  user: {
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
 }
 
 export interface ListDetail extends ListSummary {
   isOwner: boolean;
   isSaved: boolean;
+  isStarred: boolean;
+  canEdit: boolean;
+  myCollabStatus: CollaboratorStatus | null;
+  collaborators: ListCollaborator[];
   items: { id: string; note: string | null; position: number; mediaItem: MediaItem }[];
   _count: { items: number; savedBy: number };
+}
+
+export interface AppNotification {
+  id: string;
+  type: "LIST_INVITE";
+  message: string;
+  readAt: string | null;
+  createdAt: string;
+  listId: string | null;
+  actor: {
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  } | null;
+  list: { id: string; title: string } | null;
 }
 
 export interface Profile {

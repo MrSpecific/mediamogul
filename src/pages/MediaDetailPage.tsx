@@ -36,8 +36,7 @@ import { CoverFinderDialog } from "../components/CoverFinderDialog";
 import { CoverUploadDialog } from "../components/CoverUploadDialog";
 import { RescrapeDialog } from "../components/RescrapeDialog";
 import { TvSeasons } from "../components/TvSeasons";
-import { CoverManager } from "../components/CoverManager";
-import { Cover } from "../components/Cover";
+import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { LibbyLookup } from "../components/LibbyLookup";
 import { StatusBadge } from "../components/StatusBadge";
 import {
@@ -99,6 +98,9 @@ export function MediaDetailPage() {
   }>("/me/lists");
   const { data: me } = useApiData<Profile>("/me");
   const isAdmin = Boolean(me?.isAdmin);
+  const { data: covers, reload: reloadCovers } = useApiData<CoverInfo[]>(
+    id ? `/media/${id}/covers` : null,
+  );
 
   const [reviewBody, setReviewBody] = useState("");
   const [reviewVis, setReviewVis] = useState<Visibility>("PUBLIC");
@@ -113,6 +115,7 @@ export function MediaDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
+  const [coverBusy, setCoverBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   // Admin affordances only render when an admin flips into admin mode.
@@ -241,6 +244,36 @@ export function MediaDetailPage() {
       setDeleting(false);
     }
   };
+  // After a cover mutation, refresh both the cover list and the header cover.
+  const refreshCovers = () => {
+    reloadCovers();
+    reload();
+  };
+  const setPrimaryCover = async (assetId: string) => {
+    setCoverBusy(assetId);
+    try {
+      await apiSend("POST", `/media/${id}/covers/${assetId}/primary`);
+      refreshCovers();
+    } finally {
+      setCoverBusy(null);
+    }
+  };
+  const removeCover = async (assetId: string) => {
+    setCoverBusy(assetId);
+    try {
+      await apiSend("DELETE", `/media/${id}/covers/${assetId}`);
+      refreshCovers();
+    } finally {
+      setCoverBusy(null);
+    }
+  };
+  // Until the covers endpoint responds, fall back to the header cover so the
+  // primary shows without a flash of the placeholder.
+  const coverList: CoverInfo[] =
+    covers ??
+    (data.coverImageUrl
+      ? [{ id: "primary", url: data.coverImageUrl, isPrimary: true }]
+      : []);
   return (
     <Flex direction="column" gap="5">
       {isAdmin && (
@@ -262,50 +295,48 @@ export function MediaDetailPage() {
 
       <Flex gap="5" wrap="wrap">
         <Flex direction="column" gap="2" align="center">
-          <Cover
+          <CoverGallery
             type={data.type}
             title={data.title}
-            src={data.coverImageUrl}
+            covers={coverList}
             className="detail-cover"
+            admin={
+              showAdmin
+                ? {
+                    busyId: coverBusy,
+                    onSetPrimary: setPrimaryCover,
+                    onRemove: removeCover,
+                  }
+                : undefined
+            }
           />
-          {showAdmin ? (
-            <CoverManager
-              mediaId={data.id}
-              title={data.title}
-              onChanged={reload}
-            />
-          ) : (
-            !data.coverImageUrl && (
-              <Flex gap="2">
-                <Button
-                  size="1"
-                  variant="soft"
-                  onClick={() => setCoverOpen(true)}
-                >
-                  <Search size={14} aria-hidden /> Find a cover
-                </Button>
-                <Button
-                  size="1"
-                  variant="soft"
-                  onClick={() => setUploadOpen(true)}
-                >
-                  <Upload size={14} aria-hidden /> Upload
-                </Button>
-              </Flex>
-            )
+          {(showAdmin || coverList.length === 0) && (
+            <Flex gap="2" wrap="wrap" justify="center">
+              <Button size="1" variant="soft" onClick={() => setCoverOpen(true)}>
+                <Search size={14} aria-hidden />{" "}
+                {coverList.length === 0 ? "Find a cover" : "Find more"}
+              </Button>
+              <Button
+                size="1"
+                variant="soft"
+                onClick={() => setUploadOpen(true)}
+              >
+                <Upload size={14} aria-hidden /> Upload
+              </Button>
+            </Flex>
           )}
           <CoverFinderDialog
             open={coverOpen}
             onOpenChange={setCoverOpen}
             mediaId={data.id}
             title={data.title}
-            onChanged={reload}
+            onChanged={refreshCovers}
           />
           <CoverUploadDialog
             open={uploadOpen}
             onOpenChange={setUploadOpen}
             mediaId={data.id}
-            onChanged={reload}
+            onChanged={refreshCovers}
           />
         </Flex>
         <Flex direction="column" gap="3" style={{ flex: 1, minWidth: 260 }}>

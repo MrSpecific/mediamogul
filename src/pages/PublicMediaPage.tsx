@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Badge, Button, Flex, Heading, Text } from "@wlcr/base-ic";
 import { LogoMark } from "../components/Logo";
+import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StarRating } from "../components/StarRating";
 import { MEDIA_FIELDS } from "../../shared/media-fields";
@@ -12,6 +13,7 @@ interface PublicMedia {
   type: MediaType;
   title: string;
   coverImageUrl: string | null;
+  covers: CoverInfo[];
   synopsis: string | null;
   releaseDate: string | null;
   credits: Credit[];
@@ -81,9 +83,12 @@ export function PublicMediaPage() {
         )}
         {state === "ok" && media && (
           <Flex gap="5" wrap="wrap">
-            <div className="detail-cover">
-              {media.coverImageUrl && <img src={media.coverImageUrl} alt="" />}
-            </div>
+            <CoverGallery
+              type={media.type}
+              title={media.title}
+              covers={media.covers}
+              className="detail-cover"
+            />
             <Flex direction="column" gap="3" style={{ flex: 1, minWidth: 260 }}>
               <MediaTypeBadge
                 type={media.type}

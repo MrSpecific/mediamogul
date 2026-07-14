@@ -184,23 +184,37 @@ body {
   }
 }
 
-@media (max-width: 480px) {
-  .media-grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 0.6rem;
-  }
-}
-
 .hero {
   padding: 5rem 1rem;
   max-width: 640px;
   margin: 0 auto;
 }
 
+/* Fixed column counts (not auto-fill) so a page of items fills whole rows.
+   The counts are all divisors of the catalog page size (24): 6 / 4 / 3 / 2. */
 .media-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(6, 1fr);
   gap: 1rem;
+}
+
+@media (max-width: 1200px) {
+  .media-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .media-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .media-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
 }
 
 .media-card-link {
@@ -419,6 +433,38 @@ body {
 
 .cover-art-img.loaded {
   opacity: 1;
+}
+
+/* Shared cover gallery (primary + thumbnail strip), all views. Sizes to the
+   primary cover so it drops cleanly into a row flex (public page) or a
+   centered column (detail page) without stretching. */
+.cover-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.cover-gallery-thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.cover-gallery-item {
+  position: relative;
+}
+
+/* Round the inner Cover art and highlight the current primary. */
+.cover-gallery-item .cover-art {
+  border-radius: 6px;
+}
+
+.cover-gallery-item.is-primary .cover-art {
+  outline: 2px solid var(--color-accent-9, #2c8);
+  outline-offset: -2px;
 }
 
 /* Admin cover manager (under the detail cover) */

@@ -127,11 +127,12 @@ me.get("/entries", async (c) => {
   return c.json(entries);
 });
 
-/** The user's own lists plus lists they've saved. */
+/** The user's own lists, lists they've saved, and lists they collaborate on —
+ *  each flagged with whether the user has starred it. */
 me.get("/lists", async (c) => {
   const prisma = c.get("prisma");
   const uid = c.get("user").id;
-  const [owned, saved] = await Promise.all([
+  const [owned, saved, collabs, starredRows] = await Promise.all([
     prisma.mediaList.findMany({
       where: { ownerId: uid },
       orderBy: { updatedAt: "desc" },
@@ -145,6 +146,44 @@ me.get("/lists", async (c) => {
         },
       },
     }),
+    prisma.listCollaborator.findMany({
+      where: { userId: uid, status: "ACCEPTED" },
+      include: {
+        list: {
+          include: { _count: { select: { items: true } }, owner: true },
+        },
+      },
+    }),
+    prisma.starredList.findMany({
+      where: { userId: uid },
+      select: { listId: true },
+    }),
   ]);
-  return c.json({ owned, saved: saved.map((s) => s.list) });
+  const starred = new Set(starredRows.map((s) => s.listId));
+  const mark = <T extends { id: string }>(l: T) => ({
+    ...l,
+    isStarred: starred.has(l.id),
+  });
+  return c.json({
+    owned: owned.map(mark),
+    saved: saved.map((s) => mark(s.list)),
+    shared: collabs.map((x) => mark(x.list)),
+  });
+});
+
+/** Starred lists, newest star first — used for prominent homepage display. */
+me.get("/starred", async (c) => {
+  const rows = await c.get("prisma").starredList.findMany({
+    where: { userId: c.get("user").id },
+    orderBy: { createdAt: "desc" },
+    include: {
+      list: {
+        include: {
+          _count: { select: { items: true } },
+          owner: { select: { username: true, displayName: true } },
+        },
+      },
+    },
+  });
+  return c.json(rows.map((r) => ({ ...r.list, isStarred: true })));
 });

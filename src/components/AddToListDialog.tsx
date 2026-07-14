@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Button, Dialog, Field, Flex, Text, Textarea } from "@wlcr/base-ic";
+import {
+  Button,
+  Dialog,
+  Field,
+  Flex,
+  Input,
+  Text,
+  Textarea,
+} from "@wlcr/base-ic";
+import { Plus } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
 import type { ListSummary } from "../lib/types";
 
@@ -23,6 +32,9 @@ export function AddToListDialog({
   const [addingId, setAddingId] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, "ok" | string>>({});
   const [note, setNote] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createErr, setCreateErr] = useState<string | null>(null);
 
   const add = async (listId: string) => {
     setAddingId(listId);
@@ -44,11 +56,42 @@ export function AddToListDialog({
     }
   };
 
+  // Create a brand-new list and drop the current media straight into it.
+  const createAndAdd = async () => {
+    const title = newTitle.trim();
+    if (!title) return;
+    setCreating(true);
+    setCreateErr(null);
+    try {
+      const list = await apiSend<{ id: string }>("POST", "/lists", { title });
+      await apiSend("POST", `/lists/${list.id}/items`, {
+        mediaItemId: mediaId,
+        note: note.trim() || undefined,
+      });
+      // onChanged refreshes the parent's lists, so the new one shows up in the
+      // list above already marked as added.
+      setResult((s) => ({ ...s, [list.id]: "ok" }));
+      setNewTitle("");
+      onChanged?.();
+    } catch (e) {
+      const code = e instanceof ApiError ? e.message : "failed";
+      setCreateErr(
+        code === "upgrade_required"
+          ? "You've reached your list limit — upgrade to create more."
+          : "Couldn't create the list.",
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const close = (o: boolean) => {
     onOpenChange(o);
     if (!o) {
       setResult({});
       setNote("");
+      setNewTitle("");
+      setCreateErr(null);
     }
   };
 
@@ -60,22 +103,20 @@ export function AddToListDialog({
       description="Add this to one or more of your lists."
       content={
         <Flex direction="column" gap="3">
-          {lists.length > 0 && (
-            <Field
-              label="Note"
-              description="Optionally say why — shown next to it on the list."
-            >
-              <Textarea
-                rows={2}
-                placeholder="Why are you adding this?"
-                value={note}
-                onChange={(e) => setNote(e.currentTarget.value)}
-              />
-            </Field>
-          )}
+          <Field
+            label="Note"
+            description="Optionally say why — shown next to it on the list."
+          >
+            <Textarea
+              rows={2}
+              placeholder="Why are you adding this?"
+              value={note}
+              onChange={(e) => setNote(e.currentTarget.value)}
+            />
+          </Field>
           {lists.length === 0 && (
             <Text color="gray">
-              You don't have any lists yet — create one on the Lists page.
+              You don't have any lists yet — create your first one below.
             </Text>
           )}
           {lists.map((l) => {
@@ -122,6 +163,45 @@ export function AddToListDialog({
               </Flex>
             );
           })}
+
+          <Flex
+            as="form"
+            direction="column"
+            gap="1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void createAndAdd();
+            }}
+            style={{
+              borderTop: "1px solid var(--gray-a4, rgba(128,128,128,0.2))",
+              paddingTop: "12px",
+            }}
+          >
+            <Text size="1" color="gray">
+              Or create a new list
+            </Text>
+            <Flex gap="2" align="center">
+              <Input
+                wrapperClassName="grow"
+                placeholder="New list name…"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.currentTarget.value)}
+              />
+              <Button
+                type="submit"
+                size="1"
+                loading={creating}
+                disabled={!newTitle.trim()}
+              >
+                <Plus size={14} aria-hidden /> Create &amp; add
+              </Button>
+            </Flex>
+            {createErr && (
+              <Text size="1" color="red">
+                {createErr}
+              </Text>
+            )}
+          </Flex>
         </Flex>
       }
       footer={

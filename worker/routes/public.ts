@@ -13,6 +13,11 @@ async function loadPublicMedia(env: Env, id: string) {
     include: {
       credits: { orderBy: { position: "asc" } },
       genres: { include: { genre: true } },
+      assets: {
+        where: { kind: "COVER" },
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: { id: true, url: true, isPrimary: true },
+      },
     },
   });
   if (!item) return null;
@@ -21,10 +26,19 @@ async function loadPublicMedia(env: Env, id: string) {
     _avg: { stars: true },
     _count: true,
   });
-  const { genres, ...rest } = item;
+  const { genres, assets, ...rest } = item;
+  // Fall back to the denormalized coverImageUrl for legacy items whose cover
+  // was never linked as an asset — so the gallery always has something to show.
+  const covers =
+    assets.length > 0
+      ? assets
+      : rest.coverImageUrl
+        ? [{ id: "primary", url: rest.coverImageUrl, isPrimary: true }]
+        : [];
   return {
     ...rest,
     genres: genres.map((g) => g.genre),
+    covers,
     averageRating: agg._avg.stars == null ? null : Number(agg._avg.stars),
     ratingCount: agg._count,
   };

@@ -1,15 +1,17 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
+import { Star } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatDate, timeAgo } from "../lib/time";
-import type { MediaEntry, Profile } from "../lib/types";
+import type { ListSummary, MediaEntry, Profile } from "../lib/types";
 
 export function HomePage() {
   const navigate = useNavigate();
   const { data: me } = useApiData<Profile>("/me");
   const { data: entries } = useApiData<MediaEntry[]>("/me/entries");
+  const { data: starred } = useApiData<ListSummary[]>("/me/starred");
 
   return (
     <Flex direction="column" gap="5">
@@ -27,6 +29,36 @@ export function HomePage() {
           Your lists
         </Button>
       </Flex>
+
+      {starred && starred.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Flex gap="2" align="center">
+            <Star size={18} aria-hidden className="dim-icon" />
+            <Heading size="4">Starred lists</Heading>
+          </Flex>
+          <div className="media-grid">
+            {starred.map((l) => (
+              <Link
+                key={l.id}
+                to={`/lists/${l.id}`}
+                className="media-card-link"
+              >
+                <Card asButton size="2">
+                  <Flex direction="column" gap="1">
+                    <Text weight="medium" truncate>
+                      {l.title}
+                    </Text>
+                    <Text size="1" color="gray">
+                      {l._count?.items ?? 0} items
+                      {l.owner ? ` · by @${l.owner.username}` : ""}
+                    </Text>
+                  </Flex>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </Flex>
+      )}
 
       <Flex direction="column" gap="3">
         <Heading size="4">Recent activity</Heading>

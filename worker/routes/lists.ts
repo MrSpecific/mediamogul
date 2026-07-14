@@ -1,11 +1,31 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { mediaType, visibility } from "../schemas";
+import { mediaType, username, visibility } from "../schemas";
 import { type TierId, tierLimit } from "../../shared/tiers";
+import type { PrismaClient } from "../generated/prisma/client";
 import type { AppEnv } from "../types";
 
 export const lists = new Hono<AppEnv>();
+
+/** Owner or an ACCEPTED collaborator may edit a list (items + notes). */
+async function canEditList(
+  prisma: PrismaClient,
+  listId: string,
+  userId: string,
+): Promise<boolean> {
+  const list = await prisma.mediaList.findUnique({
+    where: { id: listId },
+    select: { ownerId: true },
+  });
+  if (!list) return false;
+  if (list.ownerId === userId) return true;
+  const collab = await prisma.listCollaborator.findUnique({
+    where: { listId_userId: { listId, userId } },
+    select: { status: true },
+  });
+  return collab?.status === "ACCEPTED";
+}
 
 const listInput = z.object({
   title: z.string().min(1).max(200),
@@ -50,18 +70,41 @@ lists.get("/:id", async (c) => {
         orderBy: [{ position: "asc" }, { addedAt: "asc" }],
         include: { mediaItem: true },
       },
+      collaborators: {
+        include: {
+          user: {
+            select: { username: true, displayName: true, avatarUrl: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
       _count: { select: { items: true, savedBy: true } },
     },
   });
   if (!list) return c.json({ error: "not_found" }, 404);
-  // Private lists are visible to their owner only.
-  if (list.visibility === "PRIVATE" && list.ownerId !== userId) {
+  const isOwner = list.ownerId === userId;
+  const myCollab = list.collaborators.find((x) => x.userId === userId);
+  // Private lists are visible to the owner and to anyone invited (so a pending
+  // invitee can view it before accepting).
+  if (list.visibility === "PRIVATE" && !isOwner && !myCollab) {
     return c.json({ error: "not_found" }, 404);
   }
-  const saved = await prisma.savedList.findUnique({
-    where: { userId_listId: { userId, listId: list.id } },
+  const [saved, starred] = await Promise.all([
+    prisma.savedList.findUnique({
+      where: { userId_listId: { userId, listId: list.id } },
+    }),
+    prisma.starredList.findUnique({
+      where: { userId_listId: { userId, listId: list.id } },
+    }),
+  ]);
+  return c.json({
+    ...list,
+    isOwner,
+    isSaved: !!saved,
+    isStarred: !!starred,
+    canEdit: isOwner || myCollab?.status === "ACCEPTED",
+    myCollabStatus: myCollab?.status ?? null,
   });
-  return c.json({ ...list, isOwner: list.ownerId === userId, isSaved: !!saved });
 });
 
 lists.patch("/:id", zValidator("json", listInput.partial()), async (c) => {
@@ -105,7 +148,8 @@ lists.post(
       where: { id: listId },
       select: { ownerId: true, allowedTypes: true },
     });
-    if (!list || list.ownerId !== c.get("user").id) {
+    if (!list) return c.json({ error: "not_found" }, 404);
+    if (!(await canEditList(prisma, listId, c.get("user").id))) {
       return c.json({ error: "not_found" }, 404);
     }
 
@@ -133,11 +177,7 @@ lists.post(
 
 lists.delete("/:id/items/:itemId", async (c) => {
   const prisma = c.get("prisma");
-  const list = await prisma.mediaList.findUnique({
-    where: { id: c.req.param("id") },
-    select: { ownerId: true },
-  });
-  if (!list || list.ownerId !== c.get("user").id) {
+  if (!(await canEditList(prisma, c.req.param("id"), c.get("user").id))) {
     return c.json({ error: "not_found" }, 404);
   }
   const res = await prisma.mediaListItem.deleteMany({
@@ -179,4 +219,158 @@ lists.delete("/:id/save", async (c) => {
     })
     .catch(() => undefined);
   return c.json({ saved: false });
+});
+
+// --- star a list (pin prominently, e.g. on the homepage) -------------------
+
+/** Any list the user can see may be starred: their own, a public one, or one
+ *  they collaborate on. */
+async function canViewList(
+  prisma: PrismaClient,
+  listId: string,
+  userId: string,
+): Promise<boolean> {
+  const list = await prisma.mediaList.findUnique({
+    where: { id: listId },
+    select: { ownerId: true, visibility: true },
+  });
+  if (!list) return false;
+  if (list.visibility === "PUBLIC" || list.ownerId === userId) return true;
+  const collab = await prisma.listCollaborator.findUnique({
+    where: { listId_userId: { listId, userId } },
+    select: { userId: true },
+  });
+  return !!collab;
+}
+
+lists.put("/:id/star", async (c) => {
+  const prisma = c.get("prisma");
+  const listId = c.req.param("id");
+  if (!(await canViewList(prisma, listId, c.get("user").id))) {
+    return c.json({ error: "not_found" }, 404);
+  }
+  await prisma.starredList.upsert({
+    where: { userId_listId: { userId: c.get("user").id, listId } },
+    create: { userId: c.get("user").id, listId },
+    update: {},
+  });
+  return c.json({ starred: true });
+});
+
+lists.delete("/:id/star", async (c) => {
+  await c
+    .get("prisma")
+    .starredList.delete({
+      where: {
+        userId_listId: { userId: c.get("user").id, listId: c.req.param("id") },
+      },
+    })
+    .catch(() => undefined);
+  return c.json({ starred: false });
+});
+
+// --- shared lists: invite + respond to collaboration -----------------------
+
+lists.post(
+  "/:id/invite",
+  zValidator("json", z.object({ username })),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const listId = c.req.param("id");
+    const inviterId = c.get("user").id;
+    const list = await prisma.mediaList.findUnique({
+      where: { id: listId },
+      select: { ownerId: true, title: true },
+    });
+    // Only the owner may invite.
+    if (!list || list.ownerId !== inviterId) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const invitee = await prisma.user.findUnique({
+      where: { username: c.req.valid("json").username },
+      select: { id: true },
+    });
+    if (!invitee) return c.json({ error: "user_not_found" }, 404);
+    if (invitee.id === inviterId) {
+      return c.json({ error: "cannot_invite_self" }, 400);
+    }
+    const existing = await prisma.listCollaborator.findUnique({
+      where: { listId_userId: { listId, userId: invitee.id } },
+      select: { status: true },
+    });
+    if (existing?.status === "ACCEPTED") {
+      return c.json({ error: "already_collaborator" }, 409);
+    }
+    const inviter = c.get("profile");
+    const who = inviter.displayName || inviter.username;
+    // Upsert the (pending) collaborator row and notify the invitee together.
+    await prisma.$transaction([
+      prisma.listCollaborator.upsert({
+        where: { listId_userId: { listId, userId: invitee.id } },
+        create: {
+          listId,
+          userId: invitee.id,
+          invitedById: inviterId,
+          status: "PENDING",
+        },
+        update: { invitedById: inviterId, status: "PENDING" },
+      }),
+      prisma.notification.create({
+        data: {
+          userId: invitee.id,
+          type: "LIST_INVITE",
+          actorId: inviterId,
+          listId,
+          message: `${who} invited you to collaborate on “${list.title}”`,
+        },
+      }),
+    ]);
+    return c.json({ invited: true }, 201);
+  },
+);
+
+lists.post(
+  "/:id/collaboration/respond",
+  zValidator("json", z.object({ accept: z.boolean() })),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const listId = c.req.param("id");
+    const userId = c.get("user").id;
+    const collab = await prisma.listCollaborator.findUnique({
+      where: { listId_userId: { listId, userId } },
+      select: { status: true },
+    });
+    if (!collab) return c.json({ error: "not_found" }, 404);
+    if (c.req.valid("json").accept) {
+      await prisma.listCollaborator.update({
+        where: { listId_userId: { listId, userId } },
+        data: { status: "ACCEPTED" },
+      });
+      return c.json({ status: "ACCEPTED" });
+    }
+    await prisma.listCollaborator.delete({
+      where: { listId_userId: { listId, userId } },
+    });
+    return c.json({ status: "DECLINED" });
+  },
+);
+
+// Owner removes a collaborator; a collaborator may remove themselves.
+lists.delete("/:id/collaborators/:userId", async (c) => {
+  const prisma = c.get("prisma");
+  const listId = c.req.param("id");
+  const targetId = c.req.param("userId");
+  const meId = c.get("user").id;
+  const list = await prisma.mediaList.findUnique({
+    where: { id: listId },
+    select: { ownerId: true },
+  });
+  if (!list) return c.json({ error: "not_found" }, 404);
+  if (list.ownerId !== meId && targetId !== meId) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  await prisma.listCollaborator.deleteMany({
+    where: { listId, userId: targetId },
+  });
+  return c.json({ removed: true });
 });

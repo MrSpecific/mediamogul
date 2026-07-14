@@ -120,6 +120,11 @@ model User {
   reviews        Review[]
   lists          MediaList[]
   savedLists     SavedList[]
+  starredLists   StarredList[]
+  collaborations ListCollaborator[] @relation("collaborator")
+  sentListInvites ListCollaborator[] @relation("inviter")
+  notifications  Notification[]     @relation("recipient")
+  actedNotifications Notification[]  @relation("actor")
   following      Follow[]     @relation("follower") // rows where this user follows someone
   followers      Follow[]     @relation("following") // rows where this user is followed
 
@@ -462,8 +467,11 @@ model MediaList {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  items   MediaListItem[]
-  savedBy SavedList[]
+  items         MediaListItem[]
+  savedBy       SavedList[]
+  starredBy     StarredList[]
+  collaborators ListCollaborator[]
+  notifications Notification[]
 
   @@index([ownerId])
   @@index([visibility])
@@ -497,4 +505,67 @@ model SavedList {
   @@id([userId, listId])
   @@index([listId])
   @@map("saved_lists")
+}
+
+/// A user "starring" a list to pin it prominently (homepage). Distinct from
+/// SavedList (following others' lists): a star works on your OWN lists and on
+/// lists you've saved.
+model StarredList {
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listId    String    @map("list_id")
+  list      MediaList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@id([userId, listId])
+  @@index([listId])
+  @@map("starred_lists")
+}
+
+enum CollaboratorStatus {
+  PENDING
+  ACCEPTED
+}
+
+/// A shared-list collaborator. The owner invites a user (status PENDING);
+/// accepting flips it to ACCEPTED, granting co-editor rights (add/remove/
+/// reorder items, edit notes). Declining deletes the row.
+model ListCollaborator {
+  id          String             @id @default(uuid())
+  listId      String             @map("list_id")
+  list        MediaList          @relation(fields: [listId], references: [id], onDelete: Cascade)
+  userId      String             @map("user_id")
+  user        User               @relation("collaborator", fields: [userId], references: [id], onDelete: Cascade)
+  invitedById String             @map("invited_by_id")
+  invitedBy   User               @relation("inviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  status      CollaboratorStatus @default(PENDING)
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  @@unique([listId, userId])
+  @@index([userId, status])
+  @@map("list_collaborators")
+}
+
+enum NotificationType {
+  LIST_INVITE
+}
+
+/// In-app notification for a recipient user. `actor` is who triggered it and
+/// `list` is the related list (for LIST_INVITE). `readAt` null = unread.
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  user      User             @relation("recipient", fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  actorId   String?          @map("actor_id")
+  actor     User?            @relation("actor", fields: [actorId], references: [id], onDelete: SetNull)
+  listId    String?          @map("list_id")
+  list      MediaList?       @relation(fields: [listId], references: [id], onDelete: Cascade)
+  message   String
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
