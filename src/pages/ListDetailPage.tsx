@@ -55,6 +55,11 @@ export function ListDetailPage() {
         {data.items.map((it) => (
           <Flex direction="column" gap="1" key={it.id}>
             <MediaCard item={it.mediaItem} />
+            {it.note && (
+              <Text size="1" color="gray" style={{ fontStyle: "italic" }}>
+                “{it.note}”
+              </Text>
+            )}
             {data.isOwner && (
               <Button
                 size="1"

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Dialog, Flex, Text } from "@wlcr/base-ic";
+import { Button, Dialog, Field, Flex, Text, Textarea } from "@wlcr/base-ic";
 import { apiSend, ApiError } from "../lib/api";
 import type { ListSummary } from "../lib/types";
 
@@ -22,11 +22,15 @@ export function AddToListDialog({
 }: Props) {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, "ok" | string>>({});
+  const [note, setNote] = useState("");
 
   const add = async (listId: string) => {
     setAddingId(listId);
     try {
-      await apiSend("POST", `/lists/${listId}/items`, { mediaItemId: mediaId });
+      await apiSend("POST", `/lists/${listId}/items`, {
+        mediaItemId: mediaId,
+        note: note.trim() || undefined,
+      });
       setResult((s) => ({ ...s, [listId]: "ok" }));
       onChanged?.();
     } catch (e) {
@@ -42,7 +46,10 @@ export function AddToListDialog({
 
   const close = (o: boolean) => {
     onOpenChange(o);
-    if (!o) setResult({});
+    if (!o) {
+      setResult({});
+      setNote("");
+    }
   };
 
   return (
@@ -52,7 +59,20 @@ export function AddToListDialog({
       title="Add to a list"
       description="Add this to one or more of your lists."
       content={
-        <Flex direction="column" gap="2">
+        <Flex direction="column" gap="3">
+          {lists.length > 0 && (
+            <Field
+              label="Note"
+              description="Optionally say why — shown next to it on the list."
+            >
+              <Textarea
+                rows={2}
+                placeholder="Why are you adding this?"
+                value={note}
+                onChange={(e) => setNote(e.currentTarget.value)}
+              />
+            </Field>
+          )}
           {lists.length === 0 && (
             <Text color="gray">
               You don't have any lists yet — create one on the Lists page.
