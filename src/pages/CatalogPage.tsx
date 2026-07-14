@@ -12,8 +12,9 @@ import {
   ToggleGroup,
 } from "@wlcr/base-ic";
 import { ArrowDownWideNarrow, Plus, SearchX } from "lucide-react";
-import { useApiData } from "../lib/hooks";
+import { useApiData, usePaginatedApi } from "../lib/hooks";
 import { MediaCard } from "../components/MediaCard";
+import { LoadMore } from "../components/LoadMore";
 import { titleCase } from "../../shared/media-fields";
 import {
   MEDIA_TYPES,
@@ -76,10 +77,8 @@ export function CatalogPage() {
   if (order && order !== "new") reqParams.set("order", order);
   if (types.length) reqParams.set("types", types.join(","));
 
-  const { data, loading } = useApiData<{
-    items: MediaItem[];
-    nextCursor: string | null;
-  }>(`/media?${reqParams.toString()}`);
+  const { items, loading, loadingMore, hasMore, loadMore } =
+    usePaginatedApi<MediaItem>(`/media?${reqParams.toString()}`);
 
   const hasActiveFilter = Boolean(genre || credit);
 
@@ -173,7 +172,7 @@ export function CatalogPage() {
       </Flex>
 
       {loading && <Text color="gray">Loading…</Text>}
-      {data && data.items.length === 0 && (
+      {!loading && items.length === 0 && (
         <Card size="3" className="empty-state">
           <Flex direction="column" align="center" gap="3">
             <SearchX size={40} aria-hidden className="dim-icon" />
@@ -203,8 +202,14 @@ export function CatalogPage() {
         </Card>
       )}
       <div className="media-grid">
-        {data?.items.map((m) => <MediaCard key={m.id} item={m} />)}
+        {items.map((m) => <MediaCard key={m.id} item={m} />)}
       </div>
+
+      <LoadMore
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={loadMore}
+      />
     </Flex>
   );
 }
