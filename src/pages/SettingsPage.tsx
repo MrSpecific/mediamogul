@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
-import { apiSend } from "../lib/api";
+import { apiSend, ApiError } from "../lib/api";
 import { ProfileSettings } from "../components/ProfileSettings";
 
 interface Plan {
@@ -39,7 +39,16 @@ export function SettingsPage() {
       const { url } = await apiSend<{ url: string | null }>("POST", path);
       if (url) window.location.href = url;
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof ApiError && e.message === "billing_not_configured") {
+        setError("Billing isn't set up on this environment yet.");
+      } else if (e instanceof ApiError) {
+        // Prefer the server's detailed reason (e.g. the Stripe error) over the
+        // generic error code.
+        const detail = (e.body as { message?: string } | undefined)?.message;
+        setError(detail ?? e.message);
+      } else {
+        setError((e as Error).message);
+      }
     } finally {
       setBusy(false);
     }

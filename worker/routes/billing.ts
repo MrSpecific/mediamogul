@@ -38,50 +38,82 @@ billing.get("/plans", (c) =>
 
 /** Start a Stripe Checkout session to subscribe to Standard. */
 billing.post("/checkout", async (c) => {
-  if (!c.env.STRIPE_PRICE_STANDARD) {
+  // Both the secret key and the price id must be configured. Report a clean
+  // 501 (not a generic 500) if either is missing in this environment.
+  if (!c.env.STRIPE_SECRET_KEY || !c.env.STRIPE_PRICE_STANDARD) {
     return c.json({ error: "billing_not_configured" }, 501);
   }
   const prisma = c.get("prisma");
   const profile = c.get("profile");
   const s = stripe(c.env);
 
-  let customerId = profile.stripeCustomerId;
-  if (!customerId) {
-    const customer = await s.customers.create({
-      email: c.get("user").email,
-      metadata: { userId: profile.id },
-    });
-    customerId = customer.id;
-    await prisma.user.update({
-      where: { id: profile.id },
-      data: { stripeCustomerId: customerId },
-    });
-  }
+  try {
+    // Resolve a usable customer. A stored id from a different Stripe mode or
+    // account (e.g. after switching test→live keys) no longer exists under the
+    // current key, so verify it and recreate if it's missing/deleted.
+    let customerId = profile.stripeCustomerId;
+    if (customerId) {
+      const existing = await s.customers
+        .retrieve(customerId)
+        .catch(() => null);
+      if (!existing || existing.deleted) customerId = null;
+    }
+    if (!customerId) {
+      const customer = await s.customers.create({
+        email: c.get("user").email,
+        metadata: { userId: profile.id },
+      });
+      customerId = customer.id;
+      await prisma.user.update({
+        where: { id: profile.id },
+        data: { stripeCustomerId: customerId },
+      });
+    }
 
-  const origin = new URL(c.req.url).origin;
-  const session = await s.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    client_reference_id: profile.id,
-    line_items: [{ price: c.env.STRIPE_PRICE_STANDARD, quantity: 1 }],
-    subscription_data: { metadata: { userId: profile.id } },
-    success_url: `${origin}/settings?upgraded=1`,
-    cancel_url: `${origin}/settings`,
-  });
-  return c.json({ url: session.url });
+    const origin = new URL(c.req.url).origin;
+    const session = await s.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      client_reference_id: profile.id,
+      line_items: [{ price: c.env.STRIPE_PRICE_STANDARD, quantity: 1 }],
+      subscription_data: { metadata: { userId: profile.id } },
+      success_url: `${origin}/settings?upgraded=1`,
+      cancel_url: `${origin}/settings`,
+    });
+    return c.json({ url: session.url });
+  } catch (err) {
+    // Surface the underlying Stripe reason (e.g. bad/mismatched price id or
+    // key) instead of a generic internal_error, and log it for `wrangler tail`.
+    console.error("stripe checkout failed:", err);
+    return c.json(
+      { error: "checkout_failed", message: (err as Error).message },
+      502,
+    );
+  }
 });
 
 /** Stripe customer portal link (manage/cancel subscription). */
 billing.post("/portal", async (c) => {
   const profile = c.get("profile");
+  if (!c.env.STRIPE_SECRET_KEY) {
+    return c.json({ error: "billing_not_configured" }, 501);
+  }
   if (!profile.stripeCustomerId) return c.json({ error: "no_customer" }, 400);
   const origin = new URL(c.req.url).origin;
   const s = stripe(c.env);
-  const portal = await s.billingPortal.sessions.create({
-    customer: profile.stripeCustomerId,
-    return_url: `${origin}/settings`,
-  });
-  return c.json({ url: portal.url });
+  try {
+    const portal = await s.billingPortal.sessions.create({
+      customer: profile.stripeCustomerId,
+      return_url: `${origin}/settings`,
+    });
+    return c.json({ url: portal.url });
+  } catch (err) {
+    console.error("stripe portal failed:", err);
+    return c.json(
+      { error: "portal_failed", message: (err as Error).message },
+      502,
+    );
+  }
 });
 
 /**
