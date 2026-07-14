@@ -51,6 +51,39 @@ function addCredit(c: MediaCandidate, role: CreditRole, name: string): void {
 const OL = "https://openlibrary.org";
 const OL_COVERS = "https://covers.openlibrary.org";
 
+function descriptionText(
+  value?: string | { value?: string } | null,
+): string | undefined {
+  const text = typeof value === "string" ? value : value?.value;
+  return text?.trim() || undefined;
+}
+
+function shortDescriptionOf(
+  synopsis?: string,
+  firstSentence?: string | string[],
+): string | undefined {
+  const sentence = Array.isArray(firstSentence)
+    ? firstSentence[0]
+    : firstSentence;
+  const source = sentence?.trim() || synopsis?.split(/\n\s*\n|\n/)[0]?.trim();
+  return source ? source.slice(0, 280) : undefined;
+}
+
+/** Open Library search records omit full descriptions, so resolve the work. */
+async function openLibraryWorkDescription(
+  workKey?: string,
+): Promise<string | undefined> {
+  if (!workKey) return undefined;
+  const res = await fetch(`${OL}${workKey}.json`, {
+    headers: { Accept: "application/json" },
+  }).catch(() => null);
+  if (!res?.ok) return undefined;
+  const work = (await res.json()) as {
+    description?: string | { value?: string };
+  };
+  return descriptionText(work.description);
+}
+
 /** Open Library book lookup by ISBN (keyless). */
 export async function lookupBookByIsbn(
   isbn: string,
@@ -87,28 +120,14 @@ export async function lookupBookByIsbn(
   ).filter((n): n is string => Boolean(n));
 
   // Works hold the description/synopsis in Open Library's model.
-  let synopsis: string | undefined;
   const workKey = data.works?.[0]?.key;
-  if (workKey) {
-    const workRes = await fetch(`${OL}${workKey}.json`, {
-      headers: { Accept: "application/json" },
-    });
-    if (workRes.ok) {
-      const work = (await workRes.json()) as {
-        description?: string | { value: string };
-      };
-      synopsis =
-        typeof work.description === "string"
-          ? work.description
-          : work.description?.value;
-    }
-  }
+  const synopsis = await openLibraryWorkDescription(workKey);
 
   return {
     type: "BOOK",
     title: data.subtitle ? `${data.title}: ${data.subtitle}` : data.title,
     coverImageUrl: `${OL_COVERS}/b/isbn/${clean}-L.jpg`,
-    shortDescription: synopsis?.split("\n")[0]?.slice(0, 280),
+    shortDescription: shortDescriptionOf(synopsis),
     synopsis,
     releaseDate: normalizeDate(data.publish_date),
     originalLanguage: data.languages?.[0]?.key?.split("/").pop(),
@@ -127,14 +146,17 @@ export async function searchBooks(
   query: string,
   limit = 10,
   page = 1,
+  pageSize = limit,
 ): Promise<MediaCandidate[]> {
   const url = new URL(`${OL}/search.json`);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(limit));
-  if (page > 1) url.searchParams.set("page", String(page));
+  if (page > 1) {
+    url.searchParams.set("offset", String((page - 1) * pageSize));
+  }
   url.searchParams.set(
     "fields",
-    "key,title,subtitle,first_publish_year,cover_i,isbn,language,author_name,number_of_pages_median,publisher",
+    "key,title,subtitle,first_publish_year,cover_i,isbn,language,author_name,number_of_pages_median,publisher,first_sentence",
   );
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) return [];
@@ -150,13 +172,14 @@ export async function searchBooks(
       author_name?: string[];
       number_of_pages_median?: number;
       publisher?: string[];
+      first_sentence?: string | string[];
     }[];
   };
 
-  return (data.docs ?? [])
-    .filter((d) => d.title)
-    .map((d) => {
+  return Promise.all(
+    (data.docs ?? []).filter((d) => d.title).map(async (d) => {
       const isbn = d.isbn?.[0];
+      const synopsis = await openLibraryWorkDescription(d.key);
       const externalIds: MediaCandidate["externalIds"] = [
         { source: "OPEN_LIBRARY", value: d.key, url: `${OL}${d.key}` },
       ];
@@ -170,6 +193,8 @@ export async function searchBooks(
           : isbn
             ? `${OL_COVERS}/b/isbn/${isbn}-L.jpg`
             : undefined,
+        shortDescription: shortDescriptionOf(synopsis, d.first_sentence),
+        synopsis,
         releaseDate: d.first_publish_year
           ? `${d.first_publish_year}-01-01`
           : undefined,
@@ -181,7 +206,8 @@ export async function searchBooks(
           .map((name): CandidateCredit => ({ role: "AUTHOR", name })),
         externalIds,
       };
-    });
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -451,22 +477,27 @@ async function runScreenQuery(sparql: string): Promise<MediaCandidate[]> {
 export async function searchScreenWikidata(
   query: string,
   offset = 0,
+  limit = 40,
 ): Promise<MediaCandidate[]> {
   const q = query.trim();
   if (!q) return [];
   const sparql = `${SCREEN_SELECT} WHERE {
-  SERVICE wikibase:mwapi {
-    bd:serviceParam wikibase:api "EntitySearch" .
-    bd:serviceParam wikibase:endpoint "www.wikidata.org" .
-    bd:serviceParam mwapi:search ${JSON.stringify(q)} .
-    bd:serviceParam mwapi:language "en" .
-    bd:serviceParam mwapi:limit "40" .
-    ${offset > 0 ? `bd:serviceParam mwapi:continue "${offset}" .` : ""}
-    ?item wikibase:apiOutputItem mwapi:item .
+  {
+    SELECT ?item WHERE {
+      SERVICE wikibase:mwapi {
+        bd:serviceParam wikibase:api "EntitySearch" .
+        bd:serviceParam wikibase:endpoint "www.wikidata.org" .
+        bd:serviceParam mwapi:search ${JSON.stringify(q)} .
+        bd:serviceParam mwapi:language "en" .
+        bd:serviceParam mwapi:limit "${limit}" .
+        ${offset > 0 ? `bd:serviceParam mwapi:continue "${offset}" .` : ""}
+        ?item wikibase:apiOutputItem mwapi:item .
+      }
+    } LIMIT ${limit}
   }${SCREEN_BODY}
   OPTIONAL { ?item p:P179 ?ps . ?ps ps:P179 ?series . OPTIONAL { ?ps pq:P1545 ?ordinal . } }
 ${SCREEN_LABEL}
-} LIMIT 40`;
+}`;
   return runScreenQuery(sparql);
 }
 

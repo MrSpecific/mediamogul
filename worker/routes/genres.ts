@@ -41,7 +41,7 @@ genres.post(
   zValidator(
     "json",
     z.object({
-      name: z.string().min(1).max(100),
+      name: z.string().trim().min(1).max(100),
       applicableTypes: z.array(mediaType).default([]),
     }),
   ),
@@ -64,20 +64,26 @@ genres.patch(
   zValidator(
     "json",
     z.object({
-      name: z.string().min(1).max(100).optional(),
+      name: z.string().trim().min(1).max(100).optional(),
       applicableTypes: z.array(mediaType).optional(),
     }),
   ),
   async (c) => {
     const data = c.req.valid("json");
-    const g = await c
-      .get("prisma")
-      .genre.update({
+    const prisma = c.get("prisma");
+    const exists = await prisma.genre.findUnique({
+      where: { id: c.req.param("id") },
+      select: { id: true },
+    });
+    if (!exists) return c.json({ error: "not_found" }, 404);
+
+    const g = await prisma.genre
+      .update({
         where: { id: c.req.param("id") },
         data: { ...data, ...(data.name ? { slug: slugify(data.name) } : {}) },
       })
       .catch(() => null);
-    if (!g) return c.json({ error: "not_found" }, 404);
+    if (!g) return c.json({ error: "genre_exists" }, 409);
     return c.json(g);
   },
 );

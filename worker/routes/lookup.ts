@@ -65,30 +65,49 @@ lookup.get(
     const SCREEN_PER_PAGE = 40;
 
     let candidates: MediaCandidate[];
+    let hasMore = false;
     if (source === "all") {
       if (!q) return c.json({ error: "provide q" }, 400);
       // Query every free source in parallel; a failing source is skipped
       // rather than failing the whole search. Interleave so no single source
       // dominates the top of the list.
       const settled = await Promise.allSettled([
-        searchBooks(q, BOOKS_PER_PAGE, page),
-        searchScreenWikidata(q, (page - 1) * SCREEN_PER_PAGE),
+        searchBooks(q, BOOKS_PER_PAGE + 1, page, BOOKS_PER_PAGE),
+        searchScreenWikidata(
+          q,
+          (page - 1) * SCREEN_PER_PAGE,
+          SCREEN_PER_PAGE + 1,
+        ),
       ]);
       const lists = settled.map((s) =>
         s.status === "fulfilled" ? s.value : [],
       );
-      candidates = interleave(lists);
+      hasMore =
+        lists[0].length > BOOKS_PER_PAGE ||
+        lists[1].length > SCREEN_PER_PAGE;
+      candidates = interleave([
+        lists[0].slice(0, BOOKS_PER_PAGE),
+        lists[1].slice(0, SCREEN_PER_PAGE),
+      ]);
     } else if (source === "open_library") {
       if (isbn) {
         const found = await lookupBookByIsbn(isbn);
         candidates = found ? [found] : [];
       } else if (q) {
-        candidates = await searchBooks(q);
+        const results = await searchBooks(q, 11, page, 10);
+        hasMore = results.length > 10;
+        candidates = results.slice(0, 10);
       } else {
         return c.json({ error: "provide q or isbn" }, 400);
       }
     } else if (source === "wikidata") {
-      candidates = await searchScreenWikidata(q ?? "");
+      const results = await searchScreenWikidata(
+        q ?? "",
+        (page - 1) * SCREEN_PER_PAGE,
+        SCREEN_PER_PAGE + 1,
+      );
+      hasMore = results.length > SCREEN_PER_PAGE;
+      candidates = results.slice(0, SCREEN_PER_PAGE);
     } else {
       try {
         candidates = await searchScreen(q ?? "", c.env.TMDB_API_KEY);
@@ -97,7 +116,10 @@ lookup.get(
       }
     }
 
-    return c.json(await annotateExisting(c.get("prisma"), candidates));
+    return c.json({
+      items: await annotateExisting(c.get("prisma"), candidates),
+      hasMore,
+    });
   },
 );
 

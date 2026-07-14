@@ -12,7 +12,7 @@ import {
   ToggleGroup,
 } from "@wlcr/base-ic";
 import { Check, ExternalLink, Layers, Plus, Search } from "lucide-react";
-import { apiSend } from "../lib/api";
+import { api, apiSend } from "../lib/api";
 import { LoadMore } from "../components/LoadMore";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -63,19 +63,24 @@ export function AddMediaPage() {
   const [addedKeys, setAddedKeys] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
+  const lookupControllerRef = useRef<AbortController | null>(null);
 
   async function fetchPage(
     query: string,
     pg: number,
-  ): Promise<MediaCandidate[]> {
-    return apiSend<MediaCandidate[]>(
-      "GET",
+    signal: AbortSignal,
+  ): Promise<{ items: MediaCandidate[]; hasMore: boolean }> {
+    return api<{ items: MediaCandidate[]; hasMore: boolean }>(
       `/lookup?source=all&q=${encodeURIComponent(query)}&page=${pg}`,
+      { signal },
     );
   }
 
   async function search(query: string) {
     if (!query.trim()) return;
+    lookupControllerRef.current?.abort();
+    const controller = new AbortController();
+    lookupControllerRef.current = controller;
     // Keep the query in the URL so the search survives navigating away and back.
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
@@ -83,33 +88,56 @@ export function AddMediaPage() {
       return p;
     });
     setSearching(true);
+    setLoadingMore(false);
     setError(null);
     setPage(1);
     try {
-      const rs = await fetchPage(query, 1);
-      setResults(rs);
-      setHasMore(rs.length > 0);
+      const result = await fetchPage(query, 1, controller.signal);
+      setResults(result.items);
+      setHasMore(result.hasMore);
     } catch (e) {
-      setError((e as Error).message);
+      if ((e as Error).name !== "AbortError") {
+        setError((e as Error).message);
+      }
     } finally {
-      setSearching(false);
+      if (lookupControllerRef.current === controller) {
+        lookupControllerRef.current = null;
+        setSearching(false);
+      }
     }
   }
 
   async function loadMore() {
+    lookupControllerRef.current?.abort();
+    const controller = new AbortController();
+    lookupControllerRef.current = controller;
     const next = page + 1;
     setLoadingMore(true);
+    setSearching(false);
     try {
-      const rs = await fetchPage(q, next);
-      setResults((prev) => [...(prev ?? []), ...rs]);
-      setHasMore(rs.length > 0);
+      const result = await fetchPage(q, next, controller.signal);
+      setResults((prev) => [...(prev ?? []), ...result.items]);
+      setHasMore(result.hasMore);
       setPage(next);
     } catch (e) {
-      setError((e as Error).message);
+      if ((e as Error).name !== "AbortError") {
+        setError((e as Error).message);
+      }
     } finally {
-      setLoadingMore(false);
+      if (lookupControllerRef.current === controller) {
+        lookupControllerRef.current = null;
+        setLoadingMore(false);
+      }
     }
   }
+
+  // Do not leave a lookup running after navigating away from this page.
+  useEffect(
+    () => () => {
+      lookupControllerRef.current?.abort();
+    },
+    [],
+  );
 
   // Auto-run the search when arriving with a pre-filled query (e.g. from the
   // catalog's "add missing media" prompt).
@@ -210,8 +238,11 @@ export function AddMediaPage() {
               wrapperClassName="grow"
               placeholder="Title, author, director, or ISBN…"
               value={q}
-              onChange={(e) => setQ(e.currentTarget.value)}
-              // autofocus={true}
+              onChange={(e) => {
+                lookupControllerRef.current?.abort();
+                setQ(e.currentTarget.value);
+              }}
+              autoFocus={true}
             />
             <Button type="submit" loading={searching}>
               <Search size={16} aria-hidden /> Search

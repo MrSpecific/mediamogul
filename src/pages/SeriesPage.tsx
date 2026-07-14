@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { ChevronDown, ChevronUp, Shield, Trash2 } from "lucide-react";
 import { useApiData } from "../lib/hooks";
+import { useAdminMode } from "../lib/admin-mode";
 import { apiSend } from "../lib/api";
 import { Cover } from "../components/Cover";
 import { MediaPicker } from "../components/MediaPicker";
@@ -24,7 +25,7 @@ export function SeriesPage() {
   const { data: me } = useApiData<Profile>("/me");
   const isAdmin = Boolean(me?.isAdmin);
 
-  const [adminMode, setAdminMode] = useState(false);
+  const [adminMode, setAdminMode] = useAdminMode();
   const [addingId, setAddingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);

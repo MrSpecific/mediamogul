@@ -25,10 +25,12 @@ import {
   Textarea,
 } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
+import { useAdminMode } from "../lib/admin-mode";
 import { apiSend } from "../lib/api";
 import { CopyButton } from "../components/CopyButton";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { MediaDescriptions } from "../components/MediaDescriptions";
 import { MediaPicker } from "../components/MediaPicker";
 import { MarkCompleteDialog } from "../components/MarkCompleteDialog";
 import { AddToListDialog } from "../components/AddToListDialog";
@@ -114,7 +116,7 @@ export function MediaDetailPage() {
   const [rescrapeOpen, setRescrapeOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [adminMode, setAdminMode] = useState(false);
+  const [adminMode, setAdminMode] = useAdminMode();
   const [coverBusy, setCoverBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -441,7 +443,10 @@ export function MediaDetailPage() {
             </Flex>
           )}
 
-          {data.synopsis && <Text>{data.synopsis}</Text>}
+          <MediaDescriptions
+            shortDescription={data.shortDescription}
+            synopsis={data.synopsis}
+          />
 
           {libby?.url && (
             <Flex>

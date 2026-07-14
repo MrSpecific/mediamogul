@@ -100,6 +100,7 @@ export function CatalogPage() {
         placeholder="Search titles…"
         value={q}
         onChange={(e) => setParam("q", e.currentTarget.value || null)}
+        autoFocus
       />
 
       {hasActiveFilter && (
@@ -200,21 +201,18 @@ export function CatalogPage() {
                 )
               }
             >
-              <Plus size={16} aria-hidden />{" "}
-              {q ? `Add “${q}”` : "Add media"}
+              <Plus size={16} aria-hidden /> {q ? `Add “${q}”` : "Add media"}
             </Button>
           </Flex>
         </Card>
       )}
       <div className="media-grid">
-        {items.map((m) => <MediaCard key={m.id} item={m} />)}
+        {items.map((m) => (
+          <MediaCard key={m.id} item={m} />
+        ))}
       </div>
 
-      <LoadMore
-        hasMore={hasMore}
-        loading={loadingMore}
-        onLoadMore={loadMore}
-      />
+      <LoadMore hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
     </Flex>
   );
 }

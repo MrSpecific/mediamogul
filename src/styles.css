@@ -222,6 +222,11 @@ body {
   color: inherit;
 }
 
+.media-description-content {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
 /* Inline byline names link to the credit-filtered catalog. */
 .byline-link {
   color: inherit;

@@ -4,6 +4,7 @@ import { Badge, Button, Flex, Heading, Text } from "@wlcr/base-ic";
 import { LogoMark } from "../components/Logo";
 import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { MediaDescriptions } from "../components/MediaDescriptions";
 import { StarRating } from "../components/StarRating";
 import { MEDIA_FIELDS } from "../../shared/media-fields";
 import type { Credit, MediaType } from "../lib/types";
@@ -14,6 +15,7 @@ interface PublicMedia {
   title: string;
   coverImageUrl: string | null;
   covers: CoverInfo[];
+  shortDescription: string | null;
   synopsis: string | null;
   releaseDate: string | null;
   credits: Credit[];
@@ -121,7 +123,10 @@ export function PublicMediaPage() {
                   ))}
                 </Flex>
               )}
-              {media.synopsis && <Text>{media.synopsis}</Text>}
+              <MediaDescriptions
+                shortDescription={media.shortDescription}
+                synopsis={media.synopsis}
+              />
               <Flex>
                 <Button size="3" onClick={() => navigate("/auth/sign-in")}>
                   Track this on mediamogul

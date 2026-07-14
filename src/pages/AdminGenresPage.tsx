@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Card,
+  Dialog,
   Field,
   Flex,
   Heading,
@@ -12,6 +13,7 @@ import {
   Toggle,
   ToggleGroup,
 } from "@wlcr/base-ic";
+import { Pencil } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { MEDIA_TYPES, type Genre, type MediaType } from "../lib/types";
@@ -25,6 +27,11 @@ export function AdminGenresPage() {
   const [deleteSource, setDeleteSource] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Genre | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editTypes, setEditTypes] = useState<MediaType[]>([]);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const notify = (fn: () => void) => {
     setMsg(null);
@@ -70,6 +77,33 @@ export function AdminGenresPage() {
     reload();
   };
 
+  const beginEdit = (genre: Genre) => {
+    setEditing(genre);
+    setEditName(genre.name);
+    setEditTypes(genre.applicableTypes);
+    setEditError(null);
+  };
+
+  const saveEdit = async () => {
+    if (!editing || !editName.trim()) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      await apiSend("PATCH", `/genres/${editing.id}`, {
+        name: editName.trim(),
+        applicableTypes: editTypes,
+      });
+      setEditing(null);
+      setMsg("Genre updated.");
+      setErr(null);
+      reload();
+    } catch (e) {
+      setEditError((e as Error).message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
     <Flex direction="column" gap="5">
       <Heading size="7">Genres</Heading>
@@ -83,6 +117,70 @@ export function AdminGenresPage() {
           {err}
         </Text>
       )}
+
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open && !savingEdit) setEditing(null);
+        }}
+        title="Edit genre"
+        description="Changing the name also updates its catalog URL slug."
+        content={
+          <Flex direction="column" gap="3">
+            {editError && (
+              <Text color="red" size="2">
+                {editError}
+              </Text>
+            )}
+            <Field label="Name">
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.currentTarget.value)}
+                autoFocus
+              />
+            </Field>
+            <Field
+              label="Applicable types"
+              description="Leave empty for all types"
+            >
+              <ToggleGroup
+                multiple
+                value={editTypes}
+                onValueChange={(v: unknown[]) =>
+                  setEditTypes(v as MediaType[])
+                }
+              >
+                {MEDIA_TYPES.map((t) => (
+                  <Toggle key={t.value} value={t.value}>
+                    {t.label}
+                  </Toggle>
+                ))}
+              </ToggleGroup>
+            </Field>
+          </Flex>
+        }
+        footer={
+          <Flex gap="2" justify="end">
+            <Button
+              variant="soft"
+              color="gray"
+              disabled={savingEdit}
+              onClick={() => setEditing(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              loading={savingEdit}
+              disabled={!editName.trim()}
+              onClick={() => void saveEdit()}
+            >
+              Save changes
+            </Button>
+          </Flex>
+        }
+      >
+        <span style={{ display: "none" }} aria-hidden />
+      </Dialog>
 
       <Card size="3">
         <Flex direction="column" gap="3">
@@ -181,14 +279,23 @@ export function AdminGenresPage() {
                   </Badge>
                 )}
               </Flex>
-              <Button
-                size="1"
-                variant="ghost"
-                color="red"
-                onClick={() => void remove(g.id)}
-              >
-                Delete
-              </Button>
+              <Flex gap="1">
+                <Button
+                  size="1"
+                  variant="ghost"
+                  onClick={() => beginEdit(g)}
+                >
+                  <Pencil size={13} aria-hidden /> Edit
+                </Button>
+                <Button
+                  size="1"
+                  variant="ghost"
+                  color="red"
+                  onClick={() => void remove(g.id)}
+                >
+                  Delete
+                </Button>
+              </Flex>
             </Flex>
           </Card>
         ))}

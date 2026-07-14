@@ -334,7 +334,9 @@ media.get(
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-    const nextCursor = rows.length > limit ? rows.pop()!.id : null;
+    const hasMore = rows.length > limit;
+    if (hasMore) rows.pop();
+    const nextCursor = hasMore ? rows.at(-1)!.id : null;
     return c.json({ items: rows, nextCursor });
   },
 );
