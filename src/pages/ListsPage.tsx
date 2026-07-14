@@ -3,16 +3,24 @@ import { Link } from "react-router-dom";
 import {
   Button,
   Card,
+  Dialog,
   Field,
   Flex,
   Heading,
   Input,
-  Select,
   Text,
 } from "@wlcr/base-ic";
+import { Plus } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { SegmentedControl } from "../components/SegmentedControl";
 import type { ListSummary, Visibility } from "../lib/types";
+
+const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
+  { value: "PRIVATE", label: "Private" },
+  { value: "UNLISTED", label: "Unlisted" },
+  { value: "PUBLIC", label: "Public" },
+];
 
 function ListRow({ list }: { list: ListSummary }) {
   return (
@@ -34,24 +42,49 @@ export function ListsPage() {
     owned: ListSummary[];
     saved: ListSummary[];
   }>("/me/lists");
+  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("PRIVATE");
+  const [saving, setSaving] = useState(false);
 
   const create = async () => {
     if (!title.trim()) return;
-    await apiSend("POST", "/lists", { title, visibility, allowedTypes: [] });
-    setTitle("");
-    reload();
+    setSaving(true);
+    try {
+      await apiSend("POST", "/lists", { title, visibility, allowedTypes: [] });
+      setTitle("");
+      setVisibility("PRIVATE");
+      setOpen(false);
+      reload();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Flex direction="column" gap="5">
-      <Heading size="7">Lists</Heading>
+      <Flex justify="space-between" align="center" gap="3" wrap="wrap">
+        <Heading size="7">Lists</Heading>
+        <Button onClick={() => setOpen(true)}>
+          <Plus size={16} aria-hidden /> New list
+        </Button>
+      </Flex>
 
-      <Card size="3">
-        <Flex direction="column" gap="3">
-          <Heading size="4">New list</Heading>
-          <Flex gap="3" wrap="wrap" align="end">
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        title="New list"
+        description="Group media into a collection you can share."
+        content={
+          <Flex
+            as="form"
+            direction="column"
+            gap="3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void create();
+            }}
+          >
             <Field label="Title">
               <Input
                 value={title}
@@ -60,20 +93,32 @@ export function ListsPage() {
               />
             </Field>
             <Field label="Visibility">
-              <Select
+              <SegmentedControl
+                ariaLabel="List visibility"
                 value={visibility}
-                onValueChange={(v) => setVisibility(v as Visibility)}
-                placeholder="Visibility"
-              >
-                <Select.Item value="PRIVATE">Private</Select.Item>
-                <Select.Item value="UNLISTED">Unlisted</Select.Item>
-                <Select.Item value="PUBLIC">Public</Select.Item>
-              </Select>
+                onChange={setVisibility}
+                options={VISIBILITY_OPTIONS}
+              />
             </Field>
-            <Button onClick={() => void create()}>Create</Button>
           </Flex>
-        </Flex>
-      </Card>
+        }
+        footer={
+          <Flex gap="2" justify="end">
+            <Button variant="soft" color="gray" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              loading={saving}
+              disabled={!title.trim()}
+              onClick={() => void create()}
+            >
+              Create list
+            </Button>
+          </Flex>
+        }
+      >
+        <span style={{ display: "none" }} aria-hidden />
+      </Dialog>
 
       <Flex direction="column" gap="3">
         <Heading size="4">Your lists</Heading>

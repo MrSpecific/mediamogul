@@ -7,5 +7,11 @@ import { AccountView } from "@neondatabase/auth/react";
  */
 export function AccountPage() {
   const { pathname } = useParams<{ pathname: string }>();
-  return <AccountView pathname={pathname} />;
+  // `.neon-scope` pins the Neon UI palette to dark values (see styles.css) so
+  // the in-page sidebar nav has correct contrast.
+  return (
+    <div className="neon-scope">
+      <AccountView pathname={pathname} />
+    </div>
+  );
 }

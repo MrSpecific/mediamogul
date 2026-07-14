@@ -2,12 +2,12 @@
    (Base UI + CSS Modules + design tokens) — no Tailwind anywhere. */
 
 /* The Neon Auth UI (Tailwind) derives its palette from these base variables
-   (`--neon-*: var(--foreground, …)` etc.) and only flips to dark under a
-   `.dark` ancestor. The app is always dark, so pin the base variables to dark
-   values directly — this guarantees readable auth/account pages (e.g. the
-   settings sidebar nav) regardless of the `.dark` class cascade. Nothing else
-   in the app reads these names. */
-:root {
+   (`--neon-*: var(--foreground, …)` etc.). The account view's sidebar nav
+   renders inside our base-ic <Theme>, where the `.dark` cascade doesn't reach
+   it, so its text came out dark-on-dark. Pin the base variables to dark values
+   on a wrapper we put around the account view only — this leaves the portaled
+   UserButton dropdown (which already themes correctly) untouched. */
+.neon-scope {
   --background: oklch(14.5% 0 0);
   --foreground: oklch(98.5% 0 0);
   --card: oklch(20.5% 0 0);

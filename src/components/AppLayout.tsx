@@ -1,13 +1,13 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { SignedIn, SignedOut, UserButton } from "@neondatabase/auth/react";
 import { Button, Container, Flex, Heading, Text } from "@wlcr/base-ic";
-import { BarChart3, CreditCard } from "lucide-react";
+import { BarChart3, CreditCard, Shield } from "lucide-react";
 import { LogoMark } from "./Logo";
 import { useApiData } from "../lib/hooks";
 import type { Profile } from "../lib/types";
 
 // Extra items appended to the UserButton dropdown (router-aware links).
-const USER_MENU_LINKS = [
+const BASE_MENU_LINKS = [
   {
     href: "/stats",
     label: "Stats",
@@ -22,9 +22,19 @@ const USER_MENU_LINKS = [
   },
 ];
 
+const ADMIN_MENU_LINK = {
+  href: "/admin/genres",
+  label: "Admin",
+  icon: <Shield size={16} aria-hidden />,
+  signedIn: true,
+};
+
 export function AppLayout() {
   const navigate = useNavigate();
   const { data: me } = useApiData<Profile>("/me");
+  const menuLinks = me?.isAdmin
+    ? [...BASE_MENU_LINKS, ADMIN_MENU_LINK]
+    : BASE_MENU_LINKS;
   return (
     <div className="layout">
       <header className="topbar">
@@ -46,12 +56,11 @@ export function AppLayout() {
             <Flex as="nav" align="center" gap="4">
               <NavLink to="/catalog">Catalog</NavLink>
               <NavLink to="/lists">Lists</NavLink>
-              {me?.isAdmin && <NavLink to="/admin/genres">Admin</NavLink>}
               <span className="user-full">
-                <UserButton size="sm" additionalLinks={USER_MENU_LINKS} />
+                <UserButton size="sm" additionalLinks={menuLinks} />
               </span>
               <span className="user-compact">
-                <UserButton size="icon" additionalLinks={USER_MENU_LINKS} />
+                <UserButton size="icon" additionalLinks={menuLinks} />
               </span>
             </Flex>
           </SignedIn>
