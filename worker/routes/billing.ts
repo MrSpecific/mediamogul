@@ -47,7 +47,32 @@ billing.post("/checkout", async (c) => {
   const profile = c.get("profile");
   const s = stripe(c.env);
 
+  // Optional discount code entered when choosing the plan.
+  const body = (await c.req.json().catch(() => ({}))) as { code?: unknown };
+  const code = typeof body.code === "string" ? body.code.trim() : "";
+
   try {
+    // If a code was entered, resolve it to an active Stripe promotion code so
+    // it can be applied; otherwise let Stripe collect one on its own page.
+    let discountId: string | null = null;
+    if (code) {
+      const promos = await s.promotionCodes.list({
+        code,
+        active: true,
+        limit: 1,
+      });
+      if (!promos.data[0]) {
+        return c.json(
+          {
+            error: "invalid_code",
+            message: "That discount code isn't valid or has expired.",
+          },
+          400,
+        );
+      }
+      discountId = promos.data[0].id;
+    }
+
     // Resolve a usable customer. A stored id from a different Stripe mode or
     // account (e.g. after switching test→live keys) no longer exists under the
     // current key, so verify it and recreate if it's missing/deleted.
@@ -77,6 +102,11 @@ billing.post("/checkout", async (c) => {
       client_reference_id: profile.id,
       line_items: [{ price: c.env.STRIPE_PRICE_STANDARD, quantity: 1 }],
       subscription_data: { metadata: { userId: profile.id } },
+      // `discounts` and `allow_promotion_codes` are mutually exclusive: apply
+      // the entered code if we resolved one, else let Stripe collect one.
+      ...(discountId
+        ? { discounts: [{ promotion_code: discountId }] }
+        : { allow_promotion_codes: true }),
       success_url: `${origin}/settings?upgraded=1`,
       cancel_url: `${origin}/settings`,
     });

@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
+import {
+  Badge,
+  Button,
+  Card,
+  Field,
+  Flex,
+  Heading,
+  Input,
+  Text,
+} from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
 import { apiSend, ApiError } from "../lib/api";
 import { ProfileSettings } from "../components/ProfileSettings";
@@ -23,20 +32,22 @@ export function SettingsPage() {
   const { data, reload } = useApiData<PlansResponse>("/billing/plans");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   // The upgrade lands via an async Stripe webhook — poll until the tier flips.
-  const pending = justUpgraded && data != null && data.currentTier !== "STANDARD";
+  const pending =
+    justUpgraded && data != null && data.currentTier !== "STANDARD";
   useEffect(() => {
     if (!pending) return;
     const t = setTimeout(() => reload(), 2500);
     return () => clearTimeout(t);
   }, [pending, reload]);
 
-  const go = async (path: string) => {
+  const go = async (path: string, body?: unknown) => {
     setBusy(true);
     setError(null);
     try {
-      const { url } = await apiSend<{ url: string | null }>("POST", path);
+      const { url } = await apiSend<{ url: string | null }>("POST", path, body);
       if (url) window.location.href = url;
     } catch (e) {
       if (e instanceof ApiError && e.message === "billing_not_configured") {
@@ -83,9 +94,25 @@ export function SettingsPage() {
                   </Text>
                   <Text color="gray">{p.description}</Text>
                   {p.id === "STANDARD" && !isCurrent && (
-                    <Button onClick={() => void go("/billing/checkout")} loading={busy}>
-                      Upgrade
-                    </Button>
+                    <Flex direction="column" gap="2">
+                      {/* <Field label="Discount code (optional)">
+                        <Input
+                          value={code}
+                          onChange={(e) => setCode(e.currentTarget.value)}
+                          placeholder="Enter a code"
+                        />
+                      </Field> */}
+                      <Button
+                        onClick={() =>
+                          void go("/billing/checkout", {
+                            code: code.trim() || undefined,
+                          })
+                        }
+                        loading={busy}
+                      >
+                        Upgrade
+                      </Button>
+                    </Flex>
                   )}
                   {p.id === "STANDARD" && isCurrent && (
                     <Button
