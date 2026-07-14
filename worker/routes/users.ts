@@ -1,15 +1,32 @@
 import { Hono } from "hono";
 import { getOrCreateUser } from "../db";
+import { isAdmin } from "../auth";
 import type { AppEnv } from "../types";
 
 export const users = new Hono<AppEnv>();
 
-/** Public profile by username, with follow counts and whether you follow them. */
+/**
+ * Profile by username for signed-in viewers, with follow counts, whether you
+ * follow them, and a `viewer` context (isOwner / isAdmin / canFollow) that the
+ * UI uses to pick the self / other / admin variant. Private profiles are only
+ * visible to their owner and to admins; everyone else gets 403 with a minimal
+ * identity so the UI can show a graceful "private profile" state.
+ */
 users.get("/:username", async (c) => {
   const prisma = c.get("prisma");
+  const viewer = c.get("user");
+  const viewerIsAdmin = isAdmin(viewer, c.env, c.get("profile"));
   const user = await prisma.user.findUnique({
     where: { username: c.req.param("username") },
-    include: {
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      bio: true,
+      avatarUrl: true,
+      profilePublic: true,
+      deactivatedAt: true,
+      createdAt: true,
       _count: {
         select: {
           followers: true,
@@ -23,15 +40,37 @@ users.get("/:username", async (c) => {
   });
   if (!user) return c.json({ error: "not_found" }, 404);
 
-  const rel = await prisma.follow.findUnique({
-    where: {
-      followerId_followingId: {
-        followerId: c.get("user").id,
-        followingId: user.id,
+  const isOwner = user.id === viewer.id;
+  if (!user.profilePublic && !isOwner && !viewerIsAdmin) {
+    return c.json(
+      {
+        error: "private",
+        user: {
+          username: user.username,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+        },
+        viewer: { isOwner: false, isAdmin: false, canFollow: false },
       },
-    },
+      403,
+    );
+  }
+
+  const rel = isOwner
+    ? null
+    : await prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: viewer.id,
+            followingId: user.id,
+          },
+        },
+      });
+  return c.json({
+    ...user,
+    isFollowing: !!rel,
+    viewer: { isOwner, isAdmin: viewerIsAdmin, canFollow: !isOwner },
   });
-  return c.json({ ...user, isFollowing: !!rel });
 });
 
 users.put("/:username/follow", async (c) => {

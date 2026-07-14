@@ -61,6 +61,41 @@ publicRoutes.get("/media/:id", async (c) => {
   return c.json(media);
 });
 
+/**
+ * Public, unauthenticated profile by username. Only returned when the profile
+ * is public and the account is active; otherwise 404 (so private/deactivated
+ * profiles are indistinguishable from nonexistent ones to logged-out visitors).
+ */
+publicRoutes.get("/users/:username", async (c) => {
+  const prisma = getPrisma(c.env);
+  const user = await prisma.user.findFirst({
+    where: {
+      username: c.req.param("username"),
+      profilePublic: true,
+      deactivatedAt: null,
+    },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      bio: true,
+      avatarUrl: true,
+      createdAt: true,
+      _count: {
+        select: {
+          followers: true,
+          following: true,
+          entries: true,
+          reviews: true,
+          lists: true,
+        },
+      },
+    },
+  });
+  if (!user) return c.json({ error: "not_found" }, 404);
+  return c.json({ ...user, profilePublic: true, viewer: { isOwner: false, isAdmin: false, canFollow: false } });
+});
+
 // --- OpenGraph HTML injection for /m/:id ----------------------------------
 
 class SetAttr {

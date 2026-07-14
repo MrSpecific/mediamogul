@@ -110,6 +110,16 @@ enum ContentSubmissionStatus {
   REJECTED
 }
 
+/// App role. Normally derived from the Neon Auth JWT; this optional column is an
+/// admin-set override stored in our DB (null = defer to the JWT/email allowlist).
+/// Mirrors the AppRole union in worker/auth.ts. See effectiveRole().
+enum AppRole {
+  USER
+  CONTRIBUTOR
+  EDITOR
+  ADMIN
+}
+
 // ---------------------------------------------------------------------------
 // Users (profile). `id` is the Neon Auth user id (JWT `sub`); rows are
 // upserted on first authenticated request. Neon Auth also maintains its own
@@ -123,6 +133,13 @@ model User {
   bio                  String?
   avatarUrl            String?          @map("avatar_url")
   tier                 SubscriptionTier @default(FREE)
+  // Admin-set role override (null = defer to JWT/email allowlist). See auth.ts.
+  appRole              AppRole?         @map("app_role")
+  // Whether the profile is visible to logged-out visitors. Users can toggle it;
+  // defaults to public. Non-public profiles are still visible to the owner and admins.
+  profilePublic        Boolean          @default(true) @map("profile_public")
+  // Set when an admin deactivates the account; blocks API access while non-null.
+  deactivatedAt        DateTime?        @map("deactivated_at")
   stripeCustomerId     String?          @unique @map("stripe_customer_id")
   stripeSubscriptionId String?          @map("stripe_subscription_id")
   createdAt            DateTime         @default(now()) @map("created_at")
@@ -144,9 +161,29 @@ model User {
   followers                  Follow[]            @relation("following") // rows where this user is followed
   contentSubmissions         ContentSubmission[] @relation("submissionAuthor")
   reviewedContentSubmissions ContentSubmission[] @relation("submissionReviewer")
+  adminActions               AdminAuditLog[]     @relation("auditActor")
+  auditEntries               AdminAuditLog[]     @relation("auditTarget")
 
   @@index([username])
+  @@index([deactivatedAt])
   @@map("users")
+}
+
+/// Append-only audit trail for admin actions on users (role/tier/deactivation).
+model AdminAuditLog {
+  id           String   @id @default(uuid())
+  actorId      String   @map("actor_id")
+  targetUserId String   @map("target_user_id")
+  action       String // e.g. "role.change", "tier.change", "deactivate", "reactivate"
+  detail       Json? // { from, to } or similar context
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actor  User @relation("auditActor", fields: [actorId], references: [id])
+  target User @relation("auditTarget", fields: [targetUserId], references: [id])
+
+  @@index([targetUserId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("admin_audit_log")
 }
 
 // ---------------------------------------------------------------------------

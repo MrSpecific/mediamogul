@@ -8,6 +8,15 @@
   "observability": {
     "enabled": true,
   },
+  // Custom domain, mirrored from the Cloudflare Dashboard so `wrangler deploy`
+  // doesn't strip it (deploying overrides remote config with this file). Cloudflare
+  // manages the DNS record + cert for this hostname automatically.
+  "routes": [{ "pattern": "mediamogul.app", "custom_domain": true }],
+  // Keep the *.workers.dev URL and per-version preview URLs live alongside the
+  // custom domain. Set explicitly (they default off once routes are declared) so
+  // `wrangler deploy` doesn't disable them and drift-warn on every deploy.
+  "workers_dev": true,
+  "preview_urls": true,
   // Public (non-secret) vars. NEON_AUTH_URL must match VITE_NEON_AUTH_URL in .env
   // — the Worker verifies Neon Auth JWTs against
   // <NEON_AUTH_URL>/.well-known/jwks.json (JWKS).
@@ -22,7 +31,14 @@
   },
   // Object storage for uploaded cover images (dev uses a local simulated
   // bucket automatically; the "mediamogul" bucket backs production).
-  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "mediamogul" }],
+  // `remote: true` makes local dev read/write the REAL "mediamogul" R2 bucket
+  // instead of the Miniflare-simulated local one. Required because the database
+  // (which stores /uploads/<key> cover URLs) is shared between dev and prod — so
+  // images uploaded in dev must land in the same bucket prod serves from, or
+  // they 404 in production. Uses your wrangler auth to reach the bucket.
+  "r2_buckets": [
+    { "binding": "MEDIA_BUCKET", "bucket_name": "mediamogul", "remote": true },
+  ],
   // The React SPA is served from Cloudflare static assets. The Vite plugin sets
   // `directory` automatically from the client build output. Navigation requests
   // that don't match an asset fall back to index.html (client-side routing);

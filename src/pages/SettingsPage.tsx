@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Badge,
@@ -13,7 +13,6 @@ import {
 } from "@wlcr/base-ic";
 import { useApiData } from "../lib/hooks";
 import { apiSend, ApiError } from "../lib/api";
-import { ProfileSettings } from "../components/ProfileSettings";
 
 interface Plan {
   id: string;
@@ -32,17 +31,35 @@ export function SettingsPage() {
   const justUpgraded = params.get("upgraded") === "1";
   const { data, reload } = useApiData<PlansResponse>("/billing/plans");
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState("");
 
-  // The upgrade lands via an async Stripe webhook — poll until the tier flips.
+  // Reconcile the tier directly against Stripe (source of truth), then refresh
+  // the displayed plan. This is the repair path for when the async webhook was
+  // delayed or never delivered, so a paid user isn't stuck on Free.
+  const syncNow = useCallback(async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      await apiSend("POST", "/billing/sync");
+      reload();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }, [reload]);
+
+  // Right after checkout the upgrade normally lands via the Stripe webhook; if
+  // the tier hasn't flipped yet, reconcile from Stripe ourselves once.
   const pending =
     justUpgraded && data != null && data.currentTier !== "STANDARD";
   useEffect(() => {
     if (!pending) return;
-    const t = setTimeout(() => reload(), 2500);
+    const t = setTimeout(() => void syncNow(), 2500);
     return () => clearTimeout(t);
-  }, [pending, reload]);
+  }, [pending, syncNow]);
 
   const go = async (path: string, body?: unknown) => {
     setBusy(true);
@@ -68,15 +85,23 @@ export function SettingsPage() {
 
   return (
     <Flex direction="column" gap="5">
-      <Heading size="7">Settings</Heading>
-
-      <ProfileSettings />
+      <Heading size="7">Plans &amp; billing</Heading>
 
       <Flex direction="column" gap="3">
         <Heading size="4">Subscription</Heading>
-        <Text color="gray">
-          Current plan: <Badge>{data?.currentTier ?? "…"}</Badge>
-        </Text>
+        <Flex align="center" gap="3" wrap="wrap">
+          <Text color="gray">
+            Current plan: <Badge>{data?.currentTier ?? "…"}</Badge>
+          </Text>
+          <Button
+            variant="ghost"
+            size="1"
+            onClick={() => void syncNow()}
+            loading={syncing}
+          >
+            Refresh billing status
+          </Button>
+        </Flex>
         {pending && (
           <Text color="green" size="2">
             Payment received — finalizing your upgrade…

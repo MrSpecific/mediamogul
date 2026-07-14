@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { requireAuth } from "./auth";
+import { requireAuth, isAdminByEmail } from "./auth";
 import { getOrCreateUser, withDb } from "./db";
 import { me } from "./routes/me";
 import { users } from "./routes/users";
@@ -11,6 +11,7 @@ import { genres } from "./routes/genres";
 import { notifications } from "./routes/notifications";
 import { billing, handleStripeWebhook } from "./routes/billing";
 import { submissions } from "./routes/submissions";
+import { admin } from "./routes/admin";
 import { publicRoutes, renderMediaOg } from "./routes/public";
 import type { AppEnv } from "./types";
 
@@ -52,7 +53,13 @@ const api = new Hono<AppEnv>();
 api.use("*", requireAuth);
 api.use("*", withDb);
 api.use("*", async (c, next) => {
-  c.set("profile", await getOrCreateUser(c.get("prisma"), c.get("user")));
+  const profile = await getOrCreateUser(c.get("prisma"), c.get("user"));
+  // Deactivated accounts are blocked from the API. Email-allowlisted admins are
+  // exempt (lockout-safe) so the owner can always get back in to undo it.
+  if (profile.deactivatedAt && !isAdminByEmail(c.get("user"), c.env)) {
+    return c.json({ error: "account_deactivated" }, 403);
+  }
+  c.set("profile", profile);
   await next();
 });
 
@@ -66,6 +73,7 @@ api.route("/genres", genres);
 api.route("/notifications", notifications);
 api.route("/billing", billing);
 api.route("/submissions", submissions);
+api.route("/admin", admin);
 
 app.route("/api", api);
 

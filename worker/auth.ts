@@ -105,20 +105,52 @@ function adminEmails(env: Env): Set<string> {
   );
 }
 
-/** True if the user's role is at least `min` in the hierarchy. */
-export function hasRole(user: AuthUser, min: AppRole): boolean {
-  return ROLE_RANK[getRole(user)] >= ROLE_RANK[min];
+/** True if the user's email is in the ADMIN_EMAILS allowlist. */
+export function isAdminByEmail(user: AuthUser, env: Env): boolean {
+  const email = user.email?.toLowerCase();
+  return Boolean(email && adminEmails(env).has(email));
+}
+
+/** Normalize the DB AppRole enum (uppercase) to the lowercase app-role union. */
+function dbRoleToAppRole(role: string | null | undefined): AppRole | null {
+  if (!role) return null;
+  const r = role.toLowerCase();
+  return APP_ROLES.has(r) ? (r as AppRole) : null;
+}
+
+/** The subset of the profile row that influences role resolution. */
+export type RoleProfile = { appRole?: string | null } | null | undefined;
+
+/**
+ * The user's effective app role. Precedence, highest first:
+ *   1. ADMIN_EMAILS allowlist → always admin. This is a lockout-safe floor: it
+ *      ignores the DB override and deactivation, so the owner can't be demoted
+ *      or locked out by an admin action gone wrong.
+ *   2. DB override (`User.appRole`) if set → authoritative (an admin set it).
+ *   3. The JWT `role` claim (the default).
+ */
+export function effectiveRole(
+  user: AuthUser,
+  env: Env,
+  profile?: RoleProfile,
+): AppRole {
+  if (isAdminByEmail(user, env)) return "admin";
+  return dbRoleToAppRole(profile?.appRole) ?? getRole(user);
+}
+
+/** True if the user's effective role is at least `min` in the hierarchy. */
+export function hasRole(user: AuthUser, min: AppRole, env?: Env, profile?: RoleProfile): boolean {
+  const role = env ? effectiveRole(user, env, profile) : getRole(user);
+  return ROLE_RANK[role] >= ROLE_RANK[min];
 }
 
 /**
- * Admin if the JWT role says so, OR the user's email is in the ADMIN_EMAILS
- * allowlist. The allowlist is a reliable fallback that doesn't depend on the
- * auth provider propagating a custom role claim into the token.
+ * Admin if the JWT role says so, the DB override grants it, OR the user's email
+ * is in the ADMIN_EMAILS allowlist. The allowlist is a reliable fallback that
+ * doesn't depend on the auth provider propagating a custom role claim.
  */
-export function isAdmin(user: AuthUser, env: Env): boolean {
-  if (hasRole(user, "admin")) return true;
-  const email = user.email?.toLowerCase();
-  return Boolean(email && adminEmails(env).has(email));
+export function isAdmin(user: AuthUser, env: Env, profile?: RoleProfile): boolean {
+  return effectiveRole(user, env, profile) === "admin";
 }
 
 export type AuthVariables = { user: AuthUser };
@@ -144,18 +176,23 @@ export const requireAuth = createMiddleware<{
   await next();
 });
 
-/** Requires at least the given role (runs after requireAuth). */
+/**
+ * Requires at least the given role. Runs after requireAuth AND after the
+ * profile middleware, so it can honor the DB role override (`User.appRole`) in
+ * addition to the JWT role and the email allowlist.
+ */
 export const requireRole = (min: AppRole) =>
-  createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(
-    async (c, next) => {
-      const user = c.get("user");
-      // Admin honors the email allowlist as well as the JWT role.
-      const ok =
-        min === "admin" ? isAdmin(user, c.env) : hasRole(user, min);
-      if (!ok) return c.json({ error: "forbidden" }, 403);
-      await next();
-    },
-  );
+  createMiddleware<{
+    Bindings: Env;
+    Variables: AuthVariables & { profile?: { appRole?: string | null } };
+  }>(async (c, next) => {
+    const user = c.get("user");
+    const profile = c.get("profile");
+    if (!hasRole(user, min, c.env, profile)) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    await next();
+  });
 
 /** Requires the NeonDB `admin` role. */
 export const requireAdmin = requireRole("admin");

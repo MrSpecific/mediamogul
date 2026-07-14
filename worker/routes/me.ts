@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { getOrCreateUser } from "../db";
-import { getRole, isAdmin } from "../auth";
+import { getRole, isAdmin, effectiveRole } from "../auth";
 import { requireFeature } from "../tiers";
 import { username } from "../schemas";
 import type { MediaType, Prisma } from "../generated/prisma/client";
@@ -90,7 +90,11 @@ me.get("/username-available", async (c) => {
 /** Current user's profile (created on first call), plus admin flag. */
 me.get("/", async (c) => {
   const profile = await getOrCreateUser(c.get("prisma"), c.get("user"));
-  return c.json({ ...profile, isAdmin: isAdmin(c.get("user"), c.env) });
+  return c.json({
+    ...profile,
+    isAdmin: isAdmin(c.get("user"), c.env, profile),
+    role: effectiveRole(c.get("user"), c.env, profile),
+  });
 });
 
 /**
@@ -116,6 +120,7 @@ me.patch(
       displayName: z.string().max(80).nullable().optional(),
       bio: z.string().max(500).nullable().optional(),
       avatarUrl: z.string().url().nullable().optional(),
+      profilePublic: z.boolean().optional(),
     }),
   ),
   async (c) => {

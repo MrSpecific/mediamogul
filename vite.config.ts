@@ -16,6 +16,8 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] }),
     // Runs the Worker (worker/index.ts) inside Vite's dev server and wires the
     // React build to Cloudflare static assets for `wrangler deploy`.
-    cloudflare(),
+    // `remoteBindings` lets bindings flagged `remote: true` (the R2 media bucket)
+    // hit real Cloudflare resources in dev — see wrangler.jsonc.
+    cloudflare({ remoteBindings: true }),
   ],
 })

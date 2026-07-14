@@ -244,19 +244,99 @@ export interface AppNotification {
   list: { id: string; title: string } | null;
 }
 
+export type AppRole = "USER" | "CONTRIBUTOR" | "EDITOR" | "ADMIN";
+export type SubscriptionTier = "FREE" | "STANDARD";
+
+export interface ProfileCounts {
+  followers: number;
+  following: number;
+  entries: number;
+  reviews: number;
+  lists: number;
+}
+
+/** Who is viewing a profile — drives the self / other / admin variants. */
+export interface ProfileViewer {
+  isOwner: boolean;
+  isAdmin: boolean;
+  canFollow: boolean;
+}
+
 export interface Profile {
   id: string;
   username: string;
   displayName: string | null;
   bio: string | null;
   avatarUrl: string | null;
+  /** Present on GET /me for the current user. */
   isAdmin?: boolean;
+  role?: AppRole;
+  /** Present on profile responses. */
+  profilePublic?: boolean;
+  deactivatedAt?: string | null;
+  createdAt?: string;
   isFollowing?: boolean;
-  _count?: {
-    followers: number;
-    following: number;
+  viewer?: ProfileViewer;
+  _count?: ProfileCounts;
+}
+
+/** 403 body returned by GET /users/:username for a private profile. */
+export interface PrivateProfile {
+  error: "private";
+  user: { username: string; displayName: string | null; avatarUrl: string | null };
+  viewer: ProfileViewer;
+}
+
+/** Neon Auth data joined into the admin views. */
+export interface AuthData {
+  email: string | null;
+  name: string | null;
+  signupAt: string | null;
+}
+
+/** A row in the admin users list. */
+export interface AdminUserRow {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  tier: SubscriptionTier;
+  appRole: AppRole | null;
+  profilePublic: boolean;
+  deactivatedAt: string | null;
+  createdAt: string;
+  auth: AuthData | null;
+  _count: { entries: number; reviews: number; lists: number };
+}
+
+export interface AdminAuditEntry {
+  id: string;
+  action: string;
+  detail: Record<string, unknown> | null;
+  createdAt: string;
+  actor: { username: string; displayName: string | null };
+}
+
+/** Full admin detail for one user (GET /admin/users/:id). */
+export interface AdminUserDetail {
+  id: string;
+  username: string;
+  displayName: string | null;
+  bio: string | null;
+  avatarUrl: string | null;
+  tier: SubscriptionTier;
+  appRole: AppRole | null;
+  profilePublic: boolean;
+  deactivatedAt: string | null;
+  createdAt: string;
+  auth: AuthData | null;
+  auditLog: AdminAuditEntry[];
+  _count: {
     entries: number;
     reviews: number;
+    ratings: number;
     lists: number;
+    followers: number;
+    following: number;
   };
 }

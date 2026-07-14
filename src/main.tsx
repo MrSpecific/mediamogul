@@ -9,6 +9,7 @@ import "./styles.css";
 import { AuthProvider } from "./providers/AuthProvider";
 import { AuthPage } from "./routes/AuthPage";
 import { AppLayout } from "./components/AppLayout";
+import { RequireAuth } from "./components/RequireAuth";
 import { HomePage } from "./pages/HomePage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { AddMediaPage } from "./pages/AddMediaPage";
@@ -24,6 +25,8 @@ import { StatsPage } from "./pages/StatsPage";
 import { AccountPage } from "./routes/AccountPage";
 import { PublicMediaPage } from "./pages/PublicMediaPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { ProfileSettingsPage } from "./pages/ProfileSettingsPage";
+import { AdminUsersPage } from "./pages/AdminUsersPage";
 
 // The app is dark-themed. Neon Auth's UI (Tailwind) keys its dark palette off a
 // `.dark` ancestor, so ensure it's present on <html> regardless of the static
@@ -45,20 +48,27 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/auth/:pathname" element={<AuthPage />} />
             <Route path="/m/:id" element={<PublicMediaPage />} />
             <Route element={<AppLayout />}>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/catalog" element={<CatalogPage />} />
-              <Route path="/catalog/add" element={<AddMediaPage />} />
-              <Route path="/media/:id" element={<MediaDetailPage />} />
-              <Route path="/series/:id" element={<SeriesPage />} />
-              <Route path="/lists" element={<ListsPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/stats" element={<StatsPage />} />
-              <Route path="/lists/:id" element={<ListDetailPage />} />
+              {/* Public — viewable without signing in. */}
               <Route path="/u/:username" element={<ProfilePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/account/:pathname" element={<AccountPage />} />
-              <Route path="/admin/genres" element={<AdminGenresPage />} />
-              <Route path="/admin/submissions" element={<AdminSubmissionsPage />} />
+
+              {/* Authenticated app. */}
+              <Route element={<RequireAuth />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/catalog" element={<CatalogPage />} />
+                <Route path="/catalog/add" element={<AddMediaPage />} />
+                <Route path="/media/:id" element={<MediaDetailPage />} />
+                <Route path="/series/:id" element={<SeriesPage />} />
+                <Route path="/lists" element={<ListsPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/stats" element={<StatsPage />} />
+                <Route path="/lists/:id" element={<ListDetailPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings/profile" element={<ProfileSettingsPage />} />
+                <Route path="/account/:pathname" element={<AccountPage />} />
+                <Route path="/admin/genres" element={<AdminGenresPage />} />
+                <Route path="/admin/submissions" element={<AdminSubmissionsPage />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+              </Route>
             </Route>
           </Routes>
         </AuthProvider>
