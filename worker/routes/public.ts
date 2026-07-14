@@ -16,7 +16,18 @@ async function loadPublicMedia(env: Env, id: string) {
       assets: {
         where: { kind: "COVER" },
         orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-        select: { id: true, url: true, isPrimary: true },
+        select: {
+          id: true,
+          url: true,
+          isPrimary: true,
+          edition: true,
+          editionYear: true,
+          publisher: true,
+          sourceName: true,
+          sourceUrl: true,
+          license: true,
+          creator: true,
+        },
       },
     },
   });
