@@ -316,7 +316,11 @@ export function MediaDetailPage() {
           />
           {(showAdmin || coverList.length === 0) && (
             <Flex gap="2" wrap="wrap" justify="center">
-              <Button size="1" variant="soft" onClick={() => setCoverOpen(true)}>
+              <Button
+                size="1"
+                variant="soft"
+                onClick={() => setCoverOpen(true)}
+              >
                 <Search size={14} aria-hidden />{" "}
                 {coverList.length === 0 ? "Find a cover" : "Find more"}
               </Button>
@@ -394,10 +398,14 @@ export function MediaDetailPage() {
             {data.series.length > 0 && (
               <Flex gap="2" wrap="wrap">
                 {data.series.map((s) => (
-                  <Link key={s.id} to={`/series/${s.id}`} className="badge-link">
+                  <Link
+                    key={s.id}
+                    to={`/series/${s.id}`}
+                    className="badge-link"
+                  >
                     <Badge variant="soft" color="gray">
-                      {MEDIA_FIELDS[data.type].label} {s.position} of {s.total} ·{" "}
-                      {s.title}
+                      {MEDIA_FIELDS[data.type].label} {s.position} of {s.total}{" "}
+                      · {s.title}
                     </Badge>
                   </Link>
                 ))}
@@ -464,14 +472,16 @@ export function MediaDetailPage() {
           )}
           {data.wikipediaUrl && (
             <Flex>
-              <a href={data.wikipediaUrl} target="_blank" rel="noreferrer" className="ext-link">
+              <a
+                href={data.wikipediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="ext-link"
+              >
                 <ExternalLink size={14} aria-hidden /> Wikipedia
               </a>
             </Flex>
           )}
-          <Flex>
-            <MediaFeedbackDialog media={data} />
-          </Flex>
 
           <Flex gap="2" wrap="wrap" align="center">
             {active ? (
@@ -545,6 +555,10 @@ export function MediaDetailPage() {
                 icon={<Share2 size={14} aria-hidden />}
               />
             )}
+          </Flex>
+
+          <Flex>
+            <MediaFeedbackDialog media={data} />
           </Flex>
         </Flex>
       </Flex>
@@ -754,7 +768,9 @@ export function MediaDetailPage() {
 
           <Card size="2">
             <Flex direction="column" gap="2">
-              <Text size="2" weight="medium">Wikipedia</Text>
+              <Text size="2" weight="medium">
+                Wikipedia
+              </Text>
               <WikipediaLinkEditor
                 mediaId={data.id}
                 currentUrl={data.wikipediaUrl}
