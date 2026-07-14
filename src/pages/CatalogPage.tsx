@@ -148,16 +148,30 @@ export function CatalogPage() {
             value={types}
             onValueChange={(v: unknown[]) => setTypes(v as MediaType[])}
           >
-            {MEDIA_TYPES.map((t) => (
-              <Toggle key={t.value} value={t.value}>
-                {t.label}
-              </Toggle>
-            ))}
+            {MEDIA_TYPES.map((t) => {
+              const active = types.includes(t.value);
+              return (
+                <Toggle
+                  key={t.value}
+                  value={t.value}
+                  // Clear on/off contrast: active = solid accent, inactive = muted gray.
+                  color={active ? undefined : "gray"}
+                  variant={active ? "solid" : "soft"}
+                  highContrast={active}
+                >
+                  {t.label}
+                </Toggle>
+              );
+            })}
           </ToggleGroup>
-          {types.length > 0 && (
+          {types.length > 0 ? (
             <Button size="1" variant="ghost" onClick={() => setTypes([])}>
               Clear
             </Button>
+          ) : (
+            <Text size="1" color="gray">
+              All types
+            </Text>
           )}
         </Flex>
         <Flex gap="2" align="center" className="shrink">

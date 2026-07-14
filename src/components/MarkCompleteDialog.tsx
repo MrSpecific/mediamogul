@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Button, Dialog, Flex, Select, Text, Textarea } from "@wlcr/base-ic";
+import { Button, Dialog, Flex, Text, Textarea } from "@wlcr/base-ic";
 import { StarRating } from "./StarRating";
-import type { Visibility } from "../lib/types";
+import { SegmentedControl } from "./SegmentedControl";
+import { VISIBILITY_OPTIONS, type Visibility } from "../lib/types";
 
 interface ConfirmArgs {
   stars: number | null;
@@ -64,20 +65,26 @@ export function MarkCompleteDialog({
             </Text>
             <StarRating value={stars} onChange={setStars} size={30} />
           </Flex>
-          <Textarea
-            rows={4}
-            placeholder="Review (optional)…"
-            value={body}
-            onChange={(e) => setBody(e.currentTarget.value)}
-          />
-          <Select
-            value={visibility}
-            onValueChange={(v) => setVisibility(v as Visibility)}
-          >
-            <Select.Item value="PUBLIC">Public</Select.Item>
-            <Select.Item value="UNLISTED">Unlisted</Select.Item>
-            <Select.Item value="PRIVATE">Private</Select.Item>
-          </Select>
+          <Flex direction="column" gap="1">
+            <Flex justify="between" align="center" gap="3" wrap="wrap">
+              <Text size="2" color="gray">
+                Your review
+              </Text>
+              <SegmentedControl
+                value={visibility}
+                onChange={setVisibility}
+                options={VISIBILITY_OPTIONS}
+                size="1"
+                ariaLabel="Review visibility"
+              />
+            </Flex>
+            <Textarea
+              rows={4}
+              placeholder="Review (optional)…"
+              value={body}
+              onChange={(e) => setBody(e.currentTarget.value)}
+            />
+          </Flex>
         </Flex>
       }
       footer={

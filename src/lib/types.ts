@@ -5,6 +5,13 @@ export type MediaType =
   | "AUDIOBOOK"
   | "MAGAZINE";
 export type Visibility = "PRIVATE" | "UNLISTED" | "PUBLIC";
+
+/** Visibility choices for review forms (segmented control), most-open first. */
+export const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
+  { value: "PUBLIC", label: "Public" },
+  { value: "UNLISTED", label: "Unlisted" },
+  { value: "PRIVATE", label: "Private" },
+];
 export type EntryStatus =
   | "PLANNED"
   | "IN_PROGRESS"

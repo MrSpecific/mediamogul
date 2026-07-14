@@ -253,17 +253,38 @@ export function AddMediaPage() {
             </Button>
           </Flex>
 
-          <ToggleGroup
-            multiple
-            value={types}
-            onValueChange={(v: unknown[]) => setTypes(v as MediaType[])}
-          >
-            {SEARCHABLE_TYPES.map((t) => (
-              <Toggle key={t} value={t}>
-                {MEDIA_FIELDS[t].label}
-              </Toggle>
-            ))}
-          </ToggleGroup>
+          <Flex gap="2" align="center" wrap="wrap">
+            <ToggleGroup
+              multiple
+              value={types}
+              onValueChange={(v: unknown[]) => setTypes(v as MediaType[])}
+            >
+              {SEARCHABLE_TYPES.map((t) => {
+                const active = types.includes(t);
+                return (
+                  <Toggle
+                    key={t}
+                    value={t}
+                    // Clear on/off contrast: active = solid accent, inactive = muted gray.
+                    color={active ? undefined : "gray"}
+                    variant={active ? "solid" : "soft"}
+                    highContrast={active}
+                  >
+                    {MEDIA_FIELDS[t].label}
+                  </Toggle>
+                );
+              })}
+            </ToggleGroup>
+            {types.length > 0 ? (
+              <Button size="1" variant="ghost" onClick={() => setTypes([])}>
+                Clear
+              </Button>
+            ) : (
+              <Text size="1" color="gray">
+                All types
+              </Text>
+            )}
+          </Flex>
 
           {error && <Text color="red">{error}</Text>}
           {seriesMsg && (

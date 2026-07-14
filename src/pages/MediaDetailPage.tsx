@@ -43,6 +43,7 @@ import { LibbyLookup } from "../components/LibbyLookup";
 import { WikipediaLinkEditor } from "../components/WikipediaLinkEditor";
 import { MediaFeedbackDialog } from "../components/MediaFeedbackDialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { SegmentedControl } from "../components/SegmentedControl";
 import {
   MEDIA_FIELDS,
   formatFieldValue,
@@ -51,6 +52,7 @@ import {
 import { timeAgo } from "../lib/time";
 import {
   RELATION_LABELS,
+  VISIBILITY_OPTIONS,
   type ListSummary,
   type MediaDetail,
   type MediaEntry,
@@ -575,7 +577,16 @@ export function MediaDetailPage() {
       </Flex>
 
       <Flex direction="column" gap="3">
-        <Heading size="5">Your review</Heading>
+        <Flex justify="between" align="center" gap="3" wrap="wrap">
+          <Heading size="5">Your review</Heading>
+          <SegmentedControl
+            value={reviewVis}
+            onChange={setReviewVis}
+            options={VISIBILITY_OPTIONS}
+            size="1"
+            ariaLabel="Review visibility"
+          />
+        </Flex>
         {data.you.review && (
           <Card size="2">
             <Text>{data.you.review.body}</Text>
@@ -587,16 +598,7 @@ export function MediaDetailPage() {
           onChange={(e) => setReviewBody(e.currentTarget.value)}
           rows={4}
         />
-        <Flex gap="3" align="center" wrap="wrap">
-          <Select
-            value={reviewVis}
-            onValueChange={(v) => setReviewVis(v as Visibility)}
-            placeholder="Visibility"
-          >
-            <Select.Item value="PUBLIC">Public</Select.Item>
-            <Select.Item value="UNLISTED">Unlisted</Select.Item>
-            <Select.Item value="PRIVATE">Private</Select.Item>
-          </Select>
+        <Flex justify="end">
           <Button onClick={() => void saveReview()}>Save review</Button>
         </Flex>
       </Flex>
