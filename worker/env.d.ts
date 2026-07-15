@@ -20,6 +20,19 @@ interface Env {
    */
   TMDB_API_KEY?: string;
 
+  /**
+   * Shared secret that authorizes the bulk-import batch endpoint
+   * (`POST /api/batch/import`) for scripts/tooling, bypassing the session JWT.
+   * Leave unset to disable the endpoint. Set via `wrangler secret put BATCH_TOKEN`.
+   */
+  BATCH_TOKEN?: string;
+
+  /**
+   * Optional user id to attribute system/batch/cron imports to (the media's
+   * `createdById`). Unset → imports are unattributed (createdById null).
+   */
+  BATCH_USER_ID?: string;
+
   /** Stripe billing (all via `wrangler secret put …`). Optional until billing is wired. */
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;

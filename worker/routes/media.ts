@@ -122,7 +122,7 @@ async function saveSeries(
   mediaItemId: string,
   name: string,
   position: number | undefined,
-  createdById: string,
+  createdById: string | null,
 ) {
   const title = name.trim();
   if (!title) return;
@@ -185,7 +185,7 @@ async function saveRelations(
 async function importScrapeCandidate(
   prisma: AppEnv["Variables"]["prisma"],
   cand: MediaCandidate,
-  userId: string,
+  userId: string | null,
 ): Promise<{ id: string; existed: boolean }> {
   if (cand.externalIds?.length) {
     const existing = await prisma.externalId.findFirst({
@@ -227,6 +227,93 @@ async function importScrapeCandidate(
     );
   }
   return { id: created.id, existed: false };
+}
+
+// --- bulk import ------------------------------------------------------------
+
+export interface BulkImportItem {
+  /** Free-text search (title, or "title author/director"). */
+  query: string;
+  /** Optionally constrain to a media type; otherwise the best match wins. */
+  type?: MediaType;
+}
+
+export interface BulkImportResult {
+  query: string;
+  status: "imported" | "exists" | "not_found" | "error";
+  id?: string;
+  title?: string;
+  type?: MediaType;
+  error?: string;
+}
+
+/** Resolve a single query to the best scrape candidate across free sources. */
+async function resolveCandidate(
+  env: Env,
+  query: string,
+  type?: MediaType,
+): Promise<MediaCandidate | null> {
+  const wantsScreen = type === "MOVIE" || type === "TV_SHOW";
+  const wantsBook = type === "BOOK" || type === "AUDIOBOOK";
+  const [books, screen] = await Promise.all([
+    !type || wantsBook
+      ? searchBooks(query, 5, 1, 5).catch(() => [] as MediaCandidate[])
+      : Promise.resolve([] as MediaCandidate[]),
+    !type || wantsScreen
+      ? searchScreenWikidata(query, 0, 5).catch(() => [] as MediaCandidate[])
+      : Promise.resolve([] as MediaCandidate[]),
+  ]);
+  const pool = [...screen, ...books];
+  if (type) return pool.find((c) => c.type === type) ?? null;
+  return pool[0] ?? null;
+}
+
+/**
+ * Import a batch of media by search query. Sequential (gentle on external APIs
+ * and the DB), dedupe-aware, and auto-imports the episode guide for TV shows.
+ * Shared by the batch endpoint and scheduled discovery. `createdById` may be
+ * null for system/cron imports.
+ */
+export async function bulkImport(
+  prisma: AppEnv["Variables"]["prisma"],
+  env: Env,
+  items: BulkImportItem[],
+  createdById: string | null,
+): Promise<BulkImportResult[]> {
+  const results: BulkImportResult[] = [];
+  for (const item of items) {
+    const query = item.query.trim();
+    if (!query) continue;
+    try {
+      const cand = await resolveCandidate(env, query, item.type);
+      if (!cand) {
+        results.push({ query, status: "not_found" });
+        continue;
+      }
+      const { id, existed } = await importScrapeCandidate(
+        prisma,
+        cand,
+        createdById,
+      );
+      if (cand.type === "TV_SHOW") {
+        await importAndPersistSeasons(prisma, env, {
+          id,
+          title: cand.title,
+          externalIds: cand.externalIds ?? [],
+        }).catch((err) => console.error("bulk season import failed:", err));
+      }
+      results.push({
+        query,
+        status: existed ? "exists" : "imported",
+        id,
+        title: cand.title,
+        type: cand.type,
+      });
+    } catch (err) {
+      results.push({ query, status: "error", error: (err as Error).message });
+    }
+  }
+  return results;
 }
 
 /**
@@ -880,7 +967,7 @@ media.post(
  * upsert its seasons/episodes/credits. Idempotent. Shared by the manual import
  * endpoint and the automatic import that runs when a TV show is first added.
  */
-async function importAndPersistSeasons(
+export async function importAndPersistSeasons(
   prisma: AppEnv["Variables"]["prisma"],
   env: Env,
   item: { id: string; title: string; externalIds: { source: string; value: string }[] },

@@ -8,6 +8,11 @@
   "observability": {
     "enabled": true,
   },
+  // Scheduled discovery/refresh (see worker/services/discovery.ts). Daily at
+  // 09:00 UTC — refreshes TV season/episode guides; extend as tasks land.
+  "triggers": {
+    "crons": ["0 9 * * *"],
+  },
   // Custom domain, mirrored from the Cloudflare Dashboard so `wrangler deploy`
   // doesn't strip it (deploying overrides remote config with this file). Cloudflare
   // manages the DNS record + cert for this hostname automatically.

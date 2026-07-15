@@ -18,6 +18,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "gen:og": "node scripts/gen-og.mjs",
+    "media:bulk": "node scripts/bulk-import.mjs",
     "stripe:webhook-listen": "stripe listen --forward-to localhost:5173/api/billing/webhook",
     "typecheck": "tsc --noEmit"
   },

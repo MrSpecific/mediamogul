@@ -4,6 +4,9 @@ A platform for tracking media consumption — movies, TV, books, and magazines �
 with a shared catalog, consumption history, ratings, reviews, following, and
 lists. Deployed as a **single Cloudflare Worker** serving both the SPA and API.
 
+**Production:** [mediamogul.app](https://mediamogul.app) (custom domain on the
+`mediamogul` Worker — see [`wrangler.jsonc`](wrangler.jsonc)).
+
 | Layer | Tech | Where |
 | --- | --- | --- |
 | Frontend | React 19 + Vite SPA, `react-router-dom` v7 | [`src/`](src/) |
@@ -196,6 +199,31 @@ prisma.config.ts        Prisma 7 CLI config
 | `npm run db:migrate` / `db:deploy` | Create / apply migrations |
 | `npm run db:studio` | Prisma Studio |
 | `npm run cf-typegen` | Regenerate `worker-configuration.d.ts` |
+| `npm run media:bulk` | Bulk-import media by title (see below) |
+
+## Bulk import & scheduled discovery
+
+**Bulk import** — pull a set of titles at once through the free scrape sources
+(dedupe-aware; TV shows auto-import their episode guide). Backed by
+`POST /api/batch/import`, authorized by a shared `BATCH_TOKEN` secret (set it in
+`.dev.vars` / `wrangler secret put BATCH_TOKEN`) so scripts/cron don't need a
+session. The engine lives in [`worker/routes/media.ts`](worker/routes/media.ts)
+(`bulkImport`).
+
+```bash
+# against the local dev server (default) or pass --url https://mediamogul.app
+npm run media:bulk -- "Dune" "The Matrix" "The Wire"
+npm run media:bulk -- --type MOVIE "Blade Runner" "Arrival"
+npm run media:bulk -- --file titles.txt        # one query per line
+```
+
+**Scheduled discovery** — a Cloudflare Cron Trigger (daily 09:00 UTC, see
+[`wrangler.jsonc`](wrangler.jsonc)) runs the Worker's `scheduled` handler →
+[`worker/services/discovery.ts`](worker/services/discovery.ts). Today it
+refreshes TV season/episode guides for existing shows (rotating through the
+catalog, capped per run). New-release / trending discovery is stubbed there with
+notes — wire it to a source (e.g. TVmaze `/schedule`, a curated seed list, or
+TMDB if a key is added) and call `bulkImport`.
 
 ## Notes
 

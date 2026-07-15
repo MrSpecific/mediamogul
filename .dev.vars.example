@@ -13,6 +13,12 @@ DATABASE_URL="postgresql://user:password@ep-xxxx-pooler.region.aws.neon.tech/dbn
 # Leave this unset to stay fully open-source.
 # TMDB_API_KEY=""
 
+# Bulk-import tooling. Shared secret authorizing POST /api/batch/import (used by
+# `npm run media:bulk` and cron). Leave unset to disable the endpoint (501).
+# Generate one: `openssl rand -hex 32`
+# BATCH_TOKEN=""
+# BATCH_USER_ID=""   # optional: attribute batch/cron imports to this user id
+
 # Billing (Stripe). Leave unset to keep billing dormant (endpoints return 501).
 # Create a recurring $1.99/mo price in Stripe, then fill all three:
 # STRIPE_SECRET_KEY="sk_test_..."
