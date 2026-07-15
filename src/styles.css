@@ -771,6 +771,12 @@ body {
   padding: 0 8px 8px 40px;
 }
 
+/* Small cover thumbnail in Add-media search results (icon-only placeholder). */
+.add-result-cover {
+  width: 44px;
+  flex: none;
+}
+
 /* Public landing page + pricing. */
 .landing {
   padding: 24px 0 72px;

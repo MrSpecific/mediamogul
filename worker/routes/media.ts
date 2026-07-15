@@ -977,6 +977,27 @@ export async function importAndPersistSeasons(
   const imdbId = item.externalIds.find((e) => e.source === "IMDB")?.value;
 
   const result = await importSeasons({ tmdbId, imdbId, title: item.title }, env);
+
+  // Stamp refresh metadata (always, so the scheduler doesn't re-chase this show
+  // right away even when nothing resolved). `refreshEnabled` turns off for
+  // finished shows so cron stops polling them.
+  const ended = result.status
+    ? /ended|canceled|cancelled/i.test(result.status)
+    : false;
+  await prisma.mediaItem
+    .update({
+      where: { id },
+      data: {
+        lastRefreshedAt: new Date(),
+        showStatus: result.status ?? null,
+        nextReleaseDate: result.nextReleaseDate
+          ? new Date(result.nextReleaseDate)
+          : null,
+        refreshEnabled: !ended,
+      },
+    })
+    .catch(() => undefined);
+
   if (result.seasons.length === 0) {
     return { source: null, seasons: 0, episodes: 0 };
   }

@@ -1,21 +1,43 @@
 // Scheduled discovery/refresh tasks, run from the Worker's `scheduled` handler
 // (see worker/index.ts) on the cron in wrangler.jsonc. All keyless/open-source.
+// Runtime behavior is governed by the CronConfig singleton (admin Control Center).
 
 import { getPrisma } from "../db";
 import { importAndPersistSeasons } from "../routes/media";
+import type { PrismaClient } from "../generated/prisma/client";
+
+/** Fetch (creating with defaults if missing) the singleton CronConfig row. */
+export async function getCronConfig(prisma: PrismaClient) {
+  return prisma.cronConfig.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton" },
+    update: {},
+  });
+}
+
+type CronCfg = Awaited<ReturnType<typeof getCronConfig>>;
 
 /**
- * Re-check the episode guide for existing TV shows so newly-aired seasons and
- * episodes get picked up. Capped per run (Worker subrequest limits) and rotated
- * least-recently-touched first — each processed show is bumped so subsequent
- * runs move through the whole catalog.
+ * Re-check the episode guide for TV shows that are due (refresh enabled and not
+ * refreshed within `minRefreshHours`), soonest-upcoming-release first. Capped at
+ * `refreshBatchSize` per run to stay within Worker subrequest limits.
+ * `importAndPersistSeasons` stamps `lastRefreshedAt` (and flips `refreshEnabled`
+ * off for ended shows), so runs naturally rotate through the catalog.
  */
-export async function refreshTvSeasons(env: Env, limit = 8): Promise<number> {
-  const prisma = getPrisma(env);
+export async function refreshTvSeasons(
+  prisma: PrismaClient,
+  env: Env,
+  cfg: CronCfg,
+): Promise<number> {
+  const cutoff = new Date(Date.now() - cfg.minRefreshHours * 3_600_000);
   const shows = await prisma.mediaItem.findMany({
-    where: { type: "TV_SHOW" },
-    orderBy: { updatedAt: "asc" },
-    take: limit,
+    where: {
+      type: "TV_SHOW",
+      refreshEnabled: true,
+      OR: [{ lastRefreshedAt: null }, { lastRefreshedAt: { lt: cutoff } }],
+    },
+    orderBy: [{ nextReleaseDate: "asc" }, { lastRefreshedAt: "asc" }],
+    take: cfg.refreshBatchSize,
     select: {
       id: true,
       title: true,
@@ -35,33 +57,42 @@ export async function refreshTvSeasons(env: Env, limit = 8): Promise<number> {
     } catch (err) {
       console.error("season refresh failed for", s.id, err);
     }
-    // Touch the row so it rotates to the back of the queue next run.
-    await prisma.mediaItem
-      .update({ where: { id: s.id }, data: { title: s.title } })
-      .catch(() => undefined);
   }
   return updated;
 }
 
 /**
- * TODO — discover brand-new / newly-released / trending titles and bulk-import
- * them. This needs a "what's new" source; the free ones we use (Wikidata,
- * Open Library, TVmaze) don't expose trending/new-release feeds, so options are:
- *   - a curated seed list (drop titles into `bulkImport` via the batch endpoint),
- *   - TVmaze's `/schedule` endpoint for new TV episodes airing today, or
- *   - enabling TMDB (trending/now-playing) if a key is ever added.
- * Left as a stub so the cron wiring is in place; implement when a source is chosen.
+ * TODO — discover brand-new / trending titles and bulk-import them. Free sources
+ * (Wikidata, Open Library, TVmaze) don't expose trending feeds, so options are a
+ * curated seed list, TVmaze `/schedule`, or TMDB (if a key is added). Gated by
+ * `cfg.newReleaseDiscovery`; stubbed until a source is wired.
  */
-export async function discoverNewReleases(_env: Env): Promise<number> {
+export async function discoverNewReleases(
+  _prisma: PrismaClient,
+  _env: Env,
+): Promise<number> {
   return 0;
 }
 
-/** Orchestrates the daily scheduled run. Extend as discovery tasks land. */
-export async function runScheduledDiscovery(env: Env): Promise<void> {
-  const refreshed = await refreshTvSeasons(env).catch((err) => {
-    console.error("refreshTvSeasons failed:", err);
-    return 0;
-  });
-  console.log(`[cron] refreshed seasons for ${refreshed} show(s)`);
-  // await discoverNewReleases(env); // enable once a source is wired
+/** Orchestrates a scheduled run per the CronConfig. Also the "Run now" target. */
+export async function runScheduledDiscovery(
+  env: Env,
+): Promise<{ seasonsRefreshed: number }> {
+  const prisma = getPrisma(env);
+  const cfg = await getCronConfig(prisma);
+
+  let seasonsRefreshed = 0;
+  if (cfg.seasonRefreshEnabled) {
+    seasonsRefreshed = await refreshTvSeasons(prisma, env, cfg).catch((err) => {
+      console.error("refreshTvSeasons failed:", err);
+      return 0;
+    });
+  }
+  // if (cfg.newReleaseDiscovery) await discoverNewReleases(prisma, env);
+
+  await prisma.cronConfig
+    .update({ where: { id: "singleton" }, data: { lastRunAt: new Date() } })
+    .catch(() => undefined);
+  console.log(`[cron] refreshed seasons for ${seasonsRefreshed} show(s)`);
+  return { seasonsRefreshed };
 }

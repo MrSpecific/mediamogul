@@ -27,6 +27,7 @@ import { PublicMediaPage } from "./pages/PublicMediaPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { ProfileSettingsPage } from "./pages/ProfileSettingsPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
+import { AdminControlPage } from "./pages/AdminControlPage";
 import { WelcomePage } from "./pages/WelcomePage";
 
 // The app is dark-themed. Neon Auth's UI (Tailwind) keys its dark palette off a
@@ -70,6 +71,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/admin/genres" element={<AdminGenresPage />} />
                 <Route path="/admin/submissions" element={<AdminSubmissionsPage />} />
                 <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/control" element={<AdminControlPage />} />
               </Route>
             </Route>
           </Routes>

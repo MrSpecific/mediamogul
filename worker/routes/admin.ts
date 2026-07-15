@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { requireAdmin } from "../auth";
+import { getCronConfig, runScheduledDiscovery } from "../services/discovery";
 import type { PrismaClient, Prisma } from "../generated/prisma/client";
 import type { AppEnv } from "../types";
 
@@ -10,6 +11,53 @@ export const admin = new Hono<AppEnv>();
 // All admin endpoints require the admin role (JWT role, DB override, or the
 // ADMIN_EMAILS allowlist — see effectiveRole in auth.ts).
 admin.use("*", requireAdmin);
+
+// --- Control Center: scheduled-task (cron) config --------------------------
+
+/** Current cron config + catalog counts that inform scheduling decisions. */
+admin.get("/cron-config", async (c) => {
+  const prisma = c.get("prisma");
+  const [config, tvShows, dueShows] = await Promise.all([
+    getCronConfig(prisma),
+    prisma.mediaItem.count({ where: { type: "TV_SHOW" } }),
+    prisma.mediaItem.count({
+      where: { type: "TV_SHOW", refreshEnabled: true },
+    }),
+  ]);
+  return c.json({ config, stats: { tvShows, refreshableShows: dueShows } });
+});
+
+admin.put(
+  "/cron-config",
+  zValidator(
+    "json",
+    z.object({
+      seasonRefreshEnabled: z.boolean().optional(),
+      newReleaseDiscovery: z.boolean().optional(),
+      useTvmaze: z.boolean().optional(),
+      useWikidata: z.boolean().optional(),
+      useOpenLibrary: z.boolean().optional(),
+      useTmdb: z.boolean().optional(),
+      refreshBatchSize: z.number().int().min(1).max(100).optional(),
+      minRefreshHours: z.number().int().min(1).max(720).optional(),
+    }),
+  ),
+  async (c) => {
+    const prisma = c.get("prisma");
+    await getCronConfig(prisma); // ensure the row exists
+    const config = await prisma.cronConfig.update({
+      where: { id: "singleton" },
+      data: c.req.valid("json"),
+    });
+    return c.json({ config });
+  },
+);
+
+/** Run the scheduled discovery now (manual trigger for testing). */
+admin.post("/cron-config/run", async (c) => {
+  const result = await runScheduledDiscovery(c.env);
+  return c.json(result);
+});
 
 const PAGE_SIZE = 30;
 

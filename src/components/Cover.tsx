@@ -8,6 +8,8 @@ interface Props {
   src?: string | null;
   /** Extra class on the wrapper (e.g. "detail-cover"). */
   className?: string;
+  /** Drop the title from the generated fallback (for small thumbnails). */
+  hideTitle?: boolean;
 }
 
 // Muted per-type background tints (work on the dark theme).
@@ -41,7 +43,7 @@ function CoverImg({ src }: { src: string }) {
  * Cover artwork with a generated CSS fallback (media-type icon + title). The
  * fallback also shows while the real image loads, and if it fails to load.
  */
-export function Cover({ type, title, src, className }: Props) {
+export function Cover({ type, title, src, className, hideTitle }: Props) {
   const Icon = MEDIA_TYPE_ICONS[type];
   return (
     <div className={`cover-art${className ? ` ${className}` : ""}`}>
@@ -53,7 +55,7 @@ export function Cover({ type, title, src, className }: Props) {
         aria-hidden
       >
         <Icon className="cover-art-icon" />
-        <span className="cover-art-title">{title}</span>
+        {!hideTitle && <span className="cover-art-title">{title}</span>}
       </div>
       {src && <CoverImg key={src} src={src} />}
     </div>

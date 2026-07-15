@@ -507,11 +507,16 @@ async function resolveTvmazeId(opts: {
 export async function importTvmazeSeasons(opts: {
   imdbId?: string;
   title?: string;
-}): Promise<{ seasons: ImportedSeason[]; credits: ImportedShowCredit[] }> {
+}): Promise<{
+  seasons: ImportedSeason[];
+  credits: ImportedShowCredit[];
+  status?: string;
+  nextReleaseDate?: string;
+}> {
   const showId = await resolveTvmazeId(opts);
   if (showId == null) return { seasons: [], credits: [] };
 
-  const [seasonsRes, epsRes, crewRes] = await Promise.all([
+  const [seasonsRes, epsRes, crewRes, showRes] = await Promise.all([
     fetch(`${TVMAZE}/shows/${showId}/seasons`, {
       headers: { Accept: "application/json" },
     }),
@@ -521,8 +526,24 @@ export async function importTvmazeSeasons(opts: {
     fetch(`${TVMAZE}/shows/${showId}/crew`, {
       headers: { Accept: "application/json" },
     }),
+    fetch(`${TVMAZE}/shows/${showId}?embed=nextepisode`, {
+      headers: { Accept: "application/json" },
+    }),
   ]);
   if (!epsRes.ok) return { seasons: [], credits: [] };
+
+  // Production status ("Running"/"Ended") + the next scheduled episode's air
+  // date, so the refresh scheduler can stop chasing finished shows.
+  let status: string | undefined;
+  let nextReleaseDate: string | undefined;
+  if (showRes.ok) {
+    const show = (await showRes.json()) as {
+      status?: string;
+      _embedded?: { nextepisode?: { airdate?: string } };
+    };
+    status = show.status || undefined;
+    nextReleaseDate = show._embedded?.nextepisode?.airdate || undefined;
+  }
 
   // Show-level crew → Creator/Director credits (dedup by name).
   const crew = crewRes.ok
@@ -581,7 +602,7 @@ export async function importTvmazeSeasons(opts: {
   const seasons = [...byNumber.values()]
     .filter((s) => s.number >= 1)
     .sort((a, b) => a.number - b.number);
-  return { seasons, credits };
+  return { seasons, credits, status, nextReleaseDate };
 }
 
 /**
@@ -596,10 +617,14 @@ export async function importSeasons(
   tvId: number | null;
   seasons: ImportedSeason[];
   credits: ImportedShowCredit[];
+  status?: string;
+  nextReleaseDate?: string;
 }> {
   const tvmaze = await importTvmazeSeasons(opts).catch(() => ({
     seasons: [] as ImportedSeason[],
     credits: [] as ImportedShowCredit[],
+    status: undefined as string | undefined,
+    nextReleaseDate: undefined as string | undefined,
   }));
   if (tvmaze.seasons.length)
     return {
@@ -607,6 +632,8 @@ export async function importSeasons(
       tvId: null,
       seasons: tvmaze.seasons,
       credits: tvmaze.credits,
+      status: tvmaze.status,
+      nextReleaseDate: tvmaze.nextReleaseDate,
     };
 
   if (env.TMDB_API_KEY) {

@@ -212,6 +212,16 @@ model MediaItem {
   seasons        Int? // tv
   episodes       Int? // tv
 
+  // Refresh hints for scheduled discovery (services/discovery.ts). `showStatus`
+  // is the source's production status (e.g. "Running"/"Ended" from TVmaze);
+  // `nextReleaseDate` is the next known air/release date; `lastRefreshedAt` is
+  // when we last pulled fresh data; `refreshEnabled` lets the cron skip items
+  // (e.g. finished shows) without deleting them.
+  showStatus      String?   @map("show_status")
+  nextReleaseDate DateTime? @map("next_release_date")
+  lastRefreshedAt DateTime? @map("last_refreshed_at")
+  refreshEnabled  Boolean   @default(true) @map("refresh_enabled")
+
   source      MediaSource @default(USER_SUBMITTED)
   visibility  Visibility  @default(PUBLIC)
   archivedAt  DateTime?   @map("archived_at")
@@ -238,7 +248,31 @@ model MediaItem {
   @@index([type])
   @@index([title])
   @@index([createdById])
+  // Scheduled-refresh queue: eligible items by type, ordered by staleness.
+  @@index([type, refreshEnabled, lastRefreshedAt])
   @@map("media_items")
+}
+
+/// Singleton runtime config for scheduled discovery/refresh (see the admin
+/// Control Center + services/discovery.ts). One row, id = "singleton". Note the
+/// cron *schedule* itself lives in wrangler.jsonc (deploy-time); these control
+/// what each run does.
+model CronConfig {
+  id                     String   @id @default("singleton")
+  seasonRefreshEnabled   Boolean  @default(true) @map("season_refresh_enabled")
+  newReleaseDiscovery    Boolean  @default(false) @map("new_release_discovery")
+  // Which sources scheduled tasks may pull from.
+  useTvmaze              Boolean  @default(true) @map("use_tvmaze")
+  useWikidata            Boolean  @default(true) @map("use_wikidata")
+  useOpenLibrary         Boolean  @default(true) @map("use_open_library")
+  useTmdb                Boolean  @default(false) @map("use_tmdb")
+  // How much work per run, and the minimum age before an item is re-refreshed.
+  refreshBatchSize       Int      @default(8) @map("refresh_batch_size")
+  minRefreshHours        Int      @default(24) @map("min_refresh_hours")
+  lastRunAt              DateTime? @map("last_run_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("cron_config")
 }
 
 /// Flexible user contributions and reports. Proposed changes live in JSON so

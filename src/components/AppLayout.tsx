@@ -1,7 +1,14 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { SignedIn, SignedOut, UserButton } from "@neondatabase/auth/react";
 import { Button, Flex } from "@wlcr/base-ic";
-import { BarChart3, CreditCard, Shield, User as UserIcon, Users } from "lucide-react";
+import {
+  BarChart3,
+  CreditCard,
+  Shield,
+  SlidersHorizontal,
+  User as UserIcon,
+  Users,
+} from "lucide-react";
 import { LogoMark } from "./Logo";
 import { NotificationsBell } from "./NotificationsBell";
 import { useApiData } from "../lib/hooks";
@@ -40,6 +47,12 @@ const ADMIN_MENU_LINKS = [
     href: "/admin/users",
     label: "Manage users",
     icon: <Users size={16} aria-hidden />,
+    signedIn: true,
+  },
+  {
+    href: "/admin/control",
+    label: "Control Center",
+    icon: <SlidersHorizontal size={16} aria-hidden />,
     signedIn: true,
   },
 ];

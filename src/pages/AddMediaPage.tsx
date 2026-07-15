@@ -11,13 +11,15 @@ import {
   Toggle,
   ToggleGroup,
 } from "@wlcr/base-ic";
-import { Check, ExternalLink, Layers, Plus, Search } from "lucide-react";
+import { Check, ExternalLink, Info, Layers, Plus, Search } from "lucide-react";
 import { api, apiSend } from "../lib/api";
 import { LoadMore } from "../components/LoadMore";
 import { Spinner } from "../components/Spinner";
+import { Cover } from "../components/Cover";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { ManualMediaForm } from "../components/ManualMediaForm";
+import { MediaInfoDialog } from "../components/MediaInfoDialog";
 import { UpgradeCTA } from "../components/UpgradeCTA";
 import { useMe, hasFeature } from "../lib/features";
 import { NewMediaSuggestionDialog } from "../components/NewMediaSuggestionDialog";
@@ -67,6 +69,8 @@ export function AddMediaPage() {
   const [addedKeys, setAddedKeys] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
+  // Candidate whose info dialog is open (with the result's key for add state).
+  const [infoFor, setInfoFor] = useState<{ c: MediaCandidate; key: string } | null>(null);
   const { data: me } = useMe();
   const canManual = hasFeature(me, "manualEntry") || Boolean(me?.isAdmin);
   const lookupControllerRef = useRef<AbortController | null>(null);
@@ -327,15 +331,13 @@ export function AddMediaPage() {
                 <Card key={key} size="2">
                   <Flex gap="3" align="center" justify="space-between">
                     <Flex gap="3" align="center" className="shrink">
-                      {c.coverImageUrl && (
-                        <img
-                          src={c.coverImageUrl}
-                          alt=""
-                          width={44}
-                          height={66}
-                          style={{ objectFit: "cover", borderRadius: 4 }}
-                        />
-                      )}
+                      <Cover
+                        type={c.type}
+                        title={c.title}
+                        src={c.coverImageUrl}
+                        hideTitle
+                        className="add-result-cover"
+                      />
                       <Flex direction="column" gap="1" className="shrink">
                         <Flex gap="2" align="center" wrap="wrap">
                           <MediaTypeBadge type={c.type} />
@@ -350,9 +352,16 @@ export function AddMediaPage() {
                             </Badge>
                           )}
                         </Flex>
-                        <Text weight="medium" truncate>
-                          {c.title}
-                        </Text>
+                        <button
+                          type="button"
+                          className="link-button"
+                          style={{ textAlign: "left" }}
+                          onClick={() => setInfoFor({ c, key })}
+                        >
+                          <Text weight="medium" truncate>
+                            {c.title}
+                          </Text>
+                        </button>
                         {c.subtitle && (
                           <Text size="1" color="gray" truncate>
                             {c.subtitle}
@@ -389,37 +398,47 @@ export function AddMediaPage() {
                         )}
                       </Flex>
                     </Flex>
-                    {(() => {
-                      const targetId = c.existingId ?? addedKeys[key];
-                      if (targetId) {
+                    <Flex gap="2" align="center" className="shrink">
+                      <Button
+                        variant="soft"
+                        color="gray"
+                        aria-label="Details"
+                        onClick={() => setInfoFor({ c, key })}
+                      >
+                        <Info size={16} aria-hidden />
+                      </Button>
+                      {(() => {
+                        const targetId = c.existingId ?? addedKeys[key];
+                        if (targetId) {
+                          return (
+                            <Flex gap="2" align="center" className="shrink">
+                              {addedKeys[key] && !c.existingId && (
+                                <Badge size="1" variant="soft" color="green">
+                                  <Check size={12} aria-hidden /> Added
+                                </Badge>
+                              )}
+                              <Button
+                                variant="soft"
+                                color="gray"
+                                onClick={() => navigate(`/media/${targetId}`)}
+                              >
+                                <ExternalLink size={16} aria-hidden /> View
+                              </Button>
+                            </Flex>
+                          );
+                        }
                         return (
-                          <Flex gap="2" align="center" className="shrink">
-                            {addedKeys[key] && !c.existingId && (
-                              <Badge size="1" variant="soft" color="green">
-                                <Check size={12} aria-hidden /> Added
-                              </Badge>
-                            )}
-                            <Button
-                              variant="soft"
-                              color="gray"
-                              onClick={() => navigate(`/media/${targetId}`)}
-                            >
-                              <ExternalLink size={16} aria-hidden /> View
-                            </Button>
-                          </Flex>
+                          <Button
+                            color="green"
+                            onClick={() => void importCandidate(c, key)}
+                            loading={addingKey === key}
+                            disabled={addingKey === key}
+                          >
+                            <Plus size={16} aria-hidden /> Add
+                          </Button>
                         );
-                      }
-                      return (
-                        <Button
-                          color="green"
-                          onClick={() => void importCandidate(c, key)}
-                          loading={addingKey === key}
-                          disabled={addingKey === key}
-                        >
-                          <Plus size={16} aria-hidden /> Add
-                        </Button>
-                      );
-                    })()}
+                      })()}
+                    </Flex>
                   </Flex>
                 </Card>
               );
@@ -439,6 +458,24 @@ export function AddMediaPage() {
           </Flex>
         </>
       )}
+
+      <MediaInfoDialog
+        candidate={infoFor?.c ?? null}
+        onOpenChange={(o) => {
+          if (!o) setInfoFor(null);
+        }}
+        onAdd={() => {
+          if (infoFor) void importCandidate(infoFor.c, infoFor.key);
+        }}
+        adding={infoFor ? addingKey === infoFor.key : false}
+        existingId={
+          infoFor ? (infoFor.c.existingId ?? addedKeys[infoFor.key] ?? null) : null
+        }
+        onView={(mid) => {
+          setInfoFor(null);
+          navigate(`/media/${mid}`);
+        }}
+      />
     </Flex>
   );
 }
