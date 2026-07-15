@@ -786,10 +786,7 @@ export function MediaDetailPage() {
                     </Text>
                     <Flex gap="2" align="center" wrap="wrap">
                       <MediaTypeBadge type={r.media.type} />
-                      <Link
-                        to={`/media/${r.media.id}`}
-                        className="media-card-link"
-                      >
+                      <Link to={`/media/${r.media.id}`}>
                         <Text weight="medium">{r.media.title}</Text>
                       </Link>
                     </Flex>

@@ -160,7 +160,9 @@ export function LibbyLookup({
           const linked = currentLibbyId === r.id;
           // A different format than the current item is offered as an import
           // (creating a linked alternate-format entry) rather than a link.
-          const isAlternate = Boolean(r.mediaType && r.mediaType !== currentType);
+          const isAlternate = Boolean(
+            r.mediaType && r.mediaType !== currentType,
+          );
           const altLabel =
             (r.mediaType && FORMAT_LABEL[r.mediaType]) || "alternate";
           return (
@@ -198,7 +200,7 @@ export function LibbyLookup({
                   </Badge>
                 ) : isAlternate ? (
                   r.existingId ? (
-                    <Link to={`/media/${r.existingId}`} className="media-card-link">
+                    <Link to={`/media/${r.existingId}`}>
                       <Badge size="1" variant="soft">
                         In catalog →
                       </Badge>
