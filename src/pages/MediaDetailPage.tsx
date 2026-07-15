@@ -776,17 +776,19 @@ export function MediaDetailPage() {
             <Flex direction="column" gap="2">
               {data.related.map((r) => (
                 <Flex key={r.id} justify="space-between" align="center" gap="2">
-                  <Flex gap="2" align="center" wrap="wrap">
-                    <MediaTypeBadge type={r.media.type} />
-                    <Link
-                      to={`/media/${r.media.id}`}
-                      className="media-card-link"
-                    >
-                      <Text weight="medium">{r.media.title}</Text>
-                    </Link>
-                    <Badge variant="soft" size="1">
+                  <Flex direction="column" gap="1" align="start">
+                    <Text size="1" color="gray">
                       {RELATION_LABELS[r.type]}
-                    </Badge>
+                    </Text>
+                    <Flex gap="2" align="center" wrap="wrap">
+                      <MediaTypeBadge type={r.media.type} />
+                      <Link
+                        to={`/media/${r.media.id}`}
+                        className="media-card-link"
+                      >
+                        <Text weight="medium">{r.media.title}</Text>
+                      </Link>
+                    </Flex>
                   </Flex>
                   {showAdmin && (
                     <Button

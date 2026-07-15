@@ -243,6 +243,18 @@ export interface ListDetail extends ListSummary {
   _count: { items: number; savedBy: number };
 }
 
+export interface ActivityMedia {
+  id: string;
+  type: MediaType;
+  title: string;
+}
+
+/** One row of the homepage recent-activity feed (GET /me/activity). */
+export type ActivityItem =
+  | { kind: "entry"; key: string; media: ActivityMedia; status: EntryStatus; at: string }
+  | { kind: "episodes"; key: string; media: ActivityMedia; count: number; at: string }
+  | { kind: "added"; key: string; media: ActivityMedia; at: string };
+
 export interface AppNotification {
   id: string;
   type: "LIST_INVITE";

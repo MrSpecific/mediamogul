@@ -149,6 +149,87 @@ me.get("/entries", async (c) => {
   return c.json(entries);
 });
 
+/**
+ * Unified activity feed for the homepage: show-level status changes, TV episode
+ * watches (consecutive ones of the same show collapsed into a single "watched N
+ * episodes" line), and media the user has added to the catalog — merged and
+ * ordered by time.
+ */
+me.get("/activity", async (c) => {
+  const prisma = c.get("prisma");
+  const userId = c.get("user").id;
+
+  const [entries, added] = await Promise.all([
+    prisma.mediaEntry.findMany({
+      where: { userId },
+      orderBy: [{ finishedAt: "desc" }, { createdAt: "desc" }],
+      take: 100,
+      include: {
+        mediaItem: { select: { id: true, type: true, title: true } },
+        episode: { select: { id: true } },
+      },
+    }),
+    prisma.mediaItem.findMany({
+      where: { createdById: userId },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+      select: { id: true, type: true, title: true, createdAt: true },
+    }),
+  ]);
+
+  type Media = { id: string; type: MediaType; title: string };
+  type ActivityItem =
+    | { kind: "entry"; key: string; media: Media; status: string; at: Date }
+    | { kind: "episodes"; key: string; media: Media; count: number; at: Date }
+    | { kind: "added"; key: string; media: Media; at: Date };
+
+  // Flatten to timestamped rows, then sort newest-first.
+  const rows: (
+    | { t: "entry"; at: Date; id: string; media: Media; status: string }
+    | { t: "episode"; at: Date; id: string; media: Media }
+    | { t: "added"; at: Date; id: string; media: Media }
+  )[] = [];
+  for (const e of entries) {
+    if (!e.mediaItem) continue;
+    const at = e.finishedAt ?? e.createdAt;
+    if (e.episodeId) rows.push({ t: "episode", at, id: e.id, media: e.mediaItem });
+    else rows.push({ t: "entry", at, id: e.id, media: e.mediaItem, status: e.status });
+  }
+  for (const m of added) {
+    rows.push({
+      t: "added",
+      at: m.createdAt,
+      id: m.id,
+      media: { id: m.id, type: m.type, title: m.title },
+    });
+  }
+  rows.sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  // Collapse consecutive episode watches of the same show.
+  const items: ActivityItem[] = [];
+  for (const r of rows) {
+    const last = items[items.length - 1];
+    if (
+      r.t === "episode" &&
+      last &&
+      last.kind === "episodes" &&
+      last.media.id === r.media.id
+    ) {
+      last.count += 1; // keep the latest `at` (rows are newest-first)
+      continue;
+    }
+    if (r.t === "episode") {
+      items.push({ kind: "episodes", key: r.id, media: r.media, count: 1, at: r.at });
+    } else if (r.t === "entry") {
+      items.push({ kind: "entry", key: r.id, media: r.media, status: r.status, at: r.at });
+    } else {
+      items.push({ kind: "added", key: r.id, media: r.media, at: r.at });
+    }
+  }
+
+  return c.json(items.slice(0, 30));
+});
+
 /** The user's own lists, lists they've saved, and lists they collaborate on —
  *  each flagged with whether the user has starred it. */
 me.get("/lists", async (c) => {
