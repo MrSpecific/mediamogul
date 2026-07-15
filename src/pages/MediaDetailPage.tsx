@@ -114,6 +114,9 @@ export function MediaDetailPage() {
   const [seriesTitle, setSeriesTitle] = useState("");
   const [seriesPos, setSeriesPos] = useState("1");
   const [completeOpen, setCompleteOpen] = useState(false);
+  // When the user clicks the aggregate rating without having rated yet, we open
+  // the mark-complete dialog pre-filled with the stars they clicked.
+  const [prefillStars, setPrefillStars] = useState<number | null>(null);
   const [addListOpen, setAddListOpen] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -427,7 +430,19 @@ export function MediaDetailPage() {
           </Flex>
 
           <Flex align="center" gap="3">
-            <StarRating value={data.averageRating} />
+            <StarRating
+              value={data.averageRating}
+              // Unrated users can click straight into rating: opens the
+              // mark-complete dialog pre-filled with the stars they picked.
+              onChange={
+                data.you.rating
+                  ? undefined
+                  : (s) => {
+                      setPrefillStars(s);
+                      setCompleteOpen(true);
+                    }
+              }
+            />
             <Text color="gray" size="2">
               {data.averageRating != null
                 ? `${data.averageRating.toFixed(1)} (${data.ratingCount})`
@@ -499,7 +514,12 @@ export function MediaDetailPage() {
           <Flex gap="2" wrap="wrap" align="center">
             {active ? (
               <>
-                <Button onClick={() => setCompleteOpen(true)}>
+                <Button
+                  onClick={() => {
+                    setPrefillStars(null);
+                    setCompleteOpen(true);
+                  }}
+                >
                   Finish {gerund}
                 </Button>
                 <Button
@@ -512,7 +532,12 @@ export function MediaDetailPage() {
               </>
             ) : (
               <>
-                <Button onClick={() => setCompleteOpen(true)}>
+                <Button
+                  onClick={() => {
+                    setPrefillStars(null);
+                    setCompleteOpen(true);
+                  }}
+                >
                   Mark as {cfg.logPast}
                 </Button>
                 <Button variant="soft" onClick={() => void start()}>
@@ -527,9 +552,12 @@ export function MediaDetailPage() {
 
           <MarkCompleteDialog
             open={completeOpen}
-            onOpenChange={setCompleteOpen}
+            onOpenChange={(o) => {
+              setCompleteOpen(o);
+              if (!o) setPrefillStars(null);
+            }}
             verbPast={cfg.logPast}
-            initialStars={yourStars}
+            initialStars={prefillStars ?? yourStars}
             initialReview={data.you.review?.body ?? ""}
             onConfirm={complete}
           />
@@ -540,7 +568,11 @@ export function MediaDetailPage() {
                 On your lists:
               </Text>
               {listMembership.lists.map((l) => (
-                <Link key={l.id} to={`/lists/${l.id}`} className="media-card-link">
+                <Link
+                  key={l.id}
+                  to={`/lists/${l.id}`}
+                  className="media-card-link"
+                >
                   <Badge variant="soft" size="1">
                     {l.title}
                   </Badge>
@@ -571,12 +603,6 @@ export function MediaDetailPage() {
           )}
 
           <Flex gap="3" align="center" wrap="wrap">
-            <Text size="1" color="gray">
-              {data.createdBy
-                ? `Added by ${data.createdBy.displayName ?? `@${data.createdBy.username}`} · `
-                : "Added "}
-              {timeAgo(data.createdAt)}
-            </Text>
             {data.visibility === "PUBLIC" && !data.archivedAt && (
               <CopyButton
                 value={`${window.location.origin}/m/${data.id}`}
@@ -587,13 +613,21 @@ export function MediaDetailPage() {
             )}
           </Flex>
 
-          <Flex>
-            <MediaFeedbackDialog media={data} />
-          </Flex>
+          <Flex></Flex>
         </Flex>
       </Flex>
 
       <Separator />
+
+      <Flex gap="3" align="center" justify="space-between" wrap="wrap">
+        <Text size="1" color="gray">
+          {data.createdBy
+            ? `Added by ${data.createdBy.displayName ?? `@${data.createdBy.username}`} · `
+            : "Added "}
+          {timeAgo(data.createdAt)}
+        </Text>
+        <MediaFeedbackDialog media={data} />
+      </Flex>
 
       <Flex direction="column" gap="3">
         <Heading size="5">Your rating</Heading>
