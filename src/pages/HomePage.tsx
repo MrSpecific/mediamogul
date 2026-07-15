@@ -17,7 +17,12 @@ export function HomePage() {
     <Flex direction="column" gap="5">
       <Heading size="7">
         Welcome
-        {me?.displayName ? `, ${me.displayName}` : me ? `, @${me.username}` : ""}.
+        {me?.displayName
+          ? `, ${me.displayName}`
+          : me
+            ? `, @${me.username}`
+            : ""}
+        .
       </Heading>
 
       <Flex gap="3" wrap="wrap">
@@ -76,7 +81,9 @@ export function HomePage() {
                   <Text weight="medium">{item.media.title}</Text>
                 </Flex>
                 <Flex gap="2" align="center">
-                  {item.kind === "entry" && <StatusBadge status={item.status} />}
+                  {item.kind === "entry" && (
+                    <StatusBadge status={item.status} />
+                  )}
                   {item.kind === "episodes" && (
                     <Badge variant="soft" color="blue">
                       <Tv size={12} aria-hidden /> Watched {item.count} episode
@@ -84,7 +91,7 @@ export function HomePage() {
                     </Badge>
                   )}
                   {item.kind === "added" && (
-                    <Badge variant="soft" color="grass">
+                    <Badge variant="soft" color="teal">
                       <PlusCircle size={12} aria-hidden /> Added to catalog
                     </Badge>
                   )}
