@@ -87,12 +87,19 @@ npm run cf-typegen    # regenerate worker-configuration.d.ts from wrangler.jsonc
 All optional — set as Wrangler secrets for production, or add to `.dev.vars`
 for local dev (see [`.dev.vars.example`](.dev.vars.example)).
 
-**Scrape-assist (TMDB)** — books (Open Library) and movies/TV (Wikidata, CC0)
-already work with **no key**; TMDB is only a richer, opt-in movie/TV source and
-its free tier is non-commercial only:
+**Scrape-assist (open sources, no key required)** — everything works out of the
+box on free, keyless, open data:
+
+- **Books** → Open Library
+- **Movies/TV** → Wikidata (CC0)
+- **TV episode guides** → TVmaze (CC BY-SA) — powers one-click season/episode import
+
+TMDB is an **optional** richer fallback for movie/TV metadata and episode guides.
+It is not required; its free tier is non-commercial only. Set it only if you have
+a key and accept those terms:
 
 ```bash
-npx wrangler secret put TMDB_API_KEY          # a TMDB v3 API key
+npx wrangler secret put TMDB_API_KEY          # OPTIONAL — a TMDB v3 API key
 ```
 
 **Billing (Stripe)** — until all three are set, billing endpoints return `501`
@@ -198,7 +205,8 @@ prisma.config.ts        Prisma 7 CLI config
   ([`worker/auth.ts`](worker/auth.ts)).
 - **Ratings** are half-star decimals (0.5–5).
 - **Scrape-assist:** unified search across Open Library (books) + Wikidata
-  (movies/TV) — both keyless. TMDB is an optional richer movie/TV source.
+  (movies/TV) — both keyless. TV season/episode guides import from TVmaze
+  (keyless, CC BY-SA). TMDB is an optional richer fallback only.
 - **Cover art:** Creative-Commons search (Wikimedia Commons, Library of
   Congress), direct upload, or scraped from a linked source (Open Library,
   Libby/OverDrive); a CSS placeholder is generated when none exists.

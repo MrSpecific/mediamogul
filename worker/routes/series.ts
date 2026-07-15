@@ -30,7 +30,12 @@ series.get("/:id", async (c) => {
     include: {
       entries: {
         orderBy: { position: "asc" },
-        include: { mediaItem: true },
+        include: {
+          // Credits drive the per-card byline (author/director/etc).
+          mediaItem: {
+            include: { credits: { orderBy: { position: "asc" } } },
+          },
+        },
       },
     },
   });

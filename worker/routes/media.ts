@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type MediaType, Prisma } from "../generated/prisma/client";
 import {
   type MediaCandidate,
+  importSeasons,
   lookupBookByIsbn,
   searchBooks,
   searchScreenWikidata,
@@ -702,6 +703,59 @@ media.delete("/:id/covers/:assetId", requireAdmin, async (c) => {
 
 // --- TV seasons & episodes -------------------------------------------------
 
+/**
+ * Keep a show's own status in sync with the viewer's episode progress:
+ * IN_PROGRESS once any episode is watched, COMPLETED once all are. Called after
+ * any episode/season watch change. Conservative on the way down — when nothing
+ * is watched it leaves the show-level status alone (so a manually-set status
+ * isn't clobbered). Episode-level entries are excluded via `episodeId: null`.
+ */
+async function syncShowProgress(
+  prisma: AppEnv["Variables"]["prisma"],
+  userId: string,
+  mediaItemId: string,
+): Promise<void> {
+  const [total, watched] = await Promise.all([
+    prisma.episode.count({ where: { season: { mediaItemId } } }),
+    prisma.mediaEntry.count({
+      where: {
+        userId,
+        mediaItemId,
+        episodeId: { not: null },
+        status: "COMPLETED",
+      },
+    }),
+  ]);
+  if (total === 0 || watched === 0) return;
+
+  const status = watched >= total ? "COMPLETED" : "IN_PROGRESS";
+  const existing = await prisma.mediaEntry.findFirst({
+    where: { userId, mediaItemId, episodeId: null },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existing) {
+    if (existing.status === status) return;
+    await prisma.mediaEntry.update({
+      where: { id: existing.id },
+      data: {
+        status,
+        finishedAt:
+          status === "COMPLETED" ? (existing.finishedAt ?? new Date()) : null,
+      },
+    });
+  } else {
+    await prisma.mediaEntry.create({
+      data: {
+        userId,
+        mediaItemId,
+        status,
+        startedAt: new Date(),
+        finishedAt: status === "COMPLETED" ? new Date() : undefined,
+      },
+    });
+  }
+}
+
 /** Seasons (with episodes) for a show, plus which episodes the user finished. */
 media.get("/:id/seasons", async (c) => {
   const prisma = c.get("prisma");
@@ -764,6 +818,91 @@ media.post(
     return c.json(full, 201);
   },
 );
+
+/**
+ * Admin: import a show's seasons + episodes in one shot. Uses open, keyless
+ * sources first (TVmaze), falling back to TMDB only if a key is configured.
+ * Resolves the show from a stored TMDB/IMDB id (or the title), then upserts
+ * every season and episode (idempotent — safe to re-run to refresh metadata).
+ */
+media.post("/:id/seasons/import", requireAdmin, async (c) => {
+  const prisma = c.get("prisma");
+  const id = c.req.param("id");
+  const item = await prisma.mediaItem.findUnique({
+    where: { id },
+    select: {
+      title: true,
+      type: true,
+      externalIds: { select: { source: true, value: true } },
+    },
+  });
+  if (!item) return c.json({ error: "not_found" }, 404);
+  if (item.type !== "TV_SHOW") return c.json({ error: "not_a_show" }, 400);
+
+  const tmdbId = item.externalIds.find((e) => e.source === "TMDB")?.value;
+  const imdbId = item.externalIds.find((e) => e.source === "IMDB")?.value;
+
+  const result = await importSeasons(
+    { tmdbId, imdbId, title: item.title },
+    c.env,
+  );
+  if (result.seasons.length === 0) {
+    return c.json({ error: "not_found_on_sources" }, 404);
+  }
+
+  let seasonCount = 0;
+  let episodeCount = 0;
+  for (const s of result.seasons) {
+    const airDate = s.airDate ? new Date(s.airDate) : null;
+    const season = await prisma.season.upsert({
+      where: { mediaItemId_number: { mediaItemId: id, number: s.number } },
+      create: { mediaItemId: id, number: s.number, title: s.title, airDate },
+      update: { title: s.title, airDate },
+    });
+    seasonCount += 1;
+    for (const e of s.episodes) {
+      const epAir = e.airDate ? new Date(e.airDate) : null;
+      await prisma.episode.upsert({
+        where: { seasonId_number: { seasonId: season.id, number: e.number } },
+        create: {
+          seasonId: season.id,
+          number: e.number,
+          title: e.title,
+          synopsis: e.synopsis,
+          runtimeMinutes: e.runtimeMinutes,
+          airDate: epAir,
+        },
+        update: {
+          title: e.title,
+          synopsis: e.synopsis,
+          runtimeMinutes: e.runtimeMinutes,
+          airDate: epAir,
+        },
+      });
+      episodeCount += 1;
+    }
+  }
+
+  // Persist the resolved TMDB id so future imports skip the lookup.
+  if (result.tvId != null && !tmdbId) {
+    await prisma.externalId
+      .create({
+        data: {
+          mediaItemId: id,
+          source: "TMDB",
+          value: String(result.tvId),
+          url: `https://www.themoviedb.org/tv/${result.tvId}`,
+        },
+      })
+      .catch(() => undefined);
+  }
+
+  return c.json({
+    source: result.source,
+    seasons: seasonCount,
+    episodes: episodeCount,
+  });
+});
 
 /** Admin: delete a season (cascades to its episodes + their entries). */
 media.delete("/:id/seasons/:seasonId", requireAdmin, async (c) => {
@@ -834,6 +973,7 @@ media.post("/:id/seasons/:seasonId/watch", async (c) => {
       })),
     });
   }
+  await syncShowProgress(prisma, userId, id);
   return c.json({ added: toAdd.length });
 });
 
@@ -851,6 +991,7 @@ media.delete("/:id/seasons/:seasonId/watch", async (c) => {
       episodeId: { in: season.episodes.map((e) => e.id) },
     },
   });
+  await syncShowProgress(prisma, c.get("user").id, c.req.param("id"));
   return c.json({ removed: res.count });
 });
 
@@ -871,6 +1012,7 @@ media.post("/:id/episodes/:episodeId/watch", async (c) => {
   });
   if (existing) {
     await prisma.mediaEntry.delete({ where: { id: existing.id } });
+    await syncShowProgress(prisma, userId, id);
     return c.json({ watched: false });
   }
   await prisma.mediaEntry.create({
@@ -882,6 +1024,7 @@ media.post("/:id/episodes/:episodeId/watch", async (c) => {
       finishedAt: new Date(),
     },
   });
+  await syncShowProgress(prisma, userId, id);
   return c.json({ watched: true });
 });
 
@@ -918,7 +1061,9 @@ media.get("/:id", async (c) => {
       where: { userId_mediaItemId: { userId, mediaItemId: id } },
     }),
     prisma.mediaEntry.findFirst({
-      where: { userId, mediaItemId: id },
+      // Show-level status only — exclude per-episode entries (episodeId set),
+      // which otherwise flip the whole show to "Completed" after one episode.
+      where: { userId, mediaItemId: id, episodeId: null },
       orderBy: { createdAt: "desc" },
     }),
   ]);

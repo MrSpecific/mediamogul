@@ -216,6 +216,27 @@ me.get("/lists", async (c) => {
   });
 });
 
+/**
+ * Which of the caller's editable lists (owned or accepted-collaborator) already
+ * contain a given media item. Powers the Add-to-list dialog's Add/Remove state.
+ */
+me.get("/lists/containing/:mediaId", async (c) => {
+  const uid = c.get("user").id;
+  const rows = await c.get("prisma").mediaListItem.findMany({
+    where: {
+      mediaItemId: c.req.param("mediaId"),
+      list: {
+        OR: [
+          { ownerId: uid },
+          { collaborators: { some: { userId: uid, status: "ACCEPTED" } } },
+        ],
+      },
+    },
+    select: { listId: true },
+  });
+  return c.json({ listIds: [...new Set(rows.map((r) => r.listId))] });
+});
+
 /** Starred lists, newest star first — used for prominent homepage display. */
 me.get("/starred", async (c) => {
   const rows = await c.get("prisma").starredList.findMany({

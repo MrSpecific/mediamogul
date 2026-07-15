@@ -1,20 +1,24 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
-import { ChevronDown, ChevronUp, Shield, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ListPlus, Shield, Trash2 } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { useAdminMode } from "../lib/admin-mode";
 import { apiSend } from "../lib/api";
+import { primaryByline } from "../lib/byline";
 import { Cover } from "../components/Cover";
 import { MediaPicker } from "../components/MediaPicker";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
-import type { MediaItem, Profile } from "../lib/types";
+import { AddToListDialog } from "../components/AddToListDialog";
+import type { Credit, MediaItem, Profile } from "../lib/types";
+
+type SeriesMediaItem = MediaItem & { credits?: Credit[] };
 
 interface SeriesDetail {
   id: string;
   title: string;
   description: string | null;
-  entries: { position: number; mediaItem: MediaItem }[];
+  entries: { position: number; mediaItem: SeriesMediaItem }[];
 }
 
 export function SeriesPage() {
@@ -30,6 +34,8 @@ export function SeriesPage() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Media id whose "Add to list" dialog is open (one dialog, reused per entry).
+  const [listDialogFor, setListDialogFor] = useState<string | null>(null);
 
   // Admin affordances only render when an admin flips into admin mode.
   const showAdmin = isAdmin && adminMode;
@@ -175,7 +181,14 @@ export function SeriesPage() {
                     gap="1"
                     className="shrink"
                   >
-                    <MediaTypeBadge type={mediaItem.type} />
+                    <Flex gap="2" align="center" wrap="wrap">
+                      <MediaTypeBadge type={mediaItem.type} />
+                      {mediaItem.releaseDate && (
+                        <Text size="1" color="gray">
+                          {mediaItem.releaseDate.slice(0, 4)}
+                        </Text>
+                      )}
+                    </Flex>
                     <Text weight="medium" truncate>
                       {mediaItem.title}
                     </Text>
@@ -184,10 +197,32 @@ export function SeriesPage() {
                         {mediaItem.subtitle}
                       </Text>
                     )}
+                    {(() => {
+                      const by = primaryByline(
+                        mediaItem.type,
+                        mediaItem.credits,
+                      );
+                      if (!by) return null;
+                      return (
+                        <Text size="1" color="gray" truncate>
+                          {by.prefix ? `${by.prefix} ` : ""}
+                          {by.names.join(", ")}
+                        </Text>
+                      );
+                    })()}
                   </Flex>
                 </Flex>
               </Card>
             </Link>
+            <Button
+              size="1"
+              variant="soft"
+              color="gray"
+              className="shrink"
+              onClick={() => setListDialogFor(mediaItem.id)}
+            >
+              <ListPlus size={14} aria-hidden /> Add to list
+            </Button>
             {showAdmin && (
               <Button
                 size="1"
@@ -225,6 +260,15 @@ export function SeriesPage() {
         <Text size="2" color="gray">
           {msg}
         </Text>
+      )}
+
+      {/* One dialog, reused for whichever entry's "Add to list" was clicked. */}
+      {listDialogFor && (
+        <AddToListDialog
+          open={listDialogFor !== null}
+          onOpenChange={(o) => !o && setListDialogFor(null)}
+          mediaId={listDialogFor}
+        />
       )}
     </Flex>
   );

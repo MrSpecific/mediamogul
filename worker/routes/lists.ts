@@ -186,6 +186,20 @@ lists.delete("/:id/items/:itemId", async (c) => {
   return c.json({ deleted: res.count });
 });
 
+/** Remove a media item from a list by its media id (the caller usually knows
+ *  the media id, not the list-item row id — e.g. the Add-to-list dialog). */
+lists.delete("/:id/items/by-media/:mediaId", async (c) => {
+  const prisma = c.get("prisma");
+  const listId = c.req.param("id");
+  if (!(await canEditList(prisma, listId, c.get("user").id))) {
+    return c.json({ error: "not_found" }, 404);
+  }
+  const res = await prisma.mediaListItem.deleteMany({
+    where: { listId, mediaItemId: c.req.param("mediaId") },
+  });
+  return c.json({ deleted: res.count });
+});
+
 // --- save / follow a list --------------------------------------------------
 
 lists.put("/:id/save", async (c) => {

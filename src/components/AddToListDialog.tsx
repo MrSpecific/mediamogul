@@ -5,54 +5,96 @@ import {
   Field,
   Flex,
   Input,
+  Separator,
   Text,
   Textarea,
+  Heading,
 } from "@wlcr/base-ic";
-import { Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
+import { useApiData } from "../lib/hooks";
+import { VISIBILITY_OPTIONS } from "@/lib/visibility";
 import type { ListSummary } from "../lib/types";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mediaId: string;
-  lists: ListSummary[];
+  /** Called after any add/remove so the opener can refresh its own view. */
   onChanged?: () => void;
 }
 
-/** Modal to add the current media to one or more of the user's lists, with
- *  per-list loading and success/error feedback. Stays open for multiple adds. */
+interface MyLists {
+  owned: ListSummary[];
+  shared: ListSummary[];
+}
+
+/** Modal to add/remove the current media to/from the user's editable lists.
+ *  Loads the lists and current membership itself, so callers just pass the
+ *  media id. Shows "Remove" for lists that already contain the item, "Add"
+ *  otherwise, and can create a new list on the spot. Stays open for multiple
+ *  changes. */
 export function AddToListDialog({
   open,
   onOpenChange,
   mediaId,
-  lists,
   onChanged,
 }: Props) {
-  const [addingId, setAddingId] = useState<string | null>(null);
-  const [result, setResult] = useState<Record<string, "ok" | string>>({});
+  // Fetched only while open; refetched each time it reopens.
+  const { data: mine, reload: reloadLists } = useApiData<MyLists>(
+    open ? "/me/lists" : null,
+  );
+  const { data: membership, reload: reloadMembership } = useApiData<{
+    listIds: string[];
+  }>(open && mediaId ? `/me/lists/containing/${mediaId}` : null);
+
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
 
+  // Editable lists = owned + lists you collaborate on. Saved lists aren't editable.
+  const lists = mine ? [...mine.owned, ...mine.shared] : [];
+  const inList = new Set(membership?.listIds ?? []);
+
+  const afterChange = () => {
+    reloadMembership();
+    reloadLists();
+    onChanged?.();
+  };
+
   const add = async (listId: string) => {
-    setAddingId(listId);
+    setBusyId(listId);
+    setErrors((s) => ({ ...s, [listId]: "" }));
     try {
       await apiSend("POST", `/lists/${listId}/items`, {
         mediaItemId: mediaId,
         note: note.trim() || undefined,
       });
-      setResult((s) => ({ ...s, [listId]: "ok" }));
-      onChanged?.();
+      afterChange();
     } catch (e) {
       const code = e instanceof ApiError ? e.message : "failed";
-      setResult((s) => ({
+      setErrors((s) => ({
         ...s,
         [listId]: code === "type_not_allowed" ? "Type not allowed" : "Failed",
       }));
     } finally {
-      setAddingId(null);
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (listId: string) => {
+    setBusyId(listId);
+    setErrors((s) => ({ ...s, [listId]: "" }));
+    try {
+      await apiSend("DELETE", `/lists/${listId}/items/by-media/${mediaId}`);
+      afterChange();
+    } catch {
+      setErrors((s) => ({ ...s, [listId]: "Failed" }));
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -68,11 +110,8 @@ export function AddToListDialog({
         mediaItemId: mediaId,
         note: note.trim() || undefined,
       });
-      // onChanged refreshes the parent's lists, so the new one shows up in the
-      // list above already marked as added.
-      setResult((s) => ({ ...s, [list.id]: "ok" }));
       setNewTitle("");
-      onChanged?.();
+      afterChange();
     } catch (e) {
       const code = e instanceof ApiError ? e.message : "failed";
       setCreateErr(
@@ -88,7 +127,7 @@ export function AddToListDialog({
   const close = (o: boolean) => {
     onOpenChange(o);
     if (!o) {
-      setResult({});
+      setErrors({});
       setNote("");
       setNewTitle("");
       setCreateErr(null);
@@ -100,12 +139,12 @@ export function AddToListDialog({
       open={open}
       onOpenChange={close}
       title="Add to a list"
-      description="Add this to one or more of your lists."
+      // description="Add or remove this from your lists."
       content={
         <Flex direction="column" gap="3">
           <Field
             label="Note"
-            description="Optionally say why — shown next to it on the list."
+            description="Optionally say why you've added it to this list."
           >
             <Textarea
               rows={2}
@@ -114,52 +153,71 @@ export function AddToListDialog({
               onChange={(e) => setNote(e.currentTarget.value)}
             />
           </Field>
-          {lists.length === 0 && (
+
+          <Separator />
+
+          <Heading as="h3" size="1" color="gray">
+            Your lists
+          </Heading>
+
+          {!mine && <Text color="gray">Loading your lists…</Text>}
+          {mine && lists.length === 0 && (
             <Text color="gray">
               You don't have any lists yet — create your first one below.
             </Text>
           )}
+
           {lists.map((l) => {
-            const state = result[l.id];
+            const isMember = inList.has(l.id);
+            const err = errors[l.id];
             return (
-              <Flex key={l.id} justify="space-between" align="center" gap="3">
-                <Flex direction="column" className="shrink">
+              <Flex key={l.id} justify="space-between" align="center" gap="1">
+                <Flex direction="column" className="shrink" gap="0">
                   <Text weight="medium" truncate>
                     {l.title}
                   </Text>
                   <Text size="1" color="gray">
-                    {l._count?.items ?? 0} items · {l.visibility.toLowerCase()}
+                    {l._count?.items ?? 0} items ·{" "}
+                    {VISIBILITY_OPTIONS.find((o) => o.value === l.visibility)
+                      ?.label ?? l.visibility.toLowerCase()}
                   </Text>
                 </Flex>
-                {state === "ok" ? (
-                  <Text size="2" color="green">
-                    Added ✓
-                  </Text>
-                ) : state ? (
-                  <Flex gap="2" align="center">
+                <Flex gap="2" align="center">
+                  {err && (
                     <Text size="1" color="red">
-                      {state}
+                      {err}
                     </Text>
+                  )}
+                  {isMember ? (
                     <Button
                       size="1"
                       variant="soft"
-                      loading={addingId === l.id}
+                      color="red"
+                      loading={busyId === l.id}
+                      disabled={busyId !== null}
+                      onClick={() => void remove(l.id)}
+                    >
+                      Remove
+                    </Button>
+                  ) : (
+                    <Button
+                      size="1"
+                      variant="soft"
+                      loading={busyId === l.id}
+                      disabled={busyId !== null}
                       onClick={() => void add(l.id)}
                     >
-                      Retry
+                      {err ? "Retry" : "Add"}
                     </Button>
-                  </Flex>
-                ) : (
-                  <Button
-                    size="1"
-                    variant="soft"
-                    loading={addingId === l.id}
-                    disabled={addingId !== null}
-                    onClick={() => void add(l.id)}
-                  >
-                    Add
-                  </Button>
-                )}
+                  )}
+                  {isMember && !err && (
+                    <Check
+                      size={16}
+                      aria-hidden
+                      style={{ color: "var(--green-9)" }}
+                    />
+                  )}
+                </Flex>
               </Flex>
             );
           })}

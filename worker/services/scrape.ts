@@ -339,6 +339,232 @@ export async function searchScreen(
   });
 }
 
+export interface ImportedEpisode {
+  number: number;
+  title?: string;
+  synopsis?: string;
+  runtimeMinutes?: number;
+  airDate?: string;
+}
+export interface ImportedSeason {
+  number: number;
+  title?: string;
+  airDate?: string;
+  episodes: ImportedEpisode[];
+}
+
+/** Resolve a TMDB tv id from (in order) a stored TMDB id, an IMDB id (exact via
+ *  /find), or a title search. Returns null if nothing matches. */
+async function resolveTmdbTvId(
+  opts: { tmdbId?: string; imdbId?: string; title?: string },
+  apiKey: string,
+): Promise<number | null> {
+  if (opts.tmdbId && /^\d+$/.test(opts.tmdbId)) return Number(opts.tmdbId);
+  if (opts.imdbId) {
+    const r = await fetch(
+      `${TMDB}/find/${opts.imdbId}?external_source=imdb_id&api_key=${apiKey}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (r.ok) {
+      const d = (await r.json()) as { tv_results?: { id: number }[] };
+      if (d.tv_results?.[0]?.id) return d.tv_results[0].id;
+    }
+  }
+  if (opts.title) {
+    const u = new URL(`${TMDB}/search/tv`);
+    u.searchParams.set("query", opts.title);
+    u.searchParams.set("api_key", apiKey);
+    const r = await fetch(u, { headers: { Accept: "application/json" } });
+    if (r.ok) {
+      const d = (await r.json()) as { results?: { id: number }[] };
+      if (d.results?.[0]?.id) return d.results[0].id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetch a show's full season/episode list from TMDB for import. Skips season 0
+ * (specials). Returns the resolved TMDB tv id (so callers can persist it) and
+ * the seasons with their episodes.
+ */
+export async function importTmdbSeasons(
+  opts: { tmdbId?: string; imdbId?: string; title?: string },
+  apiKey?: string,
+): Promise<{ tvId: number | null; seasons: ImportedSeason[] }> {
+  if (!apiKey) {
+    throw new Error(
+      "TMDB lookup is not configured. Set TMDB_API_KEY (wrangler secret put TMDB_API_KEY).",
+    );
+  }
+  const tvId = await resolveTmdbTvId(opts, apiKey);
+  if (tvId == null) return { tvId: null, seasons: [] };
+
+  const showRes = await fetch(`${TMDB}/tv/${tvId}?api_key=${apiKey}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!showRes.ok) return { tvId, seasons: [] };
+  const show = (await showRes.json()) as {
+    seasons?: { season_number: number; name?: string; air_date?: string }[];
+  };
+
+  const seasons: ImportedSeason[] = [];
+  for (const s of (show.seasons ?? []).filter((s) => s.season_number >= 1)) {
+    const sr = await fetch(
+      `${TMDB}/tv/${tvId}/season/${s.season_number}?api_key=${apiKey}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!sr.ok) continue;
+    const sd = (await sr.json()) as {
+      episodes?: {
+        episode_number: number;
+        name?: string;
+        overview?: string;
+        runtime?: number;
+        air_date?: string;
+      }[];
+    };
+    seasons.push({
+      number: s.season_number,
+      title: s.name || undefined,
+      airDate: s.air_date || undefined,
+      episodes: (sd.episodes ?? []).map((e) => ({
+        number: e.episode_number,
+        title: e.name || undefined,
+        synopsis: e.overview || undefined,
+        runtimeMinutes: e.runtime || undefined,
+        airDate: e.air_date || undefined,
+      })),
+    });
+  }
+  return { tvId, seasons };
+}
+
+// ---------------------------------------------------------------------------
+// TV episode guides — TVmaze (free, keyless, CC BY-SA). Preferred source since
+// it needs no API key; TMDB above is an optional fallback when a key is set.
+// ---------------------------------------------------------------------------
+
+const TVMAZE = "https://api.tvmaze.com";
+
+/** Strip HTML tags from TVmaze summaries (they're returned as `<p>…</p>`). */
+function stripHtml(s?: string): string | undefined {
+  if (!s) return undefined;
+  const t = s.replace(/<[^>]*>/g, "").trim();
+  return t || undefined;
+}
+
+async function resolveTvmazeId(opts: {
+  imdbId?: string;
+  title?: string;
+}): Promise<number | null> {
+  if (opts.imdbId) {
+    const r = await fetch(
+      `${TVMAZE}/lookup/shows?imdb=${encodeURIComponent(opts.imdbId)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (r.ok) {
+      const d = (await r.json()) as { id?: number };
+      if (d?.id) return d.id;
+    }
+  }
+  if (opts.title) {
+    const r = await fetch(
+      `${TVMAZE}/singlesearch/shows?q=${encodeURIComponent(opts.title)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (r.ok) {
+      const d = (await r.json()) as { id?: number };
+      if (d?.id) return d.id;
+    }
+  }
+  return null;
+}
+
+/** Full season/episode guide from TVmaze. Skips season 0 (specials). */
+export async function importTvmazeSeasons(opts: {
+  imdbId?: string;
+  title?: string;
+}): Promise<ImportedSeason[]> {
+  const showId = await resolveTvmazeId(opts);
+  if (showId == null) return [];
+
+  const [seasonsRes, epsRes] = await Promise.all([
+    fetch(`${TVMAZE}/shows/${showId}/seasons`, {
+      headers: { Accept: "application/json" },
+    }),
+    fetch(`${TVMAZE}/shows/${showId}/episodes`, {
+      headers: { Accept: "application/json" },
+    }),
+  ]);
+  if (!epsRes.ok) return [];
+  const seasonMeta = seasonsRes.ok
+    ? ((await seasonsRes.json()) as {
+        number: number;
+        name?: string;
+        premiereDate?: string;
+      }[])
+    : [];
+  const eps = (await epsRes.json()) as {
+    season: number;
+    number: number | null;
+    name?: string;
+    airdate?: string;
+    runtime?: number | null;
+    summary?: string;
+  }[];
+
+  const byNumber = new Map<number, ImportedSeason>();
+  for (const m of seasonMeta) {
+    byNumber.set(m.number, {
+      number: m.number,
+      title: m.name || undefined,
+      airDate: m.premiereDate || undefined,
+      episodes: [],
+    });
+  }
+  for (const e of eps) {
+    if (e.season == null || e.number == null) continue; // skip specials w/o number
+    let s = byNumber.get(e.season);
+    if (!s) {
+      s = { number: e.season, episodes: [] };
+      byNumber.set(e.season, s);
+    }
+    s.episodes.push({
+      number: e.number,
+      title: e.name || undefined,
+      synopsis: stripHtml(e.summary),
+      runtimeMinutes: e.runtime || undefined,
+      airDate: e.airdate || undefined,
+    });
+  }
+  return [...byNumber.values()]
+    .filter((s) => s.number >= 1)
+    .sort((a, b) => a.number - b.number);
+}
+
+/**
+ * Import a show's season/episode guide, open sources first: TVmaze (free,
+ * keyless) is tried first; TMDB is used only as a fallback when a key is set.
+ */
+export async function importSeasons(
+  opts: { tmdbId?: string; imdbId?: string; title?: string },
+  env: { TMDB_API_KEY?: string },
+): Promise<{ source: "tvmaze" | "tmdb" | null; tvId: number | null; seasons: ImportedSeason[] }> {
+  const tvmaze = await importTvmazeSeasons(opts).catch(() => []);
+  if (tvmaze.length) return { source: "tvmaze", tvId: null, seasons: tvmaze };
+
+  if (env.TMDB_API_KEY) {
+    const tmdb = await importTmdbSeasons(opts, env.TMDB_API_KEY).catch(() => ({
+      tvId: null,
+      seasons: [],
+    }));
+    if (tmdb.seasons.length)
+      return { source: "tmdb", tvId: tmdb.tvId, seasons: tmdb.seasons };
+  }
+  return { source: null, tvId: null, seasons: [] };
+}
+
 // ---------------------------------------------------------------------------
 // Movies / TV — Wikidata (CC0, commercial-safe, keyless)
 // ---------------------------------------------------------------------------

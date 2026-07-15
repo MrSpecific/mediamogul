@@ -10,8 +10,13 @@ interface Env {
   DATABASE_URL: string;
 
   /**
-   * Optional TMDB API key for movie/TV scrape-assist (books use keyless
-   * Open Library). Set via `wrangler secret put TMDB_API_KEY`.
+   * OPTIONAL, non-commercial TMDB API key. The app prefers free, keyless,
+   * open sources and does NOT require this:
+   *   - Movies/TV lookup  → Wikidata (CC0)
+   *   - Books             → Open Library
+   *   - TV episode guides → TVmaze (CC BY-SA, keyless)
+   * TMDB is only used as a richer fallback when a key is set. Leave unset to
+   * run entirely on open sources. Set via `wrangler secret put TMDB_API_KEY`.
    */
   TMDB_API_KEY?: string;
 

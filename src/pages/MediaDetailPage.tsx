@@ -99,9 +99,6 @@ export function MediaDetailPage() {
   const { data: entries, reload: reloadEntries } = useApiData<MediaEntry[]>(
     id ? `/media/${id}/entries` : null,
   );
-  const { data: myLists, reload: reloadLists } = useApiData<{
-    owned: ListSummary[];
-  }>("/me/lists");
   const { data: me } = useApiData<Profile>("/me");
   const isAdmin = Boolean(me?.isAdmin);
   const { data: covers, reload: reloadCovers } = useApiData<CoverInfo[]>(
@@ -533,8 +530,6 @@ export function MediaDetailPage() {
             open={addListOpen}
             onOpenChange={setAddListOpen}
             mediaId={data.id}
-            lists={myLists?.owned ?? []}
-            onChanged={reloadLists}
           />
           {msg && (
             <Text color="green" size="2">
@@ -604,7 +599,14 @@ export function MediaDetailPage() {
       </Flex>
 
       {data.type === "TV_SHOW" && (
-        <TvSeasons mediaId={data.id} isAdmin={showAdmin} />
+        <TvSeasons
+          mediaId={data.id}
+          isAdmin={showAdmin}
+          onProgressChange={() => {
+            reload();
+            reloadEntries();
+          }}
+        />
       )}
 
       <Flex direction="column" gap="3">

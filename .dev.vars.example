@@ -7,8 +7,10 @@ DATABASE_URL="postgresql://user:password@ep-xxxx-pooler.region.aws.neon.tech/dbn
 
 # --- Optional integrations ---------------------------------------------------
 
-# Movie/TV scrape-assist. Books (Open Library) and movies/TV (Wikidata, CC0)
-# work with NO key. TMDB is richer but its free tier is non-commercial only.
+# Scrape-assist runs entirely on free, keyless, open sources by default:
+#   books → Open Library · movies/TV → Wikidata (CC0) · TV episodes → TVmaze (CC BY-SA)
+# TMDB is an OPTIONAL richer fallback only; its free tier is non-commercial.
+# Leave this unset to stay fully open-source.
 # TMDB_API_KEY=""
 
 # Billing (Stripe). Leave unset to keep billing dormant (endpoints return 501).

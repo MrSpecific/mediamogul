@@ -6,21 +6,37 @@ import {
   Flex,
   Heading,
   Input,
+  Progress,
   Text,
 } from "@wlcr/base-ic";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, Download, Plus, Trash2 } from "lucide-react";
 import { useApiData } from "../lib/hooks";
-import { apiSend } from "../lib/api";
+import { apiSend, ApiError } from "../lib/api";
 import { formatRuntime } from "../../shared/media-fields";
 import type { Season, SeasonsResponse } from "../lib/types";
+
+/** Human-readable episode air date, e.g. "Jun 2, 2002". */
+function formatAirDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+}
 
 interface Props {
   mediaId: string;
   isAdmin: boolean;
+  /** Fired after a watch change, so the parent can refresh the show's status
+   *  (which now auto-syncs with episode progress). */
+  onProgressChange?: () => void;
 }
 
 /** Seasons + episodes for a TV show, with per-episode and per-season watching. */
-export function TvSeasons({ mediaId, isAdmin }: Props) {
+export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
   const { data, reload } = useApiData<SeasonsResponse>(
     `/media/${mediaId}/seasons`,
   );
@@ -28,6 +44,8 @@ export function TvSeasons({ mediaId, isAdmin }: Props) {
   const [addingSeason, setAddingSeason] = useState(false);
   const [seasonNumber, setSeasonNumber] = useState("");
   const [episodeCount, setEpisodeCount] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   if (!data) return null;
 
@@ -38,6 +56,7 @@ export function TvSeasons({ mediaId, isAdmin }: Props) {
     try {
       await apiSend("POST", `/media/${mediaId}/episodes/${episodeId}/watch`);
       await reload();
+      onProgressChange?.();
     } finally {
       setBusy(null);
     }
@@ -54,6 +73,7 @@ export function TvSeasons({ mediaId, isAdmin }: Props) {
         `/media/${mediaId}/seasons/${s.id}/watch`,
       );
       await reload();
+      onProgressChange?.();
     } finally {
       setBusy(null);
     }
@@ -66,6 +86,32 @@ export function TvSeasons({ mediaId, isAdmin }: Props) {
       await reload();
     } finally {
       setBusy(null);
+    }
+  };
+
+  const importFromTmdb = async () => {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const r = await apiSend<{
+        source: string | null;
+        seasons: number;
+        episodes: number;
+      }>("POST", `/media/${mediaId}/seasons/import`);
+      await reload();
+      const via = r.source === "tvmaze" ? "TVmaze" : r.source === "tmdb" ? "TMDB" : "the episode guide";
+      setImportMsg(
+        `Imported ${r.seasons} season${r.seasons === 1 ? "" : "s"} and ${r.episodes} episode${r.episodes === 1 ? "" : "s"} from ${via}.`,
+      );
+    } catch (e) {
+      const code = e instanceof ApiError ? e.message : "failed";
+      setImportMsg(
+        code === "not_found_on_sources"
+          ? "Couldn't find an episode guide for this show. Add an IMDB id, or add seasons manually below."
+          : "Import failed. Try again or add seasons manually.",
+      );
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -86,14 +132,59 @@ export function TvSeasons({ mediaId, isAdmin }: Props) {
     }
   };
 
-  if (data.seasons.length === 0 && !isAdmin) return null;
+  // Show-level progress rolled up across every season.
+  const totalEpisodes = data.seasons.reduce(
+    (n, s) => n + s.episodes.length,
+    0,
+  );
+  const watchedEpisodes = data.seasons.reduce(
+    (n, s) => n + s.episodes.filter((e) => watched.has(e.id)).length,
+    0,
+  );
+  const pct =
+    totalEpisodes > 0 ? Math.round((watchedEpisodes / totalEpisodes) * 100) : 0;
+  const complete = totalEpisodes > 0 && watchedEpisodes === totalEpisodes;
 
   return (
     <Flex direction="column" gap="3">
-      <Heading size="5">Seasons &amp; episodes</Heading>
+      <Flex direction="column" gap="2">
+        <Flex justify="space-between" align="center" gap="2" wrap="wrap">
+          <Heading size="5">Seasons &amp; episodes</Heading>
+          {totalEpisodes > 0 && (
+            <Text size="2" color={complete ? "green" : "gray"}>
+              {watchedEpisodes}/{totalEpisodes} episodes watched
+            </Text>
+          )}
+        </Flex>
+        {totalEpisodes > 0 && (
+          <Progress
+            value={pct}
+            size="1"
+            color={complete ? "green" : undefined}
+          />
+        )}
+      </Flex>
 
       {data.seasons.length === 0 && (
-        <Text color="gray">No seasons added yet.</Text>
+        <Flex direction="column" gap="2" align="start">
+          <Text color="gray">
+            No episode data has been added for this show yet.
+          </Text>
+          {isAdmin && (
+            <Button
+              variant="soft"
+              loading={importing}
+              onClick={() => void importFromTmdb()}
+            >
+              <Download size={16} aria-hidden /> Import episode guide
+            </Button>
+          )}
+        </Flex>
+      )}
+      {importMsg && (
+        <Text size="2" color="gray">
+          {importMsg}
+        </Text>
       )}
 
       {data.seasons.map((s) => {
@@ -143,29 +234,44 @@ export function TvSeasons({ mediaId, isAdmin }: Props) {
                 <Flex direction="column" gap="1">
                   {s.episodes.map((e) => {
                     const isWatched = watched.has(e.id);
+                    const meta = [
+                      e.runtimeMinutes ? formatRuntime(e.runtimeMinutes) : null,
+                      e.airDate ? formatAirDate(e.airDate) : null,
+                    ].filter(Boolean);
                     return (
-                      <button
+                      <div
                         key={e.id}
-                        type="button"
                         className={`episode-row${isWatched ? " watched" : ""}`}
-                        disabled={busy === e.id}
-                        onClick={() => void toggleEpisode(e.id)}
                       >
-                        <span className="episode-check" aria-hidden>
-                          {isWatched && <Check size={14} />}
-                        </span>
                         <Text size="2" className="episode-num">
                           {e.number}
                         </Text>
-                        <Text size="2" className="episode-title">
-                          {e.title || `Episode ${e.number}`}
-                        </Text>
-                        {e.runtimeMinutes && (
-                          <Text size="1" color="gray">
-                            {formatRuntime(e.runtimeMinutes)}
+                        <div className="episode-title">
+                          <Text size="2" truncate>
+                            {e.title || `Episode ${e.number}`}
                           </Text>
-                        )}
-                      </button>
+                          {meta.length > 0 && (
+                            <Text size="1" color="gray">
+                              {meta.join(" · ")}
+                            </Text>
+                          )}
+                        </div>
+                        <Button
+                          size="1"
+                          variant="soft"
+                          color={isWatched ? "green" : "gray"}
+                          loading={busy === e.id}
+                          onClick={() => void toggleEpisode(e.id)}
+                        >
+                          {isWatched ? (
+                            <>
+                              <Check size={14} aria-hidden /> Watched
+                            </>
+                          ) : (
+                            "Mark watched"
+                          )}
+                        </Button>
+                      </div>
                     );
                   })}
                 </Flex>
@@ -178,9 +284,19 @@ export function TvSeasons({ mediaId, isAdmin }: Props) {
       {isAdmin && (
         <Card size="2">
           <Flex direction="column" gap="2">
-            <Text size="2" weight="medium">
-              Add a season
-            </Text>
+            <Flex justify="between" align="center" gap="2" wrap="wrap">
+              <Text size="2" weight="medium">
+                Add a season
+              </Text>
+              <Button
+                size="1"
+                variant="soft"
+                loading={importing}
+                onClick={() => void importFromTmdb()}
+              >
+                <Download size={14} aria-hidden /> Import episode guide
+              </Button>
+            </Flex>
             <Flex gap="2" wrap="wrap" align="end">
               <Field label="Season #">
                 <Input
