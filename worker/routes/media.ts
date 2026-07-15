@@ -233,6 +233,19 @@ async function importScrapeCandidate(
  * Fetch a remote image, store it in R2, record a provenance asset, and set it
  * as the item's cover. Returns the stored URL, or null if the fetch failed.
  */
+/**
+ * Percent-encode URL characters that are technically illegal in a URL (spaces,
+ * braces, backticks, pipes, …) without touching existing `%` escapes. OverDrive
+ * cover URLs contain raw `{...}` which makes the Workers `fetch()` throw on an
+ * invalid URL — so callers must sanitize before fetching.
+ */
+function sanitizeUrl(u: string): string {
+  return u.replace(
+    /[{}|\\^`<>\s]/g,
+    (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`,
+  );
+}
+
 async function ingestRemoteCover(
   c: Context<AppEnv>,
   mediaItemId: string,
@@ -245,14 +258,17 @@ async function ingestRemoteCover(
   },
 ): Promise<string | null> {
   const prisma = c.get("prisma");
-  const res = await fetch(opts.imageUrl, {
-    headers: { "User-Agent": "mediamogul/1.0 (media consumption tracker)" },
-  }).catch(() => null);
-  if (!res || !res.ok) return null;
-  const contentType = res.headers.get("content-type")?.split(";")[0] ?? "";
-  const bytes = await res.arrayBuffer();
-  const stored = await uploadImage(c.env, bytes, contentType);
-  const asset = await prisma.mediaAsset.create({
+  // Never let a bad/oversized/invalid cover 500 the surrounding request — the
+  // link/import should succeed regardless of whether the cover ingests.
+  try {
+    const res = await fetch(sanitizeUrl(opts.imageUrl), {
+      headers: { "User-Agent": "mediamogul/1.0 (media consumption tracker)" },
+    }).catch(() => null);
+    if (!res || !res.ok) return null;
+    const contentType = res.headers.get("content-type")?.split(";")[0] ?? "";
+    const bytes = await res.arrayBuffer();
+    const stored = await uploadImage(c.env, bytes, contentType);
+    const asset = await prisma.mediaAsset.create({
     data: {
       mediaItemId,
       kind: "COVER",
@@ -267,9 +283,13 @@ async function ingestRemoteCover(
       creator: opts.creator,
       uploadedById: c.get("user").id,
     },
-  });
-  await makeCoverPrimary(prisma, mediaItemId, asset.id, stored.url);
-  return stored.url;
+    });
+    await makeCoverPrimary(prisma, mediaItemId, asset.id, stored.url);
+    return stored.url;
+  } catch (err) {
+    console.error("cover ingest failed:", err);
+    return null;
+  }
 }
 
 /** Mark one cover asset primary (demoting the rest) and sync the item's cover. */
