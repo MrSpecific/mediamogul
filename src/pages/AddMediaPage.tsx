@@ -145,15 +145,18 @@ export function AddMediaPage() {
     [],
   );
 
-  // Auto-run the search when arriving with a pre-filled query (e.g. from the
-  // catalog's "add missing media" prompt).
-  const ranInitial = useRef(false);
+  // Auto-run the search whenever we arrive with a `?q=` — on first mount AND on
+  // later in-app navigations that change it (e.g. the catalog's "add missing
+  // media" prompt). Tracks the last URL query so it fires once per distinct
+  // query and doesn't fight the user typing in the box.
+  const lastSearchedQ = useRef<string | null>(null);
   useEffect(() => {
-    if (initialQ && !ranInitial.current) {
-      ranInitial.current = true;
+    if (initialQ && initialQ !== lastSearchedQ.current) {
+      lastSearchedQ.current = initialQ;
+      setQ(initialQ);
       void search(initialQ);
     }
-    // `search` is stable enough for a one-shot; guarded by ranInitial.
+    // `search`/`setQ` are stable; re-run only when the URL query changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQ]);
 
@@ -343,7 +346,7 @@ export function AddMediaPage() {
                           )}
                           {c.existingId && (
                             <Badge size="1" variant="soft" color="green">
-                              In your catalog
+                              In catalog
                             </Badge>
                           )}
                         </Flex>

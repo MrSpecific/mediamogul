@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
 import {
   FEATURE_LABELS,
+  FREE_HIGHLIGHTS,
   TIERS,
   formatPrice,
   type FeatureFlag,
@@ -79,14 +80,22 @@ export function WelcomePage() {
               </Text>
               <Text color="gray">{tier.description}</Text>
               <Flex direction="column" gap="2">
-                {FEATURE_ORDER.filter((flag) => tier.features[flag]).map(
-                  (flag) => (
-                    <Flex key={flag} gap="2" align="center">
-                      <Check size={16} aria-hidden style={{ color: "var(--green-9)" }} />
-                      <Text size="2">{FEATURE_LABELS[flag]}</Text>
-                    </Flex>
-                  ),
+                {tier.id === "STANDARD" && (
+                  <Text size="2" weight="medium">
+                    Everything in Free, plus:
+                  </Text>
                 )}
+                {(tier.id === "FREE"
+                  ? FREE_HIGHLIGHTS
+                  : FEATURE_ORDER.filter((flag) => tier.features[flag]).map(
+                      (flag) => FEATURE_LABELS[flag],
+                    )
+                ).map((label) => (
+                  <Flex key={label} gap="2" align="center">
+                    <Check size={16} aria-hidden style={{ color: "var(--green-9)" }} />
+                    <Text size="2">{label}</Text>
+                  </Flex>
+                ))}
               </Flex>
               {tier.id === "STANDARD" ? (
                 <Button

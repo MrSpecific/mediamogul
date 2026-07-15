@@ -5,7 +5,6 @@ import {
   Check,
   Clapperboard,
   ListChecks,
-  Minus,
   Star,
   Tv,
   Users,
@@ -13,6 +12,7 @@ import {
 import { LogoMark } from "./Logo";
 import {
   FEATURE_LABELS,
+  FREE_HIGHLIGHTS,
   TIERS,
   formatPrice,
   type FeatureFlag,
@@ -134,21 +134,22 @@ export function PublicHome() {
                   </Text>
                   <Text color="gray">{tier.description}</Text>
                   <Flex direction="column" gap="2">
-                    {FEATURE_ORDER.map((flag) => {
-                      const on = tier.features[flag];
-                      return (
-                        <Flex key={flag} gap="2" align="center">
-                          {on ? (
-                            <Check size={16} aria-hidden style={{ color: "var(--green-9)" }} />
-                          ) : (
-                            <Minus size={16} aria-hidden style={{ color: "var(--gray-8)" }} />
-                          )}
-                          <Text size="2" color={on ? undefined : "gray"}>
-                            {FEATURE_LABELS[flag]}
-                          </Text>
-                        </Flex>
-                      );
-                    })}
+                    {tier.id === "STANDARD" && (
+                      <Text size="2" weight="medium">
+                        Everything in Free, plus:
+                      </Text>
+                    )}
+                    {(tier.id === "FREE"
+                      ? FREE_HIGHLIGHTS
+                      : FEATURE_ORDER.filter((f) => tier.features[f]).map(
+                          (f) => FEATURE_LABELS[f],
+                        )
+                    ).map((label) => (
+                      <Flex key={label} gap="2" align="center">
+                        <Check size={16} aria-hidden style={{ color: "var(--green-9)" }} />
+                        <Text size="2">{label}</Text>
+                      </Flex>
+                    ))}
                   </Flex>
                   <Button
                     size="3"

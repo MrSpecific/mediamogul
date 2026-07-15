@@ -23,6 +23,19 @@ export const FEATURE_LABELS: Record<FeatureFlag, string> = {
   bulkImport: "Bulk metadata import",
 };
 
+/**
+ * Baseline capabilities included on every plan — shown on the Free card. The
+ * gated FeatureFlags are all Standard-only, so Free needs its own value list
+ * rather than a row of crossed-out premium features.
+ */
+export const FREE_HIGHLIGHTS = [
+  "Track movies, TV, books, audiobooks & magazines",
+  "Half-star ratings & reviews",
+  "Episode-level TV tracking",
+  "1 personal list",
+  "Public profile & following",
+];
+
 export interface Tier {
   id: TierId;
   name: string;
