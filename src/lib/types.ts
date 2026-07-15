@@ -84,6 +84,13 @@ export interface ExternalId {
   url: string | null;
 }
 
+export interface StreamingAvailability {
+  id: string;
+  provider: import("./streaming").StreamingProvider;
+  region: string;
+  url: string;
+}
+
 export interface Rating {
   stars: string; // Decimal serialized as string
 }
@@ -158,6 +165,7 @@ export const RELATION_LABELS: Record<MediaRelationType, string> = {
 
 export interface MediaDetail extends MediaItem {
   externalIds: ExternalId[];
+  streaming: StreamingAvailability[];
   credits: Credit[];
   genres: { id: string; name: string; slug: string }[];
   related: RelatedMedia[];

@@ -79,6 +79,7 @@ type CreditInput = z.infer<typeof creditInput>;
 // Standard relation include for returning a full media item.
 const withRelations = {
   externalIds: true,
+  streaming: { orderBy: { provider: "asc" } },
   credits: { orderBy: { position: "asc" } },
   genres: { include: { genre: true } },
 } satisfies Prisma.MediaItemInclude;
@@ -1716,6 +1717,60 @@ media.post(
     return c.json(updated);
   },
 );
+
+// --- Streaming availability -------------------------------------------------
+
+const streamingProvider = z.enum([
+  "NETFLIX",
+  "MAX",
+  "APPLE_TV",
+  "HULU",
+  "PARAMOUNT_PLUS",
+  "DISNEY_PLUS",
+  "PRIME_VIDEO",
+  "PEACOCK",
+  "TUBI",
+  "STARZ",
+]);
+
+/** Admin: add/update where this item streams (upsert by provider+region). */
+media.post(
+  "/:id/streaming",
+  requireAdmin,
+  zValidator(
+    "json",
+    z.object({
+      provider: streamingProvider,
+      url: z.string().url().max(1000),
+      region: z.string().min(2).max(5).optional(),
+    }),
+  ),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const mediaItemId = c.req.param("id");
+    const { provider, url, region = "US" } = c.req.valid("json");
+    const row = await prisma.streamingAvailability
+      .upsert({
+        where: {
+          mediaItemId_provider_region: { mediaItemId, provider, region },
+        },
+        create: { mediaItemId, provider, region, url, addedById: c.get("user").id },
+        update: { url },
+      })
+      .catch(() => null);
+    if (!row) return c.json({ error: "not_found" }, 404);
+    return c.json(row, 201);
+  },
+);
+
+/** Admin: remove a streaming availability row. */
+media.delete("/:id/streaming/:availId", requireAdmin, async (c) => {
+  const res = await c.get("prisma").streamingAvailability.deleteMany({
+    where: { id: c.req.param("availId"), mediaItemId: c.req.param("id") },
+  });
+  if (res.count === 0) return c.json({ error: "not_found" }, 404);
+  return c.json({ deleted: true });
+});
 
 // --- Wikipedia linking ------------------------------------------------------
 

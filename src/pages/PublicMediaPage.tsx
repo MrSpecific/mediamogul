@@ -5,9 +5,10 @@ import { LogoMark } from "../components/Logo";
 import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { MediaDescriptions } from "../components/MediaDescriptions";
+import { WhereToWatch } from "../components/WhereToWatch";
 import { StarRating } from "../components/StarRating";
 import { MEDIA_FIELDS } from "../../shared/media-fields";
-import type { Credit, MediaType } from "../lib/types";
+import type { Credit, MediaType, StreamingAvailability } from "../lib/types";
 
 interface PublicMedia {
   id: string;
@@ -20,6 +21,7 @@ interface PublicMedia {
   wikipediaUrl: string | null;
   releaseDate: string | null;
   credits: Credit[];
+  streaming: StreamingAvailability[];
   genres: { id: string; name: string; slug: string }[];
   averageRating: number | null;
   ratingCount: number;
@@ -124,6 +126,8 @@ export function PublicMediaPage() {
                   ))}
                 </Flex>
               )}
+              <WhereToWatch streaming={media.streaming} />
+
               <MediaDescriptions
                 shortDescription={media.shortDescription}
                 synopsis={media.synopsis}

@@ -12,6 +12,7 @@ async function loadPublicMedia(env: Env, id: string) {
     where: { id, visibility: "PUBLIC", archivedAt: null },
     include: {
       credits: { orderBy: { position: "asc" } },
+      streaming: { orderBy: { provider: "asc" } },
       genres: { include: { genre: true } },
       assets: {
         where: { kind: "COVER" },

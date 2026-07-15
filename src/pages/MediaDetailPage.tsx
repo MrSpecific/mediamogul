@@ -42,6 +42,8 @@ import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { LibbyLookup } from "../components/LibbyLookup";
 import { WikipediaLinkEditor } from "../components/WikipediaLinkEditor";
 import { WikipediaLookup } from "../components/WikipediaLookup";
+import { WhereToWatch } from "../components/WhereToWatch";
+import { StreamingEditor } from "../components/StreamingEditor";
 import { MediaFeedbackDialog } from "../components/MediaFeedbackDialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -490,6 +492,8 @@ export function MediaDetailPage() {
             synopsis={data.synopsis}
           />
 
+          <WhereToWatch streaming={data.streaming} />
+
           {libby?.url && (
             <Flex>
               <a
@@ -921,6 +925,21 @@ export function MediaDetailPage() {
               </details>
             </Flex>
           </Card>
+
+          {(data.type === "MOVIE" || data.type === "TV_SHOW") && (
+            <Card size="2">
+              <Flex direction="column" gap="3">
+                <Text size="2" weight="medium">
+                  Streaming availability
+                </Text>
+                <StreamingEditor
+                  mediaId={data.id}
+                  streaming={data.streaming}
+                  onChanged={reload}
+                />
+              </Flex>
+            </Card>
+          )}
 
           <Card size="2">
             <Flex gap="3" wrap="wrap" align="end" justify="space-between">

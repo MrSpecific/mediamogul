@@ -771,6 +771,23 @@ body {
   padding: 0 8px 8px 40px;
 }
 
+/* "Where to watch" streaming provider chips (brand accent via --chip). */
+.streaming-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--chip) 55%, transparent);
+  background: color-mix(in srgb, var(--chip) 14%, transparent);
+  color: var(--gray-12, #fff);
+  text-decoration: none;
+  transition: background 120ms ease;
+}
+.streaming-chip:hover {
+  background: color-mix(in srgb, var(--chip) 26%, transparent);
+}
+
 /* Small cover thumbnail in Add-media search results (icon-only placeholder). */
 .add-result-cover {
   width: 44px;
