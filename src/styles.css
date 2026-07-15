@@ -771,6 +771,15 @@ body {
   padding: 0 8px 8px 40px;
 }
 
+/* Compact per-episode watch rows in "Your journey". */
+.episode-log-row {
+  padding: 3px 2px;
+  border-bottom: 1px solid var(--color-gray-a3, rgba(128, 128, 128, 0.1));
+}
+.episode-log-row:last-of-type {
+  border-bottom: 0;
+}
+
 /* Re-scrape diff rows */
 .diff-row {
   display: flex;

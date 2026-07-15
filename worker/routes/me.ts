@@ -232,9 +232,20 @@ me.get("/lists/containing/:mediaId", async (c) => {
         ],
       },
     },
-    select: { listId: true },
+    select: {
+      list: { select: { id: true, title: true, visibility: true } },
+    },
+    orderBy: { list: { title: "asc" } },
   });
-  return c.json({ listIds: [...new Set(rows.map((r) => r.listId))] });
+  // Dedupe (a media item appears at most once per list, but be safe).
+  const seen = new Set<string>();
+  const lists = [];
+  for (const r of rows) {
+    if (seen.has(r.list.id)) continue;
+    seen.add(r.list.id);
+    lists.push(r.list);
+  }
+  return c.json({ lists });
 });
 
 /** Starred lists, newest star first — used for prominent homepage display. */

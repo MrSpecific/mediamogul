@@ -103,6 +103,12 @@ export interface MediaEntry {
   progress: string | null;
   note: string | null;
   mediaItem?: MediaItem;
+  /** Set for per-episode entries (TV shows); null for show-level entries. */
+  episode?: {
+    number: number;
+    title: string | null;
+    season: { number: number };
+  } | null;
 }
 
 export interface RelatedMedia {

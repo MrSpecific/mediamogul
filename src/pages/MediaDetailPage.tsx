@@ -100,6 +100,9 @@ export function MediaDetailPage() {
     id ? `/media/${id}/entries` : null,
   );
   const { data: me } = useApiData<Profile>("/me");
+  const { data: listMembership, reload: reloadMembership } = useApiData<{
+    lists: { id: string; title: string; visibility: string }[];
+  }>(id ? `/me/lists/containing/${id}` : null);
   const isAdmin = Boolean(me?.isAdmin);
   const { data: covers, reload: reloadCovers } = useApiData<CoverInfo[]>(
     id ? `/media/${id}/covers` : null,
@@ -120,6 +123,7 @@ export function MediaDetailPage() {
   const [adminMode, setAdminMode] = useAdminMode();
   const [coverBusy, setCoverBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showAllEpisodes, setShowAllEpisodes] = useState(false);
 
   // Admin affordances only render when an admin flips into admin mode.
   const showAdmin = isAdmin && adminMode;
@@ -138,6 +142,16 @@ export function MediaDetailPage() {
     reload();
     reloadEntries();
   };
+
+  // Split "Your journey" into show-level milestones (start/finish/rewatch) and
+  // per-episode watches, so episode ticks don't drown the page in identical
+  // "Completed" rows.
+  const showMilestones = entries?.filter((e) => !e.episode) ?? [];
+  const episodeWatches = entries?.filter((e) => e.episode) ?? [];
+  const EPISODE_PREVIEW = 6;
+  const visibleEpisodeWatches = showAllEpisodes
+    ? episodeWatches
+    : episodeWatches.slice(0, EPISODE_PREVIEW);
 
   const rate = async (stars: number) => {
     await apiSend("PUT", `/media/${id}/rating`, { stars });
@@ -520,9 +534,27 @@ export function MediaDetailPage() {
             onConfirm={complete}
           />
 
+          {listMembership && listMembership.lists.length > 0 && (
+            <Flex gap="2" align="center" wrap="wrap">
+              <Text size="1" color="gray">
+                On your lists:
+              </Text>
+              {listMembership.lists.map((l) => (
+                <Link key={l.id} to={`/lists/${l.id}`} className="media-card-link">
+                  <Badge variant="soft" size="1">
+                    {l.title}
+                  </Badge>
+                </Link>
+              ))}
+            </Flex>
+          )}
+
           <Flex>
             <Button variant="soft" onClick={() => setAddListOpen(true)}>
-              <ListPlus size={16} aria-hidden /> Add to list
+              <ListPlus size={16} aria-hidden />{" "}
+              {listMembership && listMembership.lists.length > 0
+                ? "Add or remove from lists"
+                : "Add to list"}
             </Button>
           </Flex>
 
@@ -530,6 +562,7 @@ export function MediaDetailPage() {
             open={addListOpen}
             onOpenChange={setAddListOpen}
             mediaId={data.id}
+            onChanged={reloadMembership}
           />
           {msg && (
             <Text color="green" size="2">
@@ -616,33 +649,79 @@ export function MediaDetailPage() {
             No activity yet — start or mark it {cfg.logPast}.
           </Text>
         )}
-        <Flex direction="column" gap="2">
-          {entries?.map((e) => (
-            <Card key={e.id} size="1">
-              <Flex direction="column" gap="1">
-                <Flex
-                  justify="space-between"
-                  gap="2"
-                  wrap="wrap"
-                  align="center"
-                >
-                  <Flex gap="2" align="center">
-                    <StatusBadge status={e.status} />
-                    {e.progress && (
-                      <Text size="1" color="gray">
-                        {e.progress}
-                      </Text>
-                    )}
+
+        {/* Show-level milestones: starts, completions, rewatches. */}
+        {showMilestones.length > 0 && (
+          <Flex direction="column" gap="2">
+            {showMilestones.map((e) => (
+              <Card key={e.id} size="1">
+                <Flex direction="column" gap="1">
+                  <Flex
+                    justify="space-between"
+                    gap="2"
+                    wrap="wrap"
+                    align="center"
+                  >
+                    <Flex gap="2" align="center">
+                      <StatusBadge status={e.status} />
+                      {e.progress && (
+                        <Text size="1" color="gray">
+                          {e.progress}
+                        </Text>
+                      )}
+                    </Flex>
+                    <Text size="1" color="gray">
+                      {timeAgo(e.finishedAt ?? e.startedAt)}
+                    </Text>
                   </Flex>
-                  <Text size="1" color="gray">
-                    {timeAgo(e.finishedAt ?? e.startedAt)}
+                  {e.note && <Text size="2">{e.note}</Text>}
+                </Flex>
+              </Card>
+            ))}
+          </Flex>
+        )}
+
+        {/* Per-episode watches, compact and labeled by S·E + title. */}
+        {episodeWatches.length > 0 && (
+          <Flex direction="column" gap="1">
+            <Text size="2" weight="medium">
+              Episodes watched ({episodeWatches.length})
+            </Text>
+            {visibleEpisodeWatches.map((e) => (
+              <Flex
+                key={e.id}
+                justify="between"
+                align="center"
+                gap="3"
+                className="episode-log-row"
+              >
+                <Flex gap="2" align="baseline" className="shrink">
+                  <Badge variant="soft" size="1">
+                    S{e.episode!.season.number}·E{e.episode!.number}
+                  </Badge>
+                  <Text size="2" truncate>
+                    {e.episode!.title || `Episode ${e.episode!.number}`}
                   </Text>
                 </Flex>
-                {e.note && <Text size="2">{e.note}</Text>}
+                <Text size="1" color="gray">
+                  {timeAgo(e.finishedAt ?? e.startedAt)}
+                </Text>
               </Flex>
-            </Card>
-          ))}
-        </Flex>
+            ))}
+            {episodeWatches.length > EPISODE_PREVIEW && (
+              <Button
+                size="1"
+                variant="ghost"
+                onClick={() => setShowAllEpisodes((v) => !v)}
+                style={{ alignSelf: "start" }}
+              >
+                {showAllEpisodes
+                  ? "Show less"
+                  : `Show all ${episodeWatches.length}`}
+              </Button>
+            )}
+          </Flex>
+        )}
       </Flex>
 
       {(data.related.length > 0 || showAdmin) && (

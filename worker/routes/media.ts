@@ -1150,6 +1150,17 @@ media.get("/:id/entries", async (c) => {
   const entries = await c.get("prisma").mediaEntry.findMany({
     where: { userId: c.get("user").id, mediaItemId: c.req.param("id") },
     orderBy: { createdAt: "desc" },
+    include: {
+      // Episode label for per-episode entries (null for show-level entries), so
+      // "Your journey" can show "S1·E5 — Old Cases" instead of a bare status.
+      episode: {
+        select: {
+          number: true,
+          title: true,
+          season: { select: { number: true } },
+        },
+      },
+    },
   });
   return c.json(entries);
 });

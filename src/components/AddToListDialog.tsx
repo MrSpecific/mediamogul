@@ -45,7 +45,7 @@ export function AddToListDialog({
     open ? "/me/lists" : null,
   );
   const { data: membership, reload: reloadMembership } = useApiData<{
-    listIds: string[];
+    lists: { id: string; title: string; visibility: string }[];
   }>(open && mediaId ? `/me/lists/containing/${mediaId}` : null);
 
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -57,7 +57,7 @@ export function AddToListDialog({
 
   // Editable lists = owned + lists you collaborate on. Saved lists aren't editable.
   const lists = mine ? [...mine.owned, ...mine.shared] : [];
-  const inList = new Set(membership?.listIds ?? []);
+  const inList = new Set((membership?.lists ?? []).map((l) => l.id));
 
   const afterChange = () => {
     reloadMembership();
