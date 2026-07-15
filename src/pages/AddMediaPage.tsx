@@ -18,6 +18,8 @@ import { Spinner } from "../components/Spinner";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { ManualMediaForm } from "../components/ManualMediaForm";
+import { UpgradeCTA } from "../components/UpgradeCTA";
+import { useMe, hasFeature } from "../lib/features";
 import { NewMediaSuggestionDialog } from "../components/NewMediaSuggestionDialog";
 import { MEDIA_FIELDS } from "../../shared/media-fields";
 import type { MediaCandidate, MediaItem, MediaType } from "../lib/types";
@@ -65,6 +67,8 @@ export function AddMediaPage() {
   const [addedKeys, setAddedKeys] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
+  const { data: me } = useMe();
+  const canManual = hasFeature(me, "manualEntry") || Boolean(me?.isAdmin);
   const lookupControllerRef = useRef<AbortController | null>(null);
 
   async function fetchPage(
@@ -224,7 +228,15 @@ export function AddMediaPage() {
       />
 
       {mode === "manual" ? (
-        <ManualMediaForm />
+        canManual ? (
+          <ManualMediaForm />
+        ) : (
+          <UpgradeCTA title="Manual entry is a Standard feature">
+            Free members add media from search. Upgrade to hand-enter titles
+            that aren't in any public source — perfect for rare or personal
+            items.
+          </UpgradeCTA>
+        )
       ) : (
         <>
           <Text color="gray">

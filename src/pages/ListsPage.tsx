@@ -14,9 +14,12 @@ import {
 import { Plus, Users } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { useMe } from "../lib/features";
 import { Cover } from "../components/Cover";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StarButton } from "../components/StarButton";
+import { UpgradeCTA } from "../components/UpgradeCTA";
+import { type TierId, tierLimit } from "../../shared/tiers";
 import type { ListSummary, Visibility } from "../lib/types";
 import { VISIBILITY_OPTIONS } from "../lib/visibility";
 
@@ -105,10 +108,16 @@ export function ListsPage() {
     saved: ListSummary[];
     shared: ListSummary[];
   }>("/me/lists");
+  const { data: me } = useMe();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("PRIVATE");
   const [saving, setSaving] = useState(false);
+
+  // Free caps owned lists (see shared/tiers.ts). null = unlimited.
+  const listLimit = me?.tier ? tierLimit(me.tier as TierId, "lists") : null;
+  const ownedCount = data?.owned.length ?? 0;
+  const atLimit = listLimit !== null && ownedCount >= listLimit;
 
   const create = async () => {
     if (!title.trim()) return;
@@ -128,10 +137,17 @@ export function ListsPage() {
     <Flex direction="column" gap="5">
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">
         <Heading size="7">Lists</Heading>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => setOpen(true)} disabled={atLimit}>
           <Plus size={16} aria-hidden /> New list
         </Button>
       </Flex>
+
+      {atLimit && (
+        <UpgradeCTA title="You've reached your list limit">
+          Free includes {listLimit} list. Upgrade to Standard for unlimited
+          lists, plus shared lists you can build with friends.
+        </UpgradeCTA>
+      )}
 
       <Dialog
         open={open}

@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { mediaType, username, visibility } from "../schemas";
 import { type TierId, tierLimit } from "../../shared/tiers";
+import { requireFeature } from "../tiers";
 import type { PrismaClient } from "../generated/prisma/client";
 import type { AppEnv } from "../types";
 
@@ -287,6 +288,8 @@ lists.delete("/:id/star", async (c) => {
 
 lists.post(
   "/:id/invite",
+  // Shared/collaborative lists are a Standard feature.
+  requireFeature("sharedLists"),
   zValidator("json", z.object({ username })),
   async (c) => {
     const prisma = c.get("prisma");

@@ -771,6 +771,53 @@ body {
   padding: 0 8px 8px 40px;
 }
 
+/* Public landing page + pricing. */
+.landing {
+  padding: 24px 0 72px;
+}
+.landing .hero {
+  padding: 24px 0 8px;
+}
+.landing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 900px) {
+  .landing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .landing-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+  max-width: 720px;
+}
+@media (max-width: 600px) {
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.pricing-card {
+  width: 100%;
+}
+.welcome {
+  padding: 32px 16px 64px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.upgrade-cta {
+  border: 1px solid var(--amber-6, rgba(245, 158, 11, 0.4));
+  background: var(--amber-a2, rgba(245, 158, 11, 0.06));
+}
+
 /* Collapsible "paste manually" fallback under an auto-search lookup. */
 .manual-fallback > summary {
   cursor: pointer;

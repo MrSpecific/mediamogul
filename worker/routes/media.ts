@@ -19,7 +19,8 @@ import {
   searchWikipedia,
   wikipediaTitleFromUrl,
 } from "../services/wikipedia";
-import { requireAdmin } from "../auth";
+import { isAdmin, requireAdmin } from "../auth";
+import { type TierId, tierHasFeature } from "../../shared/tiers";
 import {
   creditRole,
   entryStatus,
@@ -351,6 +352,13 @@ media.get(
 
 media.post("/", zValidator("json", mediaInput), async (c) => {
   const prisma = c.get("prisma");
+  // Manually entering media is a Standard feature; admins curate freely.
+  if (
+    !tierHasFeature(c.get("profile").tier as TierId, "manualEntry") &&
+    !isAdmin(c.get("user"), c.env, c.get("profile"))
+  ) {
+    return c.json({ error: "upgrade_required", feature: "manualEntry" }, 402);
+  }
   const data = c.req.valid("json");
   const created = await prisma.mediaItem.create({
     data: {

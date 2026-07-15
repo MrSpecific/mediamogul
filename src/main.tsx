@@ -27,6 +27,7 @@ import { PublicMediaPage } from "./pages/PublicMediaPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { ProfileSettingsPage } from "./pages/ProfileSettingsPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
+import { WelcomePage } from "./pages/WelcomePage";
 
 // The app is dark-themed. Neon Auth's UI (Tailwind) keys its dark palette off a
 // `.dark` ancestor, so ensure it's present on <html> regardless of the static
@@ -53,6 +54,7 @@ createRoot(document.getElementById("root")!).render(
 
               {/* Authenticated app. */}
               <Route element={<RequireAuth />}>
+                <Route path="/welcome" element={<WelcomePage />} />
                 <Route path="/" element={<HomePage />} />
                 <Route path="/catalog" element={<CatalogPage />} />
                 <Route path="/catalog/add" element={<AddMediaPage />} />

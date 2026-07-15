@@ -7,10 +7,17 @@ export type TierId = "FREE" | "STANDARD";
 
 /** Feature flags gated by tier. Add flags here as product decisions land. */
 export type FeatureFlag =
-  "unlimitedLists" | "privateReviews" | "advancedStats" | "bulkImport";
+  | "unlimitedLists"
+  | "sharedLists"
+  | "manualEntry"
+  | "privateReviews"
+  | "advancedStats"
+  | "bulkImport";
 
 export const FEATURE_LABELS: Record<FeatureFlag, string> = {
   unlimitedLists: "Unlimited lists",
+  sharedLists: "Shared & collaborative lists",
+  manualEntry: "Add media manually",
   privateReviews: "Private reviews",
   advancedStats: "Advanced stats",
   bulkImport: "Bulk metadata import",
@@ -35,23 +42,28 @@ export const TIERS: Record<TierId, Tier> = {
     id: "FREE",
     name: "Free",
     priceCents: 0,
-    description: "Track your media, rate and review, and build a few lists.",
+    description:
+      "Track everything you watch, read, and listen to — rate, review, and keep one list.",
     features: {
       unlimitedLists: false,
+      sharedLists: false,
+      manualEntry: false,
       privateReviews: true,
       advancedStats: false,
       bulkImport: false,
     },
-    limits: { lists: 5 },
+    limits: { lists: 1 },
   },
   STANDARD: {
     id: "STANDARD",
     name: "Standard",
     priceCents: 199, // $1.99/mo — pinned for now, tweak here anytime.
     description:
-      "Keep the project alive! Everything in Free, plus power-user features.",
+      "Everything in Free, plus unlimited & shared lists, manual entry, and power-user tools.",
     features: {
       unlimitedLists: true,
+      sharedLists: true,
+      manualEntry: true,
       privateReviews: true,
       advancedStats: true,
       bulkImport: true,

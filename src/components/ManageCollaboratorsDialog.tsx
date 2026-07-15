@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Badge, Button, Dialog, Flex, Input, Text } from "@wlcr/base-ic";
 import { UserPlus } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
+import { useMe, hasFeature } from "../lib/features";
+import { UpgradeCTA } from "./UpgradeCTA";
 import type { ListCollaborator } from "../lib/types";
 
 interface Props {
@@ -22,6 +24,8 @@ export function ManageCollaboratorsDialog({
   collaborators,
   onChanged,
 }: Props) {
+  const { data: me } = useMe();
+  const canShare = hasFeature(me, "sharedLists");
   const [inviteName, setInviteName] = useState("");
   const [inviting, setInviting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -79,30 +83,36 @@ export function ManageCollaboratorsDialog({
       description="Invite people to co-edit this list, or remove them."
       content={
         <Flex direction="column" gap="3">
-          <Flex
-            as="form"
-            gap="2"
-            align="center"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void invite();
-            }}
-          >
-            <Input
-              wrapperClassName="grow"
-              placeholder="Invite by @username"
-              value={inviteName}
-              onChange={(e) => setInviteName(e.currentTarget.value)}
-            />
-            <Button
-              type="submit"
-              size="1"
-              loading={inviting}
-              disabled={!inviteName.trim()}
+          {canShare ? (
+            <Flex
+              as="form"
+              gap="2"
+              align="center"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void invite();
+              }}
             >
-              <UserPlus size={14} aria-hidden /> Invite
-            </Button>
-          </Flex>
+              <Input
+                wrapperClassName="grow"
+                placeholder="Invite by @username"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.currentTarget.value)}
+              />
+              <Button
+                type="submit"
+                size="1"
+                loading={inviting}
+                disabled={!inviteName.trim()}
+              >
+                <UserPlus size={14} aria-hidden /> Invite
+              </Button>
+            </Flex>
+          ) : (
+            <UpgradeCTA title="Shared lists are a Standard feature">
+              Upgrade to invite people to co-edit your lists.
+            </UpgradeCTA>
+          )}
           {msg && (
             <Text size="1" color="gray">
               {msg}

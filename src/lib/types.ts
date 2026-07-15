@@ -285,6 +285,7 @@ export interface Profile {
   /** Present on GET /me for the current user. */
   isAdmin?: boolean;
   role?: AppRole;
+  tier?: SubscriptionTier;
   /** Present on profile responses. */
   profilePublic?: boolean;
   deactivatedAt?: string | null;
