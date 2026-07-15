@@ -42,6 +42,8 @@ export interface MediaItem {
   runtimeMinutes: number | null;
   seasons: number | null;
   episodes: number | null;
+  /** Whether the current user has completed this item; set on catalog results. */
+  hasCompleted?: boolean;
 }
 
 export interface Genre {

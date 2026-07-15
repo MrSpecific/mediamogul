@@ -445,16 +445,28 @@ media.get(
           ? [{ releaseDate: "desc" }, { id: "desc" }]
           : [{ createdAt: "desc" }, { id: "desc" }];
 
+    const userId = c.get("user").id;
     const rows = await c.get("prisma").mediaItem.findMany({
       where,
       orderBy,
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: {
+        entries: {
+          where: { userId, status: "COMPLETED", episodeId: null },
+          select: { id: true },
+          take: 1,
+        },
+      },
     });
     const hasMore = rows.length > limit;
     if (hasMore) rows.pop();
     const nextCursor = hasMore ? rows.at(-1)!.id : null;
-    return c.json({ items: rows, nextCursor });
+    const items = rows.map(({ entries, ...item }) => ({
+      ...item,
+      hasCompleted: entries.length > 0,
+    }));
+    return c.json({ items, nextCursor });
   },
 );
 

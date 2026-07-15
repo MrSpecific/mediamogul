@@ -260,6 +260,26 @@ body {
 .media-card-link {
   text-decoration: none;
   color: inherit;
+  transition: all 400ms ease;
+}
+
+.media-card-link:hover {
+  position: relative;
+  bottom: 2px;
+}
+
+.media-card-cover {
+  position: relative;
+}
+
+.media-card-complete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  padding: 0;
 }
 
 .media-description-content {
