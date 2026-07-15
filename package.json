@@ -18,7 +18,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "gen:og": "node scripts/gen-og.mjs",
-    "stripe:webhook-listen": "stripe listen --forward-to localhost:5173/api/billing/webhook"
+    "stripe:webhook-listen": "stripe listen --forward-to localhost:5173/api/billing/webhook",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

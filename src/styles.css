@@ -771,6 +771,16 @@ body {
   padding: 0 8px 8px 40px;
 }
 
+/* Collapsible "paste manually" fallback under an auto-search lookup. */
+.manual-fallback > summary {
+  cursor: pointer;
+  list-style: revert;
+  width: fit-content;
+}
+.manual-fallback[open] > summary {
+  margin-bottom: 8px;
+}
+
 /* Compact per-episode watch rows in "Your journey". */
 .episode-log-row {
   padding: 3px 2px;

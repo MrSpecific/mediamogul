@@ -53,7 +53,10 @@ export function CoverGallery({ type, title, covers, className, admin }: Props) {
     ? ordered.findIndex((cover) => cover.id === selectedId)
     : -1;
   const selected = selectedIndex >= 0 ? ordered[selectedIndex] : undefined;
-  const canOpenLightbox = ordered.length > 1;
+  // Openable whenever there's at least one real cover image — a single cover
+  // still opens the lightbox (just without prev/next). Url-less placeholders
+  // stay non-interactive.
+  const canOpenLightbox = ordered.some((cover) => Boolean(cover.url));
 
   useEffect(() => {
     if (!selected) return;
@@ -78,7 +81,7 @@ export function CoverGallery({ type, title, covers, className, admin }: Props) {
         className={large ? className : undefined}
       />
     );
-    if (!cover || !canOpenLightbox) return artwork;
+    if (!cover || !cover.url || !canOpenLightbox) return artwork;
     return (
       <button
         type="button"

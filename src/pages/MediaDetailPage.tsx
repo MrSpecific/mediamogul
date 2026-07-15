@@ -41,6 +41,7 @@ import { TvSeasons } from "../components/TvSeasons";
 import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { LibbyLookup } from "../components/LibbyLookup";
 import { WikipediaLinkEditor } from "../components/WikipediaLinkEditor";
+import { WikipediaLookup } from "../components/WikipediaLookup";
 import { MediaFeedbackDialog } from "../components/MediaFeedbackDialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -151,6 +152,9 @@ export function MediaDetailPage() {
   // "Completed" rows.
   const showMilestones = entries?.filter((e) => !e.episode) ?? [];
   const episodeWatches = entries?.filter((e) => e.episode) ?? [];
+  // Has the user finished this at least once? De-emphasizes the primary
+  // start/complete actions (they become gray) once they have.
+  const hasConsumed = showMilestones.some((e) => e.status === "COMPLETED");
   const EPISODE_PREVIEW = 6;
   const visibleEpisodeWatches = showAllEpisodes
     ? episodeWatches
@@ -533,15 +537,20 @@ export function MediaDetailPage() {
             ) : (
               <>
                 <Button
+                  color={hasConsumed ? "gray" : undefined}
                   onClick={() => {
                     setPrefillStars(null);
                     setCompleteOpen(true);
                   }}
                 >
-                  Mark as {cfg.logPast}
+                  {hasConsumed ? `Re-${cfg.logVerb}` : `Mark as ${cfg.logPast}`}
                 </Button>
-                <Button variant="soft" onClick={() => void start()}>
-                  Start {gerund}
+                <Button
+                  variant="soft"
+                  color={hasConsumed ? "gray" : undefined}
+                  onClick={() => void start()}
+                >
+                  {hasConsumed ? `Start re-${gerund}` : `Start ${gerund}`}
                 </Button>
               </>
             )}
@@ -573,7 +582,7 @@ export function MediaDetailPage() {
                   to={`/lists/${l.id}`}
                   className="media-card-link"
                 >
-                  <Badge variant="soft" size="1">
+                  <Badge variant="soft" size="1" color="gray">
                     {l.title}
                   </Badge>
                 </Link>
@@ -878,6 +887,7 @@ export function MediaDetailPage() {
               <LibbyLookup
                 mediaId={data.id}
                 title={data.title}
+                currentType={data.type}
                 currentLibbyId={libby?.value}
                 onChanged={reload}
               />
@@ -885,15 +895,28 @@ export function MediaDetailPage() {
           </Card>
 
           <Card size="2">
-            <Flex direction="column" gap="2">
+            <Flex direction="column" gap="3">
               <Text size="2" weight="medium">
                 Wikipedia
               </Text>
-              <WikipediaLinkEditor
+              <WikipediaLookup
                 mediaId={data.id}
+                title={data.title}
                 currentUrl={data.wikipediaUrl}
                 onChanged={reload}
               />
+              <details className="manual-fallback">
+                <summary>
+                  <Text size="1" color="gray">
+                    Or paste a link manually
+                  </Text>
+                </summary>
+                <WikipediaLinkEditor
+                  mediaId={data.id}
+                  currentUrl={data.wikipediaUrl}
+                  onChanged={reload}
+                />
+              </details>
             </Flex>
           </Card>
 

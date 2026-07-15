@@ -14,6 +14,11 @@ import { deleteImage, uploadImage } from "../services/storage";
 import { type CoverSource, searchCovers } from "../services/covers";
 import { linkGenres, resolveGenreId } from "../services/genres";
 import { libbyTitleUrl, searchLibby } from "../services/libby";
+import {
+  fetchWikipediaExtract,
+  searchWikipedia,
+  wikipediaTitleFromUrl,
+} from "../services/wikipedia";
 import { requireAdmin } from "../auth";
 import {
   creditRole,
@@ -1450,6 +1455,20 @@ media.post("/:id/rescrape", requireAdmin, async (c) => {
     results[0] ??
     null;
 
+  // Movies/TV come from Wikidata, which has no long synopsis. Fill that gap from
+  // Wikipedia's article intro so re-scrape can propose a real synopsis.
+  if (
+    candidate &&
+    !candidate.synopsis &&
+    (item.type === "MOVIE" || item.type === "TV_SHOW")
+  ) {
+    const wiki = await searchWikipedia(item.title, 1).catch(() => []);
+    if (wiki[0]?.extract) {
+      candidate.synopsis = wiki[0].extract;
+      candidate.shortDescription ??= wiki[0].description;
+    }
+  }
+
   return c.json({
     candidate,
     current: {
@@ -1562,18 +1581,53 @@ media.post(
   },
 );
 
-// --- Libby / OverDrive linking ---------------------------------------------
+// --- Wikipedia linking ------------------------------------------------------
 
+/** Admin: search Wikipedia for this item (defaults to the item's title). */
+media.get("/:id/wikipedia/search", requireAdmin, async (c) => {
+  const prisma = c.get("prisma");
+  const item = await prisma.mediaItem.findUnique({
+    where: { id: c.req.param("id") },
+    select: { title: true },
+  });
+  if (!item) return c.json({ error: "not_found" }, 404);
+  const q = c.req.query("q")?.trim() || item.title;
+  return c.json(await searchWikipedia(q));
+});
+
+/**
+ * Admin: set (or clear) the Wikipedia link. Optionally adopt the article's
+ * intro as the synopsis — either passed directly (`synopsis`, from a chosen
+ * search result) or `adoptSynopsis: true` to fetch the extract for the URL.
+ */
 media.put(
   "/:id/wikipedia",
   requireAdmin,
-  zValidator("json", z.object({ url: z.string().url().max(1000).nullable() })),
+  zValidator(
+    "json",
+    z.object({
+      url: z.string().url().max(1000).nullable(),
+      synopsis: z.string().max(10000).optional(),
+      adoptSynopsis: z.boolean().optional(),
+    }),
+  ),
   async (c) => {
+    const { url, synopsis, adoptSynopsis } = c.req.valid("json");
+
+    let nextSynopsis = synopsis;
+    if (nextSynopsis == null && adoptSynopsis && url) {
+      const title = wikipediaTitleFromUrl(url);
+      if (title) nextSynopsis = (await fetchWikipediaExtract(title)) ?? undefined;
+    }
+
     const item = await c.get("prisma").mediaItem
       .update({
         where: { id: c.req.param("id") },
-        data: { wikipediaUrl: c.req.valid("json").url },
-        select: { wikipediaUrl: true },
+        data: {
+          wikipediaUrl: url,
+          ...(nextSynopsis ? { synopsis: nextSynopsis } : {}),
+        },
+        select: { wikipediaUrl: true, synopsis: true },
       })
       .catch(() => null);
     if (!item) return c.json({ error: "not_found" }, 404);
@@ -1581,16 +1635,149 @@ media.put(
   },
 );
 
-/** Admin: search Libby for this item (defaults to the item's title). */
+// --- Libby / OverDrive linking ---------------------------------------------
+
+/** Map a Libby/OverDrive format to our MediaType (null = unsupported). */
+function libbyFormatToType(format?: string): MediaType | null {
+  switch ((format ?? "").toLowerCase()) {
+    case "ebook":
+    case "book":
+      return "BOOK";
+    case "audiobook":
+      return "AUDIOBOOK";
+    case "magazine":
+      return "MAGAZINE";
+    default:
+      return null;
+  }
+}
+
+/** Admin: search Libby for this item (defaults to the item's title). Each
+ *  result is tagged with our mapped media type and whether that Libby title is
+ *  already in our catalog — so the UI can offer an "import alternate format". */
 media.get("/:id/libby/search", requireAdmin, async (c) => {
-  const item = await c.get("prisma").mediaItem.findUnique({
+  const prisma = c.get("prisma");
+  const item = await prisma.mediaItem.findUnique({
     where: { id: c.req.param("id") },
     select: { title: true },
   });
   if (!item) return c.json({ error: "not_found" }, 404);
   const q = c.req.query("q") || item.title;
-  return c.json(await searchLibby(q, c.env.LIBBY_LIBRARY_KEY));
+  const results = await searchLibby(q, c.env.LIBBY_LIBRARY_KEY);
+
+  const existing = await prisma.externalId.findMany({
+    where: { source: "LIBBY", value: { in: results.map((r) => r.id) } },
+    select: { value: true, mediaItemId: true },
+  });
+  const existMap = new Map(existing.map((e) => [e.value, e.mediaItemId]));
+
+  return c.json(
+    results.map((r) => ({
+      ...r,
+      mediaType: libbyFormatToType(r.format),
+      existingId: existMap.get(r.id) ?? null,
+    })),
+  );
 });
+
+/**
+ * Admin: import a Libby result that's a DIFFERENT format than the current item
+ * (e.g. the audiobook of a book) as its own catalog entry, and link the two as
+ * ALTERNATE_FORMAT. Idempotent: if the Libby title already exists, it just
+ * ensures the relation.
+ */
+media.post(
+  "/:id/libby/import-alternate",
+  requireAdmin,
+  zValidator(
+    "json",
+    z.object({
+      libbyId: z.string().min(1),
+      title: z.string().min(1).max(500),
+      subtitle: z.string().max(500).optional(),
+      creator: z.string().max(300).optional(),
+      coverUrl: z.string().url().optional(),
+      format: z.string().max(40).optional(),
+      seriesName: z.string().max(300).optional(),
+      seriesPosition: z.number().int().optional(),
+    }),
+  ),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const fromId = c.req.param("id");
+    const b = c.req.valid("json");
+    const type = libbyFormatToType(b.format);
+    if (!type) return c.json({ error: "unsupported_format" }, 400);
+
+    // Reuse an existing catalog entry for this Libby title if there is one.
+    const existing = await prisma.externalId.findFirst({
+      where: { source: "LIBBY", value: b.libbyId },
+      select: { mediaItemId: true },
+    });
+    let targetId = existing?.mediaItemId;
+
+    if (!targetId) {
+      const url = libbyTitleUrl(b.libbyId);
+      const created = await prisma.mediaItem.create({
+        data: {
+          type,
+          title: b.title,
+          subtitle: b.subtitle,
+          source: "SCRAPED",
+          createdById: c.get("user").id,
+        },
+      });
+      targetId = created.id;
+      await prisma.externalId
+        .create({
+          data: { mediaItemId: created.id, source: "LIBBY", value: b.libbyId, url },
+        })
+        .catch(() => null);
+      if (b.creator) {
+        await prisma.credit.create({
+          data: {
+            mediaItemId: created.id,
+            role: "AUTHOR",
+            name: b.creator,
+            position: 0,
+          },
+        });
+      }
+      if (b.coverUrl) {
+        await ingestRemoteCover(c, created.id, {
+          imageUrl: b.coverUrl,
+          sourceName: "Libby / OverDrive",
+          sourceUrl: url,
+        });
+      }
+      if (b.seriesName) {
+        await saveSeries(
+          prisma,
+          created.id,
+          b.seriesName,
+          b.seriesPosition,
+          c.get("user").id,
+        );
+      }
+    }
+
+    await prisma.mediaRelation
+      .upsert({
+        where: {
+          fromId_toId_type: {
+            fromId,
+            toId: targetId,
+            type: "ALTERNATE_FORMAT",
+          },
+        },
+        create: { fromId, toId: targetId, type: "ALTERNATE_FORMAT" },
+        update: {},
+      })
+      .catch(() => null);
+
+    return c.json({ id: targetId, created: !existing }, 201);
+  },
+);
 
 /** Admin: link a Libby title id to this item, optionally adopting its cover. */
 media.post(
