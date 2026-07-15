@@ -22,8 +22,14 @@ export function LoadMore({
 }: LoadMoreProps) {
   if (!hasMore) return null;
   return (
-    <Flex justify="center">
-      <Button variant="soft" onClick={onLoadMore} disabled={loading}>
+    <Flex justify="center" py="6">
+      <Button
+        variant="soft"
+        onClick={onLoadMore}
+        disabled={loading}
+        size="4"
+        style={{ minWidth: "330px" }}
+      >
         {loading ? "Loading…" : label}
       </Button>
     </Flex>
