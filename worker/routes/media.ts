@@ -378,6 +378,14 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
       c.get("user").id,
     );
   }
+  // New TV shows automatically pull their season/episode guide (best-effort).
+  if (created.type === "TV_SHOW") {
+    await importAndPersistSeasons(prisma, c.env, {
+      id: created.id,
+      title: created.title,
+      externalIds: data.externalIds ?? [],
+    }).catch((err) => console.error("auto season import failed:", err));
+  }
   const item = await prisma.mediaItem.findUnique({
     where: { id: created.id },
     include: withRelations,
@@ -446,6 +454,15 @@ media.post(
         cand.seriesPosition,
         c.get("user").id,
       );
+    }
+    // New TV shows automatically pull their season/episode guide (best-effort;
+    // a lookup miss or source hiccup must not fail the add).
+    if (created.type === "TV_SHOW") {
+      await importAndPersistSeasons(prisma, c.env, {
+        id: created.id,
+        title: created.title,
+        externalIds: cand.externalIds ?? [],
+      }).catch((err) => console.error("auto season import failed:", err));
     }
     const item = await prisma.mediaItem.findUnique({
       where: { id: created.id },
@@ -825,29 +842,23 @@ media.post(
  * Resolves the show from a stored TMDB/IMDB id (or the title), then upserts
  * every season and episode (idempotent — safe to re-run to refresh metadata).
  */
-media.post("/:id/seasons/import", requireAdmin, async (c) => {
-  const prisma = c.get("prisma");
-  const id = c.req.param("id");
-  const item = await prisma.mediaItem.findUnique({
-    where: { id },
-    select: {
-      title: true,
-      type: true,
-      externalIds: { select: { source: true, value: true } },
-    },
-  });
-  if (!item) return c.json({ error: "not_found" }, 404);
-  if (item.type !== "TV_SHOW") return c.json({ error: "not_a_show" }, 400);
-
+/**
+ * Resolve + fetch a show's episode guide (TVmaze first, TMDB fallback) and
+ * upsert its seasons/episodes/credits. Idempotent. Shared by the manual import
+ * endpoint and the automatic import that runs when a TV show is first added.
+ */
+async function importAndPersistSeasons(
+  prisma: AppEnv["Variables"]["prisma"],
+  env: Env,
+  item: { id: string; title: string; externalIds: { source: string; value: string }[] },
+): Promise<{ source: "tvmaze" | "tmdb" | null; seasons: number; episodes: number }> {
+  const id = item.id;
   const tmdbId = item.externalIds.find((e) => e.source === "TMDB")?.value;
   const imdbId = item.externalIds.find((e) => e.source === "IMDB")?.value;
 
-  const result = await importSeasons(
-    { tmdbId, imdbId, title: item.title },
-    c.env,
-  );
+  const result = await importSeasons({ tmdbId, imdbId, title: item.title }, env);
   if (result.seasons.length === 0) {
-    return c.json({ error: "not_found_on_sources" }, 404);
+    return { source: null, seasons: 0, episodes: 0 };
   }
 
   let seasonCount = 0;
@@ -923,11 +934,30 @@ media.post("/:id/seasons/import", requireAdmin, async (c) => {
       .catch(() => undefined);
   }
 
-  return c.json({
-    source: result.source,
-    seasons: seasonCount,
-    episodes: episodeCount,
+  return { source: result.source, seasons: seasonCount, episodes: episodeCount };
+}
+
+media.post("/:id/seasons/import", requireAdmin, async (c) => {
+  const prisma = c.get("prisma");
+  const id = c.req.param("id");
+  const item = await prisma.mediaItem.findUnique({
+    where: { id },
+    select: {
+      title: true,
+      type: true,
+      externalIds: { select: { source: true, value: true } },
+    },
   });
+  if (!item) return c.json({ error: "not_found" }, 404);
+  if (item.type !== "TV_SHOW") return c.json({ error: "not_a_show" }, 400);
+
+  const r = await importAndPersistSeasons(prisma, c.env, {
+    id,
+    title: item.title,
+    externalIds: item.externalIds,
+  });
+  if (r.seasons === 0) return c.json({ error: "not_found_on_sources" }, 404);
+  return c.json(r);
 });
 
 /** Admin: delete a season (cascades to its episodes + their entries). */

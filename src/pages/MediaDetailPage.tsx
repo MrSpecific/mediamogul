@@ -53,7 +53,7 @@ import { timeAgo } from "../lib/time";
 import {
   RELATION_LABELS,
   VISIBILITY_OPTIONS,
-  type ListSummary,
+  // type ListSummary,
   type MediaDetail,
   type MediaEntry,
   type MediaItem,
@@ -453,7 +453,7 @@ export function MediaDetailPage() {
           {factsOf(data).length > 0 && (
             <Flex gap="5" wrap="wrap">
               {factsOf(data).map((f) => (
-                <Flex key={f.label} direction="column">
+                <Flex key={f.label} direction="column" gap="0">
                   <Text size="1" color="gray">
                     {f.label}
                   </Text>
@@ -609,6 +609,7 @@ export function MediaDetailPage() {
                 label="Share"
                 copiedLabel="Link copied!"
                 icon={<Share2 size={14} aria-hidden />}
+                color="cyan"
               />
             )}
           </Flex>

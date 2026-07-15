@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Button } from "@wlcr/base-ic";
+import { Button, type Color } from "@wlcr/base-ic";
 import { Check } from "lucide-react";
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   variant?: "solid" | "soft" | "surface" | "outline" | "ghost";
   /** Optional leading icon (shown until copied, then a check). */
   icon?: ReactNode;
+  color?: Color;
 }
 
 /** Copies `value` to the clipboard, showing a transient confirmation. */
@@ -20,6 +21,7 @@ export function CopyButton({
   size = "1",
   variant = "soft",
   icon,
+  color,
 }: Props) {
   const [copied, setCopied] = useState(false);
 
@@ -36,7 +38,12 @@ export function CopyButton({
   const iconSize = size === "1" ? 14 : 16;
 
   return (
-    <Button size={size} variant={variant} onClick={() => void copy()}>
+    <Button
+      size={size}
+      variant={variant}
+      color={color}
+      onClick={() => void copy()}
+    >
       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
         {copied ? <Check size={iconSize} aria-hidden /> : icon}
         {copied ? copiedLabel : label}
