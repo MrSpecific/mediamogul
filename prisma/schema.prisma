@@ -440,6 +440,7 @@ model Episode {
   number         Int // episode number within the season
   title          String?
   synopsis       String?
+  director       String? // primary director, when a source provides it (e.g. TMDB)
   runtimeMinutes Int?      @map("runtime_minutes")
   airDate        DateTime? @map("air_date")
   createdAt      DateTime  @default(now()) @map("created_at")
