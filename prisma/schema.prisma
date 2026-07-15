@@ -81,6 +81,21 @@ enum SubscriptionTier {
   STANDARD
 }
 
+/// Major streaming platforms we can link a movie/TV show out to. "Available to
+/// stream" only (no rent/buy). Extend as needed.
+enum StreamingProvider {
+  NETFLIX
+  MAX // HBO Max / Max
+  APPLE_TV
+  HULU
+  PARAMOUNT_PLUS
+  DISNEY_PLUS
+  PRIME_VIDEO
+  PEACOCK
+  TUBI
+  STARZ
+}
+
 /// The kind of contribution a person made to a media item.
 enum CreditRole {
   AUTHOR // books
@@ -231,6 +246,7 @@ model MediaItem {
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
   externalIds       ExternalId[]
+  streaming         StreamingAvailability[]
   credits           Credit[]
   genres            MediaGenre[]
   assets            MediaAsset[]
@@ -251,6 +267,25 @@ model MediaItem {
   // Scheduled-refresh queue: eligible items by type, ordered by staleness.
   @@index([type, refreshEnabled, lastRefreshedAt])
   @@map("media_items")
+}
+
+/// Where a movie/TV show can be streamed, with a deep link out. "Available to
+/// stream" only (no rent/buy). Region-scoped (default US) for future expansion.
+/// Manually curated today; structured for automated population/refresh later.
+model StreamingAvailability {
+  id          String            @id @default(uuid())
+  mediaItemId String            @map("media_item_id")
+  mediaItem   MediaItem         @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  provider    StreamingProvider
+  region      String            @default("US")
+  url         String
+  addedById   String?           @map("added_by_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@unique([mediaItemId, provider, region])
+  @@index([mediaItemId])
+  @@map("streaming_availability")
 }
 
 /// Singleton runtime config for scheduled discovery/refresh (see the admin
