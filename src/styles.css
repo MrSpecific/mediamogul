@@ -731,17 +731,44 @@ body {
   text-align: right;
 }
 
-/* Title column: title on top, runtime + air date beneath. Grows so the watch
+/* Title column: title on top, director/runtime/air date beneath. It's a button
+   (toggles the synopsis) styled to read as plain text; grows so the watch
    button sits flush right. */
 .episode-title {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.episode-title:disabled {
+  cursor: default;
+}
+
+.episode-caret {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 3px;
+  color: var(--color-gray-9, #888);
 }
 
 .episode-row.watched .episode-title {
   color: var(--color-gray-10, #aaa);
+}
+
+/* Expandable synopsis beneath a row. */
+.episode-synopsis {
+  display: block;
+  padding: 0 8px 8px 40px;
 }
 
 /* Re-scrape diff rows */

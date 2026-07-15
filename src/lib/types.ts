@@ -117,6 +117,7 @@ export interface Episode {
   number: number;
   title: string | null;
   synopsis: string | null;
+  director: string | null;
   runtimeMinutes: number | null;
   airDate: string | null;
 }

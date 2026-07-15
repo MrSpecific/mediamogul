@@ -9,7 +9,7 @@ import {
   Progress,
   Text,
 } from "@wlcr/base-ic";
-import { Check, Download, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Download, Plus, Trash2 } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { apiSend, ApiError } from "../lib/api";
 import { formatRuntime } from "../../shared/media-fields";
@@ -46,6 +46,15 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
   const [episodeCount, setEpisodeCount] = useState("");
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (episodeId: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(episodeId)) next.delete(episodeId);
+      else next.add(episodeId);
+      return next;
+    });
 
   if (!data) return null;
 
@@ -235,42 +244,63 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
                   {s.episodes.map((e) => {
                     const isWatched = watched.has(e.id);
                     const meta = [
+                      e.director ? `Dir. ${e.director}` : null,
                       e.runtimeMinutes ? formatRuntime(e.runtimeMinutes) : null,
                       e.airDate ? formatAirDate(e.airDate) : null,
                     ].filter(Boolean);
+                    const canExpand = Boolean(e.synopsis);
+                    const isExpanded = expanded.has(e.id);
                     return (
-                      <div
-                        key={e.id}
-                        className={`episode-row${isWatched ? " watched" : ""}`}
-                      >
-                        <Text size="2" className="episode-num">
-                          {e.number}
-                        </Text>
-                        <div className="episode-title">
-                          <Text size="2" truncate>
-                            {e.title || `Episode ${e.number}`}
-                          </Text>
-                          {meta.length > 0 && (
-                            <Text size="1" color="gray">
-                              {meta.join(" · ")}
-                            </Text>
-                          )}
-                        </div>
-                        <Button
-                          size="1"
-                          variant="soft"
-                          color={isWatched ? "green" : "gray"}
-                          loading={busy === e.id}
-                          onClick={() => void toggleEpisode(e.id)}
+                      <div key={e.id} className="episode-item">
+                        <div
+                          className={`episode-row${isWatched ? " watched" : ""}`}
                         >
-                          {isWatched ? (
-                            <>
-                              <Check size={14} aria-hidden /> Watched
-                            </>
-                          ) : (
-                            "Mark watched"
-                          )}
-                        </Button>
+                          <Text size="2" className="episode-num">
+                            {e.number}
+                          </Text>
+                          <button
+                            type="button"
+                            className="episode-title"
+                            disabled={!canExpand}
+                            aria-expanded={canExpand ? isExpanded : undefined}
+                            onClick={() => canExpand && toggleExpanded(e.id)}
+                          >
+                            <Text size="2" truncate>
+                              {canExpand &&
+                                (isExpanded ? (
+                                  <ChevronDown size={13} aria-hidden className="episode-caret" />
+                                ) : (
+                                  <ChevronRight size={13} aria-hidden className="episode-caret" />
+                                ))}
+                              {e.title || `Episode ${e.number}`}
+                            </Text>
+                            {meta.length > 0 && (
+                              <Text size="1" color="gray">
+                                {meta.join(" · ")}
+                              </Text>
+                            )}
+                          </button>
+                          <Button
+                            size="1"
+                            variant="soft"
+                            color={isWatched ? "green" : "gray"}
+                            loading={busy === e.id}
+                            onClick={() => void toggleEpisode(e.id)}
+                          >
+                            {isWatched ? (
+                              <>
+                                <Check size={14} aria-hidden /> Watched
+                              </>
+                            ) : (
+                              "Mark watched"
+                            )}
+                          </Button>
+                        </div>
+                        {isExpanded && e.synopsis && (
+                          <Text size="1" color="gray" className="episode-synopsis">
+                            {e.synopsis}
+                          </Text>
+                        )}
                       </div>
                     );
                   })}

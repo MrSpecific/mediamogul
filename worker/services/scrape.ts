@@ -343,8 +343,14 @@ export interface ImportedEpisode {
   number: number;
   title?: string;
   synopsis?: string;
+  director?: string;
   runtimeMinutes?: number;
   airDate?: string;
+}
+/** Show-level crew credit captured during an episode-guide import. */
+export interface ImportedShowCredit {
+  role: "CREATOR" | "DIRECTOR";
+  name: string;
 }
 export interface ImportedSeason {
   number: number;
@@ -391,22 +397,33 @@ async function resolveTmdbTvId(
 export async function importTmdbSeasons(
   opts: { tmdbId?: string; imdbId?: string; title?: string },
   apiKey?: string,
-): Promise<{ tvId: number | null; seasons: ImportedSeason[] }> {
+): Promise<{
+  tvId: number | null;
+  seasons: ImportedSeason[];
+  credits: ImportedShowCredit[];
+}> {
   if (!apiKey) {
     throw new Error(
       "TMDB lookup is not configured. Set TMDB_API_KEY (wrangler secret put TMDB_API_KEY).",
     );
   }
   const tvId = await resolveTmdbTvId(opts, apiKey);
-  if (tvId == null) return { tvId: null, seasons: [] };
+  if (tvId == null) return { tvId: null, seasons: [], credits: [] };
 
   const showRes = await fetch(`${TMDB}/tv/${tvId}?api_key=${apiKey}`, {
     headers: { Accept: "application/json" },
   });
-  if (!showRes.ok) return { tvId, seasons: [] };
+  if (!showRes.ok) return { tvId, seasons: [], credits: [] };
   const show = (await showRes.json()) as {
+    created_by?: { name?: string }[];
     seasons?: { season_number: number; name?: string; air_date?: string }[];
   };
+
+  // Show-level creators.
+  const credits: ImportedShowCredit[] = (show.created_by ?? [])
+    .map((c) => c.name)
+    .filter((n): n is string => Boolean(n))
+    .map((name) => ({ role: "CREATOR" as const, name }));
 
   const seasons: ImportedSeason[] = [];
   for (const s of (show.seasons ?? []).filter((s) => s.season_number >= 1)) {
@@ -422,6 +439,7 @@ export async function importTmdbSeasons(
         overview?: string;
         runtime?: number;
         air_date?: string;
+        crew?: { job?: string; name?: string }[];
       }[];
     };
     seasons.push({
@@ -432,12 +450,14 @@ export async function importTmdbSeasons(
         number: e.episode_number,
         title: e.name || undefined,
         synopsis: e.overview || undefined,
+        // Per-episode director from the season's crew list (TMDB only).
+        director: (e.crew ?? []).find((x) => x.job === "Director")?.name,
         runtimeMinutes: e.runtime || undefined,
         airDate: e.air_date || undefined,
       })),
     });
   }
-  return { tvId, seasons };
+  return { tvId, seasons, credits };
 }
 
 // ---------------------------------------------------------------------------
@@ -481,23 +501,43 @@ async function resolveTvmazeId(opts: {
   return null;
 }
 
-/** Full season/episode guide from TVmaze. Skips season 0 (specials). */
+/** Full season/episode guide from TVmaze, plus show-level crew. TVmaze does not
+ *  expose per-episode directors, so `episode.director` stays undefined here.
+ *  Skips season 0 (specials). */
 export async function importTvmazeSeasons(opts: {
   imdbId?: string;
   title?: string;
-}): Promise<ImportedSeason[]> {
+}): Promise<{ seasons: ImportedSeason[]; credits: ImportedShowCredit[] }> {
   const showId = await resolveTvmazeId(opts);
-  if (showId == null) return [];
+  if (showId == null) return { seasons: [], credits: [] };
 
-  const [seasonsRes, epsRes] = await Promise.all([
+  const [seasonsRes, epsRes, crewRes] = await Promise.all([
     fetch(`${TVMAZE}/shows/${showId}/seasons`, {
       headers: { Accept: "application/json" },
     }),
     fetch(`${TVMAZE}/shows/${showId}/episodes`, {
       headers: { Accept: "application/json" },
     }),
+    fetch(`${TVMAZE}/shows/${showId}/crew`, {
+      headers: { Accept: "application/json" },
+    }),
   ]);
-  if (!epsRes.ok) return [];
+  if (!epsRes.ok) return { seasons: [], credits: [] };
+
+  // Show-level crew → Creator/Director credits (dedup by name).
+  const crew = crewRes.ok
+    ? ((await crewRes.json()) as { type?: string; person?: { name?: string } }[])
+    : [];
+  const seen = new Set<string>();
+  const credits: ImportedShowCredit[] = [];
+  for (const c of crew) {
+    const name = c.person?.name;
+    const role =
+      c.type === "Creator" ? "CREATOR" : c.type === "Director" ? "DIRECTOR" : null;
+    if (!name || !role || seen.has(`${role}:${name}`)) continue;
+    seen.add(`${role}:${name}`);
+    credits.push({ role, name });
+  }
   const seasonMeta = seasonsRes.ok
     ? ((await seasonsRes.json()) as {
         number: number;
@@ -538,9 +578,10 @@ export async function importTvmazeSeasons(opts: {
       airDate: e.airdate || undefined,
     });
   }
-  return [...byNumber.values()]
+  const seasons = [...byNumber.values()]
     .filter((s) => s.number >= 1)
     .sort((a, b) => a.number - b.number);
+  return { seasons, credits };
 }
 
 /**
@@ -550,19 +591,39 @@ export async function importTvmazeSeasons(opts: {
 export async function importSeasons(
   opts: { tmdbId?: string; imdbId?: string; title?: string },
   env: { TMDB_API_KEY?: string },
-): Promise<{ source: "tvmaze" | "tmdb" | null; tvId: number | null; seasons: ImportedSeason[] }> {
-  const tvmaze = await importTvmazeSeasons(opts).catch(() => []);
-  if (tvmaze.length) return { source: "tvmaze", tvId: null, seasons: tvmaze };
+): Promise<{
+  source: "tvmaze" | "tmdb" | null;
+  tvId: number | null;
+  seasons: ImportedSeason[];
+  credits: ImportedShowCredit[];
+}> {
+  const tvmaze = await importTvmazeSeasons(opts).catch(() => ({
+    seasons: [] as ImportedSeason[],
+    credits: [] as ImportedShowCredit[],
+  }));
+  if (tvmaze.seasons.length)
+    return {
+      source: "tvmaze",
+      tvId: null,
+      seasons: tvmaze.seasons,
+      credits: tvmaze.credits,
+    };
 
   if (env.TMDB_API_KEY) {
     const tmdb = await importTmdbSeasons(opts, env.TMDB_API_KEY).catch(() => ({
       tvId: null,
-      seasons: [],
+      seasons: [] as ImportedSeason[],
+      credits: [] as ImportedShowCredit[],
     }));
     if (tmdb.seasons.length)
-      return { source: "tmdb", tvId: tmdb.tvId, seasons: tmdb.seasons };
+      return {
+        source: "tmdb",
+        tvId: tmdb.tvId,
+        seasons: tmdb.seasons,
+        credits: tmdb.credits,
+      };
   }
-  return { source: null, tvId: null, seasons: [] };
+  return { source: null, tvId: null, seasons: [], credits: [] };
 }
 
 // ---------------------------------------------------------------------------

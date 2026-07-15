@@ -869,17 +869,43 @@ media.post("/:id/seasons/import", requireAdmin, async (c) => {
           number: e.number,
           title: e.title,
           synopsis: e.synopsis,
+          director: e.director,
           runtimeMinutes: e.runtimeMinutes,
           airDate: epAir,
         },
         update: {
           title: e.title,
           synopsis: e.synopsis,
+          director: e.director,
           runtimeMinutes: e.runtimeMinutes,
           airDate: epAir,
         },
       });
       episodeCount += 1;
+    }
+  }
+
+  // Add any show-level crew (creator/director) we don't already have, so the
+  // byline is populated even for shows added without credits. Dedup by role+name.
+  if (result.credits.length > 0) {
+    const existing = await prisma.credit.findMany({
+      where: { mediaItemId: id },
+      select: { role: true, name: true },
+    });
+    const have = new Set(existing.map((c) => `${c.role}:${c.name}`));
+    const fresh = result.credits.filter(
+      (c) => !have.has(`${c.role}:${c.name}`),
+    );
+    if (fresh.length > 0) {
+      const base = existing.length;
+      await prisma.credit.createMany({
+        data: fresh.map((c, i) => ({
+          mediaItemId: id,
+          role: c.role,
+          name: c.name,
+          position: base + i,
+        })),
+      });
     }
   }
 
