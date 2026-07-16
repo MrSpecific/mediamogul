@@ -1,17 +1,35 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
-import { PlusCircle, Star, Tv } from "lucide-react";
+import {
+  BookSearchIcon,
+  ListCheckIcon,
+  PlusCircle,
+  PlusCircleIcon,
+  Sparkles,
+  Star,
+  Tv,
+  UserCheckIcon,
+} from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StatusBadge } from "../components/StatusBadge";
+import { RecCard } from "../components/RecCard";
 import { formatDate, timeAgo } from "../lib/time";
-import type { ActivityItem, ListSummary, Profile } from "../lib/types";
+import type {
+  ActivityItem,
+  ListSummary,
+  Profile,
+  Recommendation,
+} from "../lib/types";
 
 export function HomePage() {
   const navigate = useNavigate();
   const { data: me } = useApiData<Profile>("/me");
   const { data: activity } = useApiData<ActivityItem[]>("/me/activity");
   const { data: starred } = useApiData<ListSummary[]>("/me/starred");
+  const { data: recommendations } = useApiData<Recommendation[]>(
+    "/me/recommendations",
+  );
 
   return (
     <Flex direction="column" gap="5">
@@ -26,14 +44,49 @@ export function HomePage() {
       </Heading>
 
       <Flex gap="3" wrap="wrap">
-        <Button onClick={() => navigate("/catalog")}>Browse catalog</Button>
-        <Button variant="soft" onClick={() => navigate("/catalog/add")}>
+        <Button onClick={() => navigate("/catalog")}>
+          <BookSearchIcon size={16} aria-hidden />
+          Browse catalog
+        </Button>
+        <Button
+          variant="soft"
+          onClick={() => navigate("/catalog/add")}
+          color="green"
+        >
+          <PlusCircleIcon size={16} aria-hidden />
           Add media
         </Button>
         <Button variant="soft" onClick={() => navigate("/lists")}>
+          <ListCheckIcon size={16} aria-hidden />
           Your lists
         </Button>
+        <Button
+          variant="soft"
+          onClick={() => navigate("/following")}
+          color="teal"
+        >
+          <UserCheckIcon size={16} aria-hidden />
+          Following
+        </Button>
       </Flex>
+
+      {recommendations && recommendations.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Flex gap="2" align="center">
+            <Sparkles size={18} aria-hidden className="dim-icon" />
+            <Heading size="4">Recommended for you</Heading>
+          </Flex>
+          <div className="media-grid">
+            {recommendations.map((rec) => (
+              <RecCard
+                key={rec.media.id}
+                media={rec.media}
+                reason={rec.reason}
+              />
+            ))}
+          </div>
+        </Flex>
+      )}
 
       {starred && starred.length > 0 && (
         <Flex direction="column" gap="3">

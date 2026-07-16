@@ -739,6 +739,28 @@ body {
   left: 3px;
 }
 
+/* Inline remove affordance inside a genre badge (admin genre editor). */
+.badge-remove {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.badge-remove:hover {
+  opacity: 1;
+}
+
+.badge-remove:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 /* Admin submission scrape-merge field rows. */
 .scrape-field {
   display: flex;

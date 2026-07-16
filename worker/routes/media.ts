@@ -19,6 +19,11 @@ import {
   searchWikipedia,
   wikipediaTitleFromUrl,
 } from "../services/wikipedia";
+import {
+  FEATURE_SELECT,
+  featuresOf,
+  scoreSimilarity,
+} from "../services/recommend";
 import { isAdmin, requireAdmin } from "../auth";
 import { type TierId, tierHasFeature } from "../../shared/tiers";
 import {
@@ -1332,6 +1337,67 @@ media.get("/:id", async (c) => {
   });
 });
 
+/**
+ * "More like this": content-based neighbours of one item, scored by shared
+ * genres/creators/cast/series. Uses only item metadata, so it works even for a
+ * brand-new signed-in user with no history.
+ */
+media.get("/:id/similar", async (c) => {
+  const prisma = c.get("prisma");
+  const id = c.req.param("id");
+
+  const seedItem = await prisma.mediaItem.findUnique({
+    where: { id },
+    select: FEATURE_SELECT,
+  });
+  if (!seedItem) return c.json({ error: "not_found" }, 404);
+
+  const seed = featuresOf(seedItem);
+  // Nothing to match on → no recommendations rather than random noise.
+  if (!seed.genreIds.length && !seed.people.length && !seed.seriesIds.length) {
+    return c.json([]);
+  }
+
+  const or: Prisma.MediaItemWhereInput[] = [];
+  if (seed.genreIds.length)
+    or.push({ genres: { some: { genreId: { in: seed.genreIds } } } });
+  if (seed.people.length)
+    or.push({ credits: { some: { name: { in: seed.people } } } });
+  if (seed.seriesIds.length)
+    or.push({ seriesEntries: { some: { seriesId: { in: seed.seriesIds } } } });
+
+  const candidates = await prisma.mediaItem.findMany({
+    where: { id: { not: id }, archivedAt: null, visibility: "PUBLIC", OR: or },
+    select: {
+      ...FEATURE_SELECT,
+      coverImageUrl: true,
+      shortDescription: true,
+    },
+    take: 300,
+  });
+
+  const scored = candidates
+    .map((ci) => {
+      const { score, reasons } = scoreSimilarity(seed, featuresOf(ci));
+      return {
+        media: {
+          id: ci.id,
+          type: ci.type,
+          title: ci.title,
+          coverImageUrl: ci.coverImageUrl,
+          shortDescription: ci.shortDescription,
+        },
+        score,
+        reason: reasons[0] ?? "Similar",
+      };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12);
+
+  return c.json(scored);
+});
+
 media.patch("/:id", zValidator("json", mediaInput.partial()), async (c) => {
   // Column updates only; external ids / credits are managed via their own flows.
   const { externalIds, credits, ...rest } = c.req.valid("json");
@@ -1800,6 +1866,43 @@ media.post(
 media.delete("/:id/streaming/:availId", requireAdmin, async (c) => {
   const res = await c.get("prisma").streamingAvailability.deleteMany({
     where: { id: c.req.param("availId"), mediaItemId: c.req.param("id") },
+  });
+  if (res.count === 0) return c.json({ error: "not_found" }, 404);
+  return c.json({ deleted: true });
+});
+
+// --- genres -----------------------------------------------------------------
+
+/** Admin: attach a genre to this item (idempotent). */
+media.post(
+  "/:id/genres",
+  requireAdmin,
+  zValidator("json", z.object({ genreId: z.string().min(1) })),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const mediaItemId = c.req.param("id");
+    const { genreId } = c.req.valid("json");
+    // Verify both rows exist so a bad id is a clean 404, not an FK 500.
+    const [item, genre] = await Promise.all([
+      prisma.mediaItem.findUnique({
+        where: { id: mediaItemId },
+        select: { id: true },
+      }),
+      prisma.genre.findUnique({ where: { id: genreId }, select: { id: true } }),
+    ]);
+    if (!item || !genre) return c.json({ error: "not_found" }, 404);
+    await prisma.mediaGenre.createMany({
+      data: [{ mediaItemId, genreId }],
+      skipDuplicates: true,
+    });
+    return c.json({ added: true }, 201);
+  },
+);
+
+/** Admin: detach a genre from this item. */
+media.delete("/:id/genres/:genreId", requireAdmin, async (c) => {
+  const res = await c.get("prisma").mediaGenre.deleteMany({
+    where: { mediaItemId: c.req.param("id"), genreId: c.req.param("genreId") },
   });
   if (res.count === 0) return c.json({ error: "not_found" }, 404);
   return c.json({ deleted: true });

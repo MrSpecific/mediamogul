@@ -261,6 +261,21 @@ export interface ActivityMedia {
   title: string;
 }
 
+/** Media summary carried by recommendation feeds. */
+export interface RecMedia {
+  id: string;
+  type: MediaType;
+  title: string;
+  coverImageUrl: string | null;
+  shortDescription: string | null;
+}
+
+/** One recommendation row (GET /me/recommendations, GET /media/:id/similar). */
+export interface Recommendation {
+  media: RecMedia;
+  reason: string;
+}
+
 /** One row of the homepage recent-activity feed (GET /me/activity). */
 export type ActivityItem =
   | { kind: "entry"; key: string; media: ActivityMedia; status: EntryStatus; at: string }

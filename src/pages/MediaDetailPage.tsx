@@ -30,6 +30,8 @@ import { apiSend } from "../lib/api";
 import { CopyButton } from "../components/CopyButton";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { RecCard } from "../components/RecCard";
+import { GenreEditor } from "../components/GenreEditor";
 import { MediaDescriptions } from "../components/MediaDescriptions";
 import { MediaPicker } from "../components/MediaPicker";
 import { MarkCompleteDialog } from "../components/MarkCompleteDialog";
@@ -62,6 +64,7 @@ import {
   type MediaItem,
   type MediaRelationType,
   type Profile,
+  type Recommendation,
   type Review,
   type Visibility,
 } from "../lib/types";
@@ -109,6 +112,9 @@ export function MediaDetailPage() {
   const isAdmin = Boolean(me?.isAdmin);
   const { data: covers, reload: reloadCovers } = useApiData<CoverInfo[]>(
     id ? `/media/${id}/covers` : null,
+  );
+  const { data: similar } = useApiData<Recommendation[]>(
+    id ? `/media/${id}/similar` : null,
   );
 
   const [reviewBody, setReviewBody] = useState("");
@@ -497,20 +503,29 @@ export function MediaDetailPage() {
             </Flex>
           )}
 
-          {data.genres.length > 0 && (
-            <Flex gap="2" wrap="wrap">
-              {data.genres.map((g) => (
-                <Link
-                  key={g.id}
-                  to={`/catalog?genre=${encodeURIComponent(g.slug)}`}
-                  className="badge-link"
-                >
-                  <Badge variant="soft" color="gray">
-                    {titleCase(g.name)}
-                  </Badge>
-                </Link>
-              ))}
-            </Flex>
+          {showAdmin ? (
+            <GenreEditor
+              mediaId={data.id}
+              mediaType={data.type}
+              genres={data.genres}
+              onChanged={reload}
+            />
+          ) : (
+            data.genres.length > 0 && (
+              <Flex gap="2" wrap="wrap">
+                {data.genres.map((g) => (
+                  <Link
+                    key={g.id}
+                    to={`/catalog?genre=${encodeURIComponent(g.slug)}`}
+                    className="badge-link"
+                  >
+                    <Badge variant="soft" color="gray">
+                      {titleCase(g.name)}
+                    </Badge>
+                  </Link>
+                ))}
+              </Flex>
+            )
           )}
 
           <MediaDescriptions
@@ -1054,6 +1069,17 @@ export function MediaDetailPage() {
           </Card>
         ))}
       </Flex>
+
+      {similar && similar.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Heading size="5">More like this</Heading>
+          <div className="media-grid">
+            {similar.map((rec) => (
+              <RecCard key={rec.media.id} media={rec.media} reason={rec.reason} />
+            ))}
+          </div>
+        </Flex>
+      )}
     </Flex>
   );
 }

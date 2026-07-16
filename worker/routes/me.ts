@@ -5,7 +5,14 @@ import { getOrCreateUser } from "../db";
 import { getRole, isAdmin, effectiveRole } from "../auth";
 import { requireFeature } from "../tiers";
 import { username } from "../schemas";
-import type { MediaType, Prisma } from "../generated/prisma/client";
+import {
+  FEATURE_SELECT,
+  LIKED_THRESHOLD,
+  affinityFromSignals,
+  featuresOf,
+  scoreSimilarity,
+} from "../services/recommend";
+import type { EntryStatus, MediaType, Prisma } from "../generated/prisma/client";
 import type { AppEnv } from "../types";
 
 export const me = new Hono<AppEnv>();
@@ -404,6 +411,212 @@ me.get("/following-activity", async (c) => {
   const page = items.slice(0, LIMIT);
   const nextCursor = hasMore ? cursorAts[LIMIT - 1].toISOString() : null;
   return c.json({ items: page, nextCursor });
+});
+
+/**
+ * "Recommended for you": blends two signals the app already has —
+ *   • content-based — items similar to what the user has liked (rated highly or
+ *     finished), scored by shared genres/creators/series;
+ *   • social — items rated 4★+ by people the user follows.
+ * Anything the user has already logged is excluded. Returns each pick with a
+ * human reason ("Because you liked X" / "Liked by @user"). Weights are
+ * deliberately simple and live here so they're easy to tune later.
+ */
+const CONTENT_WEIGHT = 1;
+const SOCIAL_WEIGHT = 2;
+
+me.get("/recommendations", async (c) => {
+  const prisma = c.get("prisma");
+  const userId = c.get("user").id;
+
+  const [entries, ratings, followRows] = await Promise.all([
+    prisma.mediaEntry.findMany({
+      where: { userId },
+      select: { mediaItemId: true, status: true },
+    }),
+    prisma.rating.findMany({
+      where: { userId },
+      select: { mediaItemId: true, stars: true },
+    }),
+    prisma.follow.findMany({
+      where: { followerId: userId },
+      select: { followingId: true },
+    }),
+  ]);
+
+  const ratingByItem = new Map(
+    ratings.map((r) => [r.mediaItemId, Number(r.stars)]),
+  );
+  const statusByItem = new Map<string, EntryStatus>();
+  for (const e of entries) {
+    if (!statusByItem.has(e.mediaItemId)) statusByItem.set(e.mediaItemId, e.status);
+  }
+  const seen = new Set<string>([
+    ...ratingByItem.keys(),
+    ...statusByItem.keys(),
+  ]);
+  const followingIds = followRows.map((r) => r.followingId);
+
+  // Result accumulator, keyed by media id.
+  type Rec = {
+    media: {
+      id: string;
+      type: MediaType;
+      title: string;
+      coverImageUrl: string | null;
+      shortDescription: string | null;
+    };
+    content: { score: number; reason: string } | null;
+    social: { score: number; reason: string } | null;
+  };
+  const recs = new Map<string, Rec>();
+
+  // --- Content-based: neighbours of the user's top liked items. ---
+  const seedIds = [...seen]
+    .map((id) => ({
+      id,
+      aff: affinityFromSignals(
+        ratingByItem.get(id) ?? null,
+        statusByItem.get(id) ?? null,
+      ),
+    }))
+    .filter((a) => a.aff >= LIKED_THRESHOLD)
+    .sort((a, b) => b.aff - a.aff)
+    .slice(0, 20)
+    .map((a) => a.id);
+
+  if (seedIds.length > 0) {
+    const seedItems = await prisma.mediaItem.findMany({
+      where: { id: { in: seedIds } },
+      select: FEATURE_SELECT,
+    });
+    const seeds = seedItems.map(featuresOf);
+
+    const genreIds = new Set<string>();
+    const people = new Set<string>();
+    const seriesIds = new Set<string>();
+    for (const s of seeds) {
+      s.genreIds.forEach((x) => genreIds.add(x));
+      s.people.forEach((x) => people.add(x));
+      s.seriesIds.forEach((x) => seriesIds.add(x));
+    }
+
+    const or: Prisma.MediaItemWhereInput[] = [];
+    if (genreIds.size)
+      or.push({ genres: { some: { genreId: { in: [...genreIds] } } } });
+    if (people.size)
+      or.push({ credits: { some: { name: { in: [...people] } } } });
+    if (seriesIds.size)
+      or.push({ seriesEntries: { some: { seriesId: { in: [...seriesIds] } } } });
+
+    if (or.length > 0) {
+      const candidates = await prisma.mediaItem.findMany({
+        where: {
+          id: { notIn: [...seen] },
+          archivedAt: null,
+          visibility: "PUBLIC",
+          OR: or,
+        },
+        select: { ...FEATURE_SELECT, coverImageUrl: true, shortDescription: true },
+        take: 400,
+      });
+
+      for (const ci of candidates) {
+        const cf = featuresOf(ci);
+        let best = 0;
+        let bestTitle = "";
+        for (const s of seeds) {
+          const { score } = scoreSimilarity(s, cf);
+          if (score > best) {
+            best = score;
+            bestTitle = s.title;
+          }
+        }
+        if (best <= 0) continue;
+        recs.set(ci.id, {
+          media: {
+            id: ci.id,
+            type: ci.type,
+            title: ci.title,
+            coverImageUrl: ci.coverImageUrl,
+            shortDescription: ci.shortDescription,
+          },
+          content: { score: best, reason: `Because you liked ${bestTitle}` },
+          social: null,
+        });
+      }
+    }
+  }
+
+  // --- Social: highly rated by people the user follows. ---
+  if (followingIds.length > 0) {
+    const followRatings = await prisma.rating.findMany({
+      where: {
+        userId: { in: followingIds },
+        stars: { gte: 4 },
+        mediaItemId: { notIn: [...seen] },
+        mediaItem: { archivedAt: null, visibility: "PUBLIC" },
+      },
+      select: {
+        stars: true,
+        user: { select: { username: true } },
+        mediaItem: {
+          select: {
+            id: true,
+            type: true,
+            title: true,
+            coverImageUrl: true,
+            shortDescription: true,
+          },
+        },
+      },
+      take: 500,
+    });
+
+    const agg = new Map<
+      string,
+      { score: number; users: Set<string>; media: Rec["media"] }
+    >();
+    for (const r of followRatings) {
+      const m = r.mediaItem;
+      const e =
+        agg.get(m.id) ?? { score: 0, users: new Set<string>(), media: m };
+      e.score += Number(r.stars) - 3; // 4★ → +1, 5★ → +2
+      e.users.add(r.user.username);
+      agg.set(m.id, e);
+    }
+
+    for (const [id, e] of agg) {
+      const users = [...e.users];
+      const others = users.length - 1;
+      const reason = `Liked by @${users[0]}${others > 0 ? ` +${others} you follow` : ""}`;
+      const existing = recs.get(id);
+      if (existing) existing.social = { score: e.score, reason };
+      else recs.set(id, { media: e.media, content: null, social: { score: e.score, reason } });
+    }
+  }
+
+  const ranked = [...recs.values()]
+    .map((r) => {
+      const score =
+        (r.content?.score ?? 0) * CONTENT_WEIGHT +
+        (r.social?.score ?? 0) * SOCIAL_WEIGHT;
+      // Lead with whichever signal contributed more to the ranking.
+      const socialWins =
+        (r.social?.score ?? 0) * SOCIAL_WEIGHT >=
+        (r.content?.score ?? 0) * CONTENT_WEIGHT;
+      const reason =
+        (socialWins ? r.social?.reason : r.content?.reason) ??
+        r.content?.reason ??
+        r.social?.reason ??
+        "Recommended";
+      return { media: r.media, reason, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12)
+    .map(({ media, reason }) => ({ media, reason }));
+
+  return c.json(ranked);
 });
 
 /** The user's own lists, lists they've saved, and lists they collaborate on —
