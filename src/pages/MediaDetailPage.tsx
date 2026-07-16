@@ -980,7 +980,7 @@ function MediaDetailContent() {
                 {libby && (
                   <Badge
                     size="1"
-                    variant="soft"
+                    variant="solid"
                     color="grass"
                     style={{ marginLeft: "auto" }}
                   >
@@ -1012,11 +1012,11 @@ function MediaDetailContent() {
                 />
                 <Text size="2" weight="medium">
                   Wikipedia
-                </Text>
+                </Text>{" "}
                 {data.wikipediaUrl && (
                   <Badge
                     size="1"
-                    variant="soft"
+                    variant="solid"
                     color="grass"
                     style={{ marginLeft: "auto" }}
                   >

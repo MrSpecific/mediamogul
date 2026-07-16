@@ -141,7 +141,7 @@ export function WikipediaLookup({
                   </Text>
                   {linked ? (
                     <Flex gap="1" align="center" className="shrink">
-                      <Badge size="1" color="green" variant="soft">
+                      <Badge size="1" color="green" variant="solid">
                         <Check size={12} aria-hidden /> Linked
                       </Badge>
                       <Button

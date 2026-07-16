@@ -195,7 +195,7 @@ export function LibbyLookup({
                   </Flex>
                 </Flex>
                 {linked ? (
-                  <Badge size="1" color="green" variant="soft">
+                  <Badge size="1" color="green" variant="solid">
                     <Check size={12} aria-hidden /> Linked
                   </Badge>
                 ) : isAlternate ? (
