@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Badge, Button, Flex, Heading, Text } from "@wlcr/base-ic";
+import { authClient } from "../auth";
 import { LogoMark } from "../components/Logo";
 import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
@@ -44,8 +45,20 @@ function byline(m: PublicMedia): string | undefined {
 export function PublicMediaPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { data: session } = authClient.useSession();
+  const signedIn = Boolean(session);
   const [media, setMedia] = useState<PublicMedia | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "notfound">("loading");
+
+  // The authenticated detail page for this item. Signed-in visitors go straight
+  // there; signed-out visitors sign in first, then get bounced there via the
+  // Neon Auth UI's `redirectTo` param. (Falling to the sign-in path while the
+  // session is still resolving self-heals: an already-authed user is redirected
+  // on by the sign-in view.)
+  const detailPath = `/media/${id}`;
+  const trackDestination = signedIn
+    ? detailPath
+    : `/auth/sign-in?redirectTo=${encodeURIComponent(detailPath)}`;
 
   useEffect(() => {
     let alive = true;
@@ -75,9 +88,15 @@ export function PublicMediaPage() {
             <LogoMark size={24} />
             mediamogul
           </Link>
-          <Button size="2" variant="soft" onClick={() => navigate("/auth/sign-in")}>
-            Sign in
-          </Button>
+          {!signedIn && (
+            <Button
+              size="2"
+              variant="soft"
+              onClick={() => navigate(trackDestination)}
+            >
+              Sign in
+            </Button>
+          )}
         </Flex>
       </header>
 
@@ -140,7 +159,7 @@ export function PublicMediaPage() {
                 </Flex>
               )}
               <Flex>
-                <Button size="3" onClick={() => navigate("/auth/sign-in")}>
+                <Button size="3" onClick={() => navigate(trackDestination)}>
                   Track this on mediamogul
                 </Button>
               </Flex>
