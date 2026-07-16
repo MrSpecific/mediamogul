@@ -11,6 +11,7 @@ import { AuthPage } from "./routes/AuthPage";
 import { AppLayout } from "./components/AppLayout";
 import { RequireAuth } from "./components/RequireAuth";
 import { HomePage } from "./pages/HomePage";
+import { FollowingPage } from "./pages/FollowingPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { AddMediaPage } from "./pages/AddMediaPage";
 import { MediaDetailPage } from "./pages/MediaDetailPage";
@@ -57,6 +58,7 @@ createRoot(document.getElementById("root")!).render(
               <Route element={<RequireAuth />}>
                 <Route path="/welcome" element={<WelcomePage />} />
                 <Route path="/" element={<HomePage />} />
+                <Route path="/following" element={<FollowingPage />} />
                 <Route path="/catalog" element={<CatalogPage />} />
                 <Route path="/catalog/add" element={<AddMediaPage />} />
                 <Route path="/media/:id" element={<MediaDetailPage />} />

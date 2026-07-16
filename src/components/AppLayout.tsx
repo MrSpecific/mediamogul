@@ -83,6 +83,7 @@ export function AppLayout() {
           <SignedIn>
             <Flex as="nav" align="center" gap="4">
               <NavLink to="/catalog">Catalog</NavLink>
+              <NavLink to="/following">Following</NavLink>
               <NavLink to="/lists">Lists</NavLink>
               <NotificationsBell />
               <span className="user-full">

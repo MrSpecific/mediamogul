@@ -391,10 +391,20 @@ export function MediaDetailPage() {
               </Text>
             )}
             <Flex gap="2" align="center" wrap="wrap">
-              {data.releaseDate && (
+              {data.airRange ? (
                 <Text color="gray">
-                  {new Date(data.releaseDate).getFullYear()}
+                  {data.airRange.ongoing
+                    ? `${data.airRange.startYear}–Present`
+                    : data.airRange.startYear === data.airRange.endYear
+                      ? `${data.airRange.startYear}`
+                      : `${data.airRange.startYear}–${data.airRange.endYear}`}
                 </Text>
+              ) : (
+                data.releaseDate && (
+                  <Text color="gray">
+                    {new Date(data.releaseDate).getFullYear()}
+                  </Text>
+                )
               )}
               {(() => {
                 const b = bylineOf(data);

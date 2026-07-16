@@ -350,6 +350,15 @@ body {
   text-decoration: underline;
 }
 
+/* Following-feed review preview: clamp to a few lines. */
+.feed-review-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
 /* Genre badges wrapped in a link — keep the badge's own look. */
 .badge-link {
   text-decoration: none;

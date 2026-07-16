@@ -172,6 +172,8 @@ export interface MediaDetail extends MediaItem {
   genres: { id: string; name: string; slug: string }[];
   related: RelatedMedia[];
   series: SeriesMembership[];
+  /** TV shows only: air-date range derived from episode air dates. */
+  airRange: { startYear: number; endYear: number; ongoing: boolean } | null;
   visibility: Visibility;
   archivedAt: string | null;
   createdAt: string;

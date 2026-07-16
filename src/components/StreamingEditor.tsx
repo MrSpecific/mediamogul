@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Flex, Input, Select, Text } from "@wlcr/base-ic";
+import { Badge, Button, Flex, Grid, Input, Select, Text } from "@wlcr/base-ic";
 import { Plus, Trash2 } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
 import { STREAMING_PROVIDERS, type StreamingProvider } from "../lib/streaming";
@@ -70,9 +70,10 @@ export function StreamingEditor({ mediaId, streaming, onChanged }: Props) {
         </Flex>
       ))}
 
-      <Flex
+      <Grid
         as="form"
         gap="2"
+        columns="auto 1fr auto"
         align="center"
         onSubmit={(e) => {
           e.preventDefault();
@@ -99,7 +100,7 @@ export function StreamingEditor({ mediaId, streaming, onChanged }: Props) {
         <Button type="submit" size="1" loading={busy} disabled={!url.trim()}>
           <Plus size={14} aria-hidden /> Add
         </Button>
-      </Flex>
+      </Grid>
       {error && (
         <Text size="1" color="red">
           {error}

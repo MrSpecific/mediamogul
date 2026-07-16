@@ -1300,11 +1300,32 @@ media.get("/:id", async (c) => {
     total: se.series._count.entries,
   }));
 
+  // For TV shows, derive an air-date range from the episodes' air dates (when
+  // known). A latest episode dated in the future means the show is still
+  // running, which the UI renders as "…–Present".
+  let airRange: { startYear: number; endYear: number; ongoing: boolean } | null =
+    null;
+  if (item.type === "TV_SHOW") {
+    const ep = await prisma.episode.aggregate({
+      where: { season: { mediaItemId: id }, airDate: { not: null } },
+      _min: { airDate: true },
+      _max: { airDate: true },
+    });
+    if (ep._min.airDate && ep._max.airDate) {
+      airRange = {
+        startYear: ep._min.airDate.getFullYear(),
+        endYear: ep._max.airDate.getFullYear(),
+        ongoing: ep._max.airDate.getTime() > Date.now(),
+      };
+    }
+  }
+
   return c.json({
     ...rest,
     genres: genreList,
     related,
     series,
+    airRange,
     averageRating: agg._avg.stars == null ? null : Number(agg._avg.stars),
     ratingCount: agg._count,
     you: { rating, review, lastEntry },
