@@ -884,53 +884,86 @@ function MediaDetailContent() {
           {showAdmin && (
             <>
               <Card size="2">
-                <Flex direction="column" gap="2">
-                  <Text weight="medium" size="2">
-                    Link related media
-                  </Text>
-                  <Select
-                    value={relType}
-                    onValueChange={(v) => setRelType(v as MediaRelationType)}
-                  >
-                    {(Object.keys(RELATION_LABELS) as MediaRelationType[]).map(
-                      (t) => (
-                        <Select.Item key={t} value={t}>
-                          {RELATION_LABELS[t]}
-                        </Select.Item>
-                      ),
-                    )}
-                  </Select>
-                  <MediaPicker
-                    excludeId={data.id}
-                    onPick={(m) => void linkRelated(m)}
-                  />
-                </Flex>
+                <Collapsible defaultOpen={false}>
+                  <Collapsible.Trigger className="section-collapse-trigger">
+                    <ChevronDown
+                      size={16}
+                      aria-hidden
+                      className="section-chevron"
+                    />
+                    <Text weight="medium" size="2">
+                      Link related media
+                    </Text>
+                  </Collapsible.Trigger>
+                  <Collapsible.Content>
+                    <Flex
+                      direction="column"
+                      gap="2"
+                      style={{ paddingTop: 8 }}
+                    >
+                      <Select
+                        value={relType}
+                        onValueChange={(v) =>
+                          setRelType(v as MediaRelationType)
+                        }
+                      >
+                        {(
+                          Object.keys(RELATION_LABELS) as MediaRelationType[]
+                        ).map((t) => (
+                          <Select.Item key={t} value={t}>
+                            {RELATION_LABELS[t]}
+                          </Select.Item>
+                        ))}
+                      </Select>
+                      <MediaPicker
+                        excludeId={data.id}
+                        onPick={(m) => void linkRelated(m)}
+                      />
+                    </Flex>
+                  </Collapsible.Content>
+                </Collapsible>
               </Card>
 
               <Card size="2">
-                <Flex direction="column" gap="2">
-                  <Text weight="medium" size="2">
-                    Add to a new series
-                  </Text>
-                  <Flex gap="2" wrap="wrap" align="end">
-                    <Field label="Series title">
-                      <Input
-                        value={seriesTitle}
-                        onChange={(e) => setSeriesTitle(e.currentTarget.value)}
-                        placeholder="e.g. The Lord of the Rings"
-                      />
-                    </Field>
-                    <Field label="#">
-                      <Input
-                        type="number"
-                        value={seriesPos}
-                        onChange={(e) => setSeriesPos(e.currentTarget.value)}
-                        style={{ width: 72 }}
-                      />
-                    </Field>
-                    <Button onClick={() => void addToSeries()}>Add</Button>
-                  </Flex>
-                </Flex>
+                <Collapsible defaultOpen={false}>
+                  <Collapsible.Trigger className="section-collapse-trigger">
+                    <ChevronDown
+                      size={16}
+                      aria-hidden
+                      className="section-chevron"
+                    />
+                    <Text weight="medium" size="2">
+                      Add to a new series
+                    </Text>
+                  </Collapsible.Trigger>
+                  <Collapsible.Content>
+                    <Flex
+                      gap="2"
+                      wrap="wrap"
+                      align="end"
+                      style={{ paddingTop: 8 }}
+                    >
+                      <Field label="Series title">
+                        <Input
+                          value={seriesTitle}
+                          onChange={(e) =>
+                            setSeriesTitle(e.currentTarget.value)
+                          }
+                          placeholder="e.g. The Lord of the Rings"
+                        />
+                      </Field>
+                      <Field label="#">
+                        <Input
+                          type="number"
+                          value={seriesPos}
+                          onChange={(e) => setSeriesPos(e.currentTarget.value)}
+                          style={{ width: 72 }}
+                        />
+                      </Field>
+                      <Button onClick={() => void addToSeries()}>Add</Button>
+                    </Flex>
+                  </Collapsible.Content>
+                </Collapsible>
               </Card>
             </>
           )}

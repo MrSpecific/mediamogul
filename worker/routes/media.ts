@@ -7,6 +7,7 @@ import {
   importSeasons,
   lookupBookByIsbn,
   searchBooks,
+  searchScreen,
   searchScreenWikidata,
   searchWikidataSeriesMembers,
 } from "../services/scrape";
@@ -1512,6 +1513,58 @@ media.get("/:id/description-source", requireAdmin, async (c) => {
   }
 
   return c.json({ source, current, proposed });
+});
+
+/**
+ * Admin: try to scrape a content rating for this item from the best screen
+ * source — TMDB certification when a key is set (covers film + TV), else
+ * Wikidata MPAA for films. Read-only: returns the resolved catalog rating (if
+ * the scraped code matches one) so the client can apply it. Books/audiobooks/
+ * magazines have no automated rating source.
+ */
+media.get("/:id/scrape-rating", requireAdmin, async (c) => {
+  const prisma = c.get("prisma");
+  const item = await prisma.mediaItem.findUnique({
+    where: { id: c.req.param("id") },
+    select: {
+      title: true,
+      type: true,
+      externalIds: { select: { source: true, value: true } },
+    },
+  });
+  if (!item) return c.json({ error: "not_found" }, 404);
+  if (item.type !== "MOVIE" && item.type !== "TV_SHOW") {
+    return c.json({ source: null, code: null, contentRatingId: null });
+  }
+
+  let candidates: MediaCandidate[] = [];
+  let source: string | null = null;
+  if (c.env.TMDB_API_KEY) {
+    candidates = await searchScreen(item.title, c.env.TMDB_API_KEY).catch(
+      () => [],
+    );
+    if (candidates.length) source = "TMDB";
+  }
+  // Wikidata only carries MPAA (film) ratings, so it's a film-only fallback.
+  if (candidates.length === 0 && item.type === "MOVIE") {
+    candidates = await searchScreenWikidata(item.title, 0, 6).catch(() => []);
+    if (candidates.length) source = "Wikidata";
+  }
+
+  // Prefer a candidate sharing a known external id; else the top match.
+  const known = new Set(item.externalIds.map((e) => `${e.source}:${e.value}`));
+  const match =
+    candidates.find((cc) =>
+      cc.externalIds.some((e) => known.has(`${e.source}:${e.value}`)),
+    ) ?? candidates[0];
+  const code = match?.contentRatingCode ?? null;
+  const contentRatingId = code
+    ? ((await resolveContentRatingId(prisma, {
+        type: item.type,
+        contentRatingCode: code,
+      })) ?? null)
+    : null;
+  return c.json({ source, code, contentRatingId });
 });
 
 media.patch("/:id", zValidator("json", mediaInput.partial()), async (c) => {
