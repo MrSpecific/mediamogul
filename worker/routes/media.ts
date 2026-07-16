@@ -1341,10 +1341,17 @@ media.get("/:id", async (c) => {
  * "More like this": content-based neighbours of one item, scored by shared
  * genres/creators/cast/series. Uses only item metadata, so it works even for a
  * brand-new signed-in user with no history.
+ *
+ * Cursor-paginated (`{ items, nextCursor }`) so the media page can show one row
+ * and a dedicated page can page through the rest with "Load more". The cursor
+ * is a plain offset into the scored list; the candidate pool and sort are
+ * deterministic (tie-broken by id) so paging is stable across requests.
  */
 media.get("/:id/similar", async (c) => {
   const prisma = c.get("prisma");
   const id = c.req.param("id");
+  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 24, 1), 48);
+  const offset = Math.max(Number(c.req.query("cursor")) || 0, 0);
 
   const seedItem = await prisma.mediaItem.findUnique({
     where: { id },
@@ -1355,7 +1362,7 @@ media.get("/:id/similar", async (c) => {
   const seed = featuresOf(seedItem);
   // Nothing to match on → no recommendations rather than random noise.
   if (!seed.genreIds.length && !seed.people.length && !seed.seriesIds.length) {
-    return c.json([]);
+    return c.json({ items: [], nextCursor: null });
   }
 
   const or: Prisma.MediaItemWhereInput[] = [];
@@ -1373,7 +1380,9 @@ media.get("/:id/similar", async (c) => {
       coverImageUrl: true,
       shortDescription: true,
     },
-    take: 300,
+    // Stable pool + deterministic sort below = stable offset pagination.
+    orderBy: { id: "asc" },
+    take: 500,
   });
 
   const scored = candidates
@@ -1392,10 +1401,15 @@ media.get("/:id/similar", async (c) => {
       };
     })
     .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 12);
+    .sort((a, b) => b.score - a.score || (a.media.id < b.media.id ? -1 : 1));
 
-  return c.json(scored);
+  const items = scored
+    .slice(offset, offset + limit)
+    .map(({ media, reason }) => ({ media, reason }));
+  const nextCursor =
+    offset + limit < scored.length ? String(offset + limit) : null;
+
+  return c.json({ items, nextCursor });
 });
 
 media.patch("/:id", zValidator("json", mediaInput.partial()), async (c) => {

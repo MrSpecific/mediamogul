@@ -24,13 +24,13 @@ import {
   Text,
   Textarea,
 } from "@wlcr/base-ic";
-import { useApiData } from "../lib/hooks";
+import { useApiData, type Page } from "../lib/hooks";
 import { useAdminMode } from "../lib/admin-mode";
 import { apiSend } from "../lib/api";
 import { CopyButton } from "../components/CopyButton";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
-import { RecCard } from "../components/RecCard";
+import { RecCard, RecCardSkeleton } from "../components/RecCard";
 import { GenreEditor } from "../components/GenreEditor";
 import { MediaDescriptions } from "../components/MediaDescriptions";
 import { MediaPicker } from "../components/MediaPicker";
@@ -95,7 +95,17 @@ function factsOf(data: MediaDetail): { label: string; value: string }[] {
     );
 }
 
+/**
+ * Keyed on the media id so navigating from one media item to another remounts
+ * the page rather than reusing it — the previous item's data/scroll state is
+ * torn down cleanly instead of morphing into the next, which reads as jank.
+ */
 export function MediaDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  return <MediaDetailContent key={id ?? "none"} />;
+}
+
+function MediaDetailContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data, reload } = useApiData<MediaDetail>(id ? `/media/${id}` : null);
@@ -114,8 +124,8 @@ export function MediaDetailPage() {
     id ? `/media/${id}/covers` : null,
   );
   const { data: similar, loading: similarLoading } = useApiData<
-    Recommendation[]
-  >(id ? `/media/${id}/similar` : null);
+    Page<Recommendation>
+  >(id ? `/media/${id}/similar?limit=6` : null);
 
   const [reviewBody, setReviewBody] = useState("");
   const [reviewVis, setReviewVis] = useState<Visibility>("PUBLIC");
@@ -1070,15 +1080,24 @@ export function MediaDetailPage() {
         ))}
       </Flex>
 
-      {(similarLoading || (similar && similar.length > 0)) && (
+      {(similarLoading || (similar && similar.items.length > 0)) && (
         <Flex direction="column" gap="3">
-          <Heading size="5">More like this</Heading>
+          <Flex justify="space-between" align="center" gap="3" wrap="wrap">
+            <Heading size="5">More like this</Heading>
+            {similar?.nextCursor && (
+              <Link to={`/media/${data.id}/similar`} className="byline-link">
+                <Text size="2" color="gray">
+                  View more
+                </Text>
+              </Link>
+            )}
+          </Flex>
           <div className="media-grid">
             {similarLoading
               ? Array.from({ length: 6 }).map((_, i) => (
                   <RecCardSkeleton key={i} />
                 ))
-              : similar!.map((rec) => (
+              : similar!.items.map((rec) => (
                   <RecCard
                     key={rec.media.id}
                     media={rec.media}

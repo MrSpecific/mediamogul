@@ -10,8 +10,10 @@ import { AuthProvider } from "./providers/AuthProvider";
 import { AuthPage } from "./routes/AuthPage";
 import { AppLayout } from "./components/AppLayout";
 import { RequireAuth } from "./components/RequireAuth";
+import { ScrollToTop } from "./components/ScrollToTop";
 import { HomePage } from "./pages/HomePage";
 import { FollowingPage } from "./pages/FollowingPage";
+import { SimilarPage } from "./pages/SimilarPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { AddMediaPage } from "./pages/AddMediaPage";
 import { MediaDetailPage } from "./pages/MediaDetailPage";
@@ -46,6 +48,7 @@ createRoot(document.getElementById("root")!).render(
       appearance="dark"
     >
       <BrowserRouter>
+        <ScrollToTop />
         <AuthProvider>
           <Routes>
             <Route path="/auth/:pathname" element={<AuthPage />} />
@@ -61,6 +64,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/following" element={<FollowingPage />} />
                 <Route path="/catalog" element={<CatalogPage />} />
                 <Route path="/catalog/add" element={<AddMediaPage />} />
+                <Route path="/media/:id/similar" element={<SimilarPage />} />
                 <Route path="/media/:id" element={<MediaDetailPage />} />
                 <Route path="/series/:id" element={<SeriesPage />} />
                 <Route path="/lists" element={<ListsPage />} />
