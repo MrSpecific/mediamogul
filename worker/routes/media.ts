@@ -1412,6 +1412,77 @@ media.get("/:id/similar", async (c) => {
   return c.json({ items, nextCursor });
 });
 
+/**
+ * Admin: source a better short description + synopsis from the most appropriate
+ * public source for the item's type — Open Library for books/audiobooks,
+ * Wikipedia for movies/TV (Wikidata carries no plot). Read-only: returns the
+ * current vs. proposed text so the admin can compare and selectively apply via
+ * POST /:id/apply. Magazines have no automated source.
+ */
+media.get("/:id/description-source", requireAdmin, async (c) => {
+  const prisma = c.get("prisma");
+  const item = await prisma.mediaItem.findUnique({
+    where: { id: c.req.param("id") },
+    select: {
+      title: true,
+      type: true,
+      shortDescription: true,
+      synopsis: true,
+      wikipediaUrl: true,
+      externalIds: { select: { source: true, value: true } },
+    },
+  });
+  if (!item) return c.json({ error: "not_found" }, 404);
+
+  const current = {
+    shortDescription: item.shortDescription,
+    synopsis: item.synopsis,
+  };
+  let source: string | null = null;
+  let proposed: {
+    shortDescription: string | null;
+    synopsis: string | null;
+  } | null = null;
+
+  if (item.type === "BOOK" || item.type === "AUDIOBOOK") {
+    const results = await searchBooks(item.title, 5).catch(() => []);
+    // Prefer a result sharing a known external id; else the top title match.
+    const known = new Set(item.externalIds.map((e) => `${e.source}:${e.value}`));
+    const match =
+      results.find((r) =>
+        r.externalIds.some((e) => known.has(`${e.source}:${e.value}`)),
+      ) ?? results[0];
+    if (match && (match.synopsis || match.shortDescription)) {
+      proposed = {
+        shortDescription: match.shortDescription ?? null,
+        synopsis: match.synopsis ?? null,
+      };
+      source = "Open Library";
+    }
+  } else if (item.type === "MOVIE" || item.type === "TV_SHOW") {
+    let extract: string | null = null;
+    let teaser: string | null = null;
+    // If already linked to a Wikipedia article, source from that exact page.
+    if (item.wikipediaUrl) {
+      const title = wikipediaTitleFromUrl(item.wikipediaUrl);
+      if (title) extract = await fetchWikipediaExtract(title).catch(() => null);
+    }
+    if (!extract) {
+      const wiki = await searchWikipedia(item.title, 1).catch(() => []);
+      extract = wiki[0]?.extract ?? null;
+      teaser = wiki[0]?.description ?? null;
+    }
+    if (extract) {
+      teaser =
+        teaser ?? (extract.split(/\n\s*\n|\n/)[0]?.trim().slice(0, 280) || null);
+      proposed = { shortDescription: teaser, synopsis: extract };
+      source = "Wikipedia";
+    }
+  }
+
+  return c.json({ source, current, proposed });
+});
+
 media.patch("/:id", zValidator("json", mediaInput.partial()), async (c) => {
   // Column updates only; external ids / credits are managed via their own flows.
   const { externalIds, credits, ...rest } = c.req.valid("json");

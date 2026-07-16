@@ -739,6 +739,34 @@ body {
   left: 3px;
 }
 
+/* End-of-results "add media" prompt in the catalog. */
+.catalog-cta {
+  border-style: dashed;
+}
+
+/* Collapsible section header (admin Libby/Wikipedia cards). */
+.section-collapse-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.section-chevron {
+  transition: transform 150ms ease;
+  flex-shrink: 0;
+}
+
+.section-collapse-trigger[aria-expanded="false"] .section-chevron {
+  transform: rotate(-90deg);
+}
+
 /* Inline remove affordance inside a genre badge (admin genre editor). */
 .badge-remove {
   display: inline-flex;

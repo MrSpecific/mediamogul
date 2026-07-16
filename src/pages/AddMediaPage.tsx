@@ -36,6 +36,18 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
 // Types the unified search can actually return (others are manual-only).
 const SEARCHABLE_TYPES: MediaType[] = ["MOVIE", "TV_SHOW", "BOOK"];
 
+/** Pick the narrowest lookup source that still covers the selected types, so
+ *  narrowing to one kind returns more of it instead of an interleaved mix.
+ *  Books → Open Library, movies/TV → Wikidata, mixed/none → all sources. */
+function sourceForTypes(types: MediaType[]): "all" | "open_library" | "wikidata" {
+  if (types.length === 0) return "all";
+  const hasBook = types.includes("BOOK");
+  const hasScreen = types.some((t) => t === "MOVIE" || t === "TV_SHOW");
+  if (hasBook && !hasScreen) return "open_library";
+  if (hasScreen && !hasBook) return "wikidata";
+  return "all";
+}
+
 /** Headline credit (author/director/creator) from the type's primary role. */
 function byline(
   c: MediaCandidate,
@@ -79,14 +91,17 @@ export function AddMediaPage() {
     query: string,
     pg: number,
     signal: AbortSignal,
+    source: string,
   ): Promise<{ items: MediaCandidate[]; hasMore: boolean }> {
     return api<{ items: MediaCandidate[]; hasMore: boolean }>(
-      `/lookup?source=all&q=${encodeURIComponent(query)}&page=${pg}`,
+      `/lookup?source=${source}&q=${encodeURIComponent(query)}&page=${pg}`,
       { signal },
     );
   }
 
-  async function search(query: string) {
+  // `searchTypes` defaults to the current selection, but callers that change
+  // the types (the toggles) pass the new set so we don't read stale state.
+  async function search(query: string, searchTypes: MediaType[] = types) {
     if (!query.trim()) return;
     lookupControllerRef.current?.abort();
     const controller = new AbortController();
@@ -102,7 +117,12 @@ export function AddMediaPage() {
     setError(null);
     setPage(1);
     try {
-      const result = await fetchPage(query, 1, controller.signal);
+      const result = await fetchPage(
+        query,
+        1,
+        controller.signal,
+        sourceForTypes(searchTypes),
+      );
       setResults(result.items);
       setHasMore(result.hasMore);
     } catch (e) {
@@ -125,7 +145,12 @@ export function AddMediaPage() {
     setLoadingMore(true);
     setSearching(false);
     try {
-      const result = await fetchPage(q, next, controller.signal);
+      const result = await fetchPage(
+        q,
+        next,
+        controller.signal,
+        sourceForTypes(types),
+      );
       setResults((prev) => [...(prev ?? []), ...result.items]);
       setHasMore(result.hasMore);
       setPage(next);
@@ -280,7 +305,13 @@ export function AddMediaPage() {
             <ToggleGroup
               multiple
               value={types}
-              onValueChange={(v: unknown[]) => setTypes(v as MediaType[])}
+              onValueChange={(v: unknown[]) => {
+                const next = v as MediaType[];
+                setTypes(next);
+                // Re-query (scoped to the new selection) so toggling a type
+                // pulls fresh results, not just a client-side filter.
+                if (q.trim()) void search(q, next);
+              }}
             >
               {SEARCHABLE_TYPES.map((t) => {
                 const active = types.includes(t);
@@ -299,7 +330,14 @@ export function AddMediaPage() {
               })}
             </ToggleGroup>
             {types.length > 0 ? (
-              <Button size="1" variant="ghost" onClick={() => setTypes([])}>
+              <Button
+                size="1"
+                variant="ghost"
+                onClick={() => {
+                  setTypes([]);
+                  if (q.trim()) void search(q, []);
+                }}
+              >
                 Clear
               </Button>
             ) : (

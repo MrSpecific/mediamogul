@@ -236,6 +236,31 @@ export function CatalogPage() {
       </div>
 
       <LoadMore hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
+
+      {!loading && items.length > 0 && !hasMore && (
+        <Card size="2" className="catalog-cta">
+          <Flex justify="space-between" align="center" gap="3" wrap="wrap">
+            <Flex direction="column" gap="1">
+              <Text weight="medium">Something missing?</Text>
+              <Text size="2" color="gray">
+                Add a movie, show, book, or anything else to the catalog.
+              </Text>
+            </Flex>
+            <Button
+              variant="soft"
+              onClick={() =>
+                navigate(
+                  q
+                    ? `/catalog/add?q=${encodeURIComponent(q)}`
+                    : "/catalog/add",
+                )
+              }
+            >
+              <Plus size={16} aria-hidden /> Add new media
+            </Button>
+          </Flex>
+        </Card>
+      )}
     </Flex>
   );
 }

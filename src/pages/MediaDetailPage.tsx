@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  ChevronDown,
   ExternalLink,
   ListPlus,
   RefreshCw,
   Search,
   Share2,
   Shield,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -14,6 +16,7 @@ import {
   Badge,
   Button,
   Card,
+  Collapsible,
   Dialog,
   Field,
   Flex,
@@ -39,6 +42,8 @@ import { AddToListDialog } from "../components/AddToListDialog";
 import { CoverFinderDialog } from "../components/CoverFinderDialog";
 import { CoverUploadDialog } from "../components/CoverUploadDialog";
 import { RescrapeDialog } from "../components/RescrapeDialog";
+import { DescriptionSourceDialog } from "../components/DescriptionSourceDialog";
+import { MediaDetailSkeleton } from "../components/MediaDetailSkeleton";
 import { TvSeasons } from "../components/TvSeasons";
 import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
 import { LibbyLookup } from "../components/LibbyLookup";
@@ -140,6 +145,7 @@ function MediaDetailContent() {
   const [coverOpen, setCoverOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [rescrapeOpen, setRescrapeOpen] = useState(false);
+  const [descSourceOpen, setDescSourceOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adminMode, setAdminMode] = useAdminMode();
@@ -151,7 +157,7 @@ function MediaDetailContent() {
   const showAdmin = isAdmin && adminMode;
   const libby = data?.externalIds?.find((e) => e.source === "LIBBY");
 
-  if (!data) return <Text color="gray">Loading…</Text>;
+  if (!data) return <MediaDetailSkeleton />;
 
   const cfg = MEDIA_FIELDS[data.type];
   const gerund = `${cfg.logVerb}ing`;
@@ -922,9 +928,17 @@ function MediaDetailContent() {
               <Text size="2" weight="medium">
                 Data
               </Text>
-              <Button variant="soft" onClick={() => setRescrapeOpen(true)}>
-                <RefreshCw size={16} aria-hidden /> Re-scrape data
-              </Button>
+              <Flex gap="2" wrap="wrap">
+                <Button variant="soft" onClick={() => setRescrapeOpen(true)}>
+                  <RefreshCw size={16} aria-hidden /> Re-scrape data
+                </Button>
+                <Button
+                  variant="soft"
+                  onClick={() => setDescSourceOpen(true)}
+                >
+                  <Sparkles size={16} aria-hidden /> Improve description
+                </Button>
+              </Flex>
               <Text size="1" color="gray">
                 Cover artwork is managed above, next to the cover.
               </Text>
@@ -932,44 +946,78 @@ function MediaDetailContent() {
           </Card>
 
           <Card size="2">
-            <Flex direction="column" gap="2">
-              <Text size="2" weight="medium">
-                Libby / OverDrive
-              </Text>
-              <LibbyLookup
-                mediaId={data.id}
-                title={data.title}
-                currentType={data.type}
-                currentLibbyId={libby?.value}
-                onChanged={reload}
-              />
-            </Flex>
+            <Collapsible defaultOpen={!libby}>
+              <Collapsible.Trigger className="section-collapse-trigger">
+                <ChevronDown size={16} aria-hidden className="section-chevron" />
+                <Text size="2" weight="medium">
+                  Libby / OverDrive
+                </Text>
+                {libby && (
+                  <Badge
+                    size="1"
+                    variant="soft"
+                    color="grass"
+                    style={{ marginLeft: "auto" }}
+                  >
+                    Linked
+                  </Badge>
+                )}
+              </Collapsible.Trigger>
+              <Collapsible.Content>
+                <Flex direction="column" gap="2" style={{ paddingTop: 8 }}>
+                  <LibbyLookup
+                    mediaId={data.id}
+                    title={data.title}
+                    currentType={data.type}
+                    currentLibbyId={libby?.value}
+                    onChanged={reload}
+                  />
+                </Flex>
+              </Collapsible.Content>
+            </Collapsible>
           </Card>
 
           <Card size="2">
-            <Flex direction="column" gap="3">
-              <Text size="2" weight="medium">
-                Wikipedia
-              </Text>
-              <WikipediaLookup
-                mediaId={data.id}
-                title={data.title}
-                currentUrl={data.wikipediaUrl}
-                onChanged={reload}
-              />
-              <details className="manual-fallback">
-                <summary>
-                  <Text size="1" color="gray">
-                    Or paste a link manually
-                  </Text>
-                </summary>
-                <WikipediaLinkEditor
-                  mediaId={data.id}
-                  currentUrl={data.wikipediaUrl}
-                  onChanged={reload}
-                />
-              </details>
-            </Flex>
+            <Collapsible defaultOpen={!data.wikipediaUrl}>
+              <Collapsible.Trigger className="section-collapse-trigger">
+                <ChevronDown size={16} aria-hidden className="section-chevron" />
+                <Text size="2" weight="medium">
+                  Wikipedia
+                </Text>
+                {data.wikipediaUrl && (
+                  <Badge
+                    size="1"
+                    variant="soft"
+                    color="grass"
+                    style={{ marginLeft: "auto" }}
+                  >
+                    Linked
+                  </Badge>
+                )}
+              </Collapsible.Trigger>
+              <Collapsible.Content>
+                <Flex direction="column" gap="3" style={{ paddingTop: 8 }}>
+                  <WikipediaLookup
+                    mediaId={data.id}
+                    title={data.title}
+                    currentUrl={data.wikipediaUrl}
+                    onChanged={reload}
+                  />
+                  <details className="manual-fallback">
+                    <summary>
+                      <Text size="1" color="gray">
+                        Or paste a link manually
+                      </Text>
+                    </summary>
+                    <WikipediaLinkEditor
+                      mediaId={data.id}
+                      currentUrl={data.wikipediaUrl}
+                      onChanged={reload}
+                    />
+                  </details>
+                </Flex>
+              </Collapsible.Content>
+            </Collapsible>
           </Card>
 
           {(data.type === "MOVIE" || data.type === "TV_SHOW") && (
@@ -1023,6 +1071,13 @@ function MediaDetailContent() {
           <RescrapeDialog
             open={rescrapeOpen}
             onOpenChange={setRescrapeOpen}
+            mediaId={data.id}
+            onChanged={reload}
+          />
+
+          <DescriptionSourceDialog
+            open={descSourceOpen}
+            onOpenChange={setDescSourceOpen}
             mediaId={data.id}
             onChanged={reload}
           />
