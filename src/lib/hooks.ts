@@ -36,6 +36,22 @@ export function useApiData<T>(path: string | null): ApiState<T> {
   return { data, loading, error, reload, setData };
 }
 
+/**
+ * Sets the browser-tab title while this component is mounted, restoring the
+ * previous title on unmount (or when it changes). Pass `null` — e.g. while the
+ * page's data is still loading — to leave the title untouched.
+ */
+export function useDocumentTitle(title: string | null): void {
+  useEffect(() => {
+    if (title === null) return;
+    const previous = document.title;
+    document.title = title;
+    return () => {
+      document.title = previous;
+    };
+  }, [title]);
+}
+
 /** Shape every cursor-paginated endpoint returns. */
 export interface Page<T> {
   items: T[];

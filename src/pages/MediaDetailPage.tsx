@@ -28,7 +28,7 @@ import {
   Text,
   Textarea,
 } from "@wlcr/base-ic";
-import { useApiData, type Page } from "../lib/hooks";
+import { useApiData, useDocumentTitle, type Page } from "../lib/hooks";
 import { useAdminMode } from "../lib/admin-mode";
 import { apiSend } from "../lib/api";
 import { CopyButton } from "../components/CopyButton";
@@ -118,6 +118,7 @@ function MediaDetailContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data, reload } = useApiData<MediaDetail>(id ? `/media/${id}` : null);
+  useDocumentTitle(data ? `${data.title} on MediaMogul` : null);
   const { data: reviews, reload: reloadReviews } = useApiData<Review[]>(
     id ? `/media/${id}/reviews` : null,
   );

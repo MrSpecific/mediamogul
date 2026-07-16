@@ -39,7 +39,9 @@ const SEARCHABLE_TYPES: MediaType[] = ["MOVIE", "TV_SHOW", "BOOK"];
 /** Pick the narrowest lookup source that still covers the selected types, so
  *  narrowing to one kind returns more of it instead of an interleaved mix.
  *  Books → Open Library, movies/TV → Wikidata, mixed/none → all sources. */
-function sourceForTypes(types: MediaType[]): "all" | "open_library" | "wikidata" {
+function sourceForTypes(
+  types: MediaType[],
+): "all" | "open_library" | "wikidata" {
   if (types.length === 0) return "all";
   const hasBook = types.includes("BOOK");
   const hasScreen = types.some((t) => t === "MOVIE" || t === "TV_SHOW");
@@ -82,7 +84,10 @@ export function AddMediaPage() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
   // Candidate whose info dialog is open (with the result's key for add state).
-  const [infoFor, setInfoFor] = useState<{ c: MediaCandidate; key: string } | null>(null);
+  const [infoFor, setInfoFor] = useState<{
+    c: MediaCandidate;
+    key: string;
+  } | null>(null);
   const { data: me } = useMe();
   const canManual = hasFeature(me, "manualEntry") || Boolean(me?.isAdmin);
   const lookupControllerRef = useRef<AbortController | null>(null);
@@ -272,9 +277,8 @@ export function AddMediaPage() {
       ) : (
         <>
           <Text color="gray">
-            Search across books, movies, and TV at once — we pull in the cover,
-            description, and external IDs automatically. Toggle off any type you
-            don't want in the results.
+            Search across books, movies, and TV at once - we'll pull in the
+            information for you.
           </Text>
 
           <Flex
@@ -330,7 +334,7 @@ export function AddMediaPage() {
                     value={t}
                     // Clear on/off contrast: active = solid accent, inactive = muted gray.
                     color={active ? undefined : "gray"}
-                    variant={active ? "solid" : "soft"}
+                    variant={active ? "solid" : "outline"}
                     highContrast={active}
                   >
                     {MEDIA_FIELDS[t].label}
@@ -516,7 +520,9 @@ export function AddMediaPage() {
         }}
         adding={infoFor ? addingKey === infoFor.key : false}
         existingId={
-          infoFor ? (infoFor.c.existingId ?? addedKeys[infoFor.key] ?? null) : null
+          infoFor
+            ? (infoFor.c.existingId ?? addedKeys[infoFor.key] ?? null)
+            : null
         }
         onView={(mid) => {
           setInfoFor(null);

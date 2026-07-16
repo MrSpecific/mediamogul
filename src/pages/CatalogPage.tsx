@@ -160,7 +160,7 @@ export function CatalogPage() {
                   value={t.value}
                   // Clear on/off contrast: active = solid accent, inactive = muted gray.
                   color={active ? undefined : "gray"}
-                  variant={active ? "solid" : "soft"}
+                  variant={active ? "solid" : "outline"}
                   highContrast={active}
                 >
                   {t.label}
