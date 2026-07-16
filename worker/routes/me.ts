@@ -163,7 +163,7 @@ me.get("/activity", async (c) => {
     prisma.mediaEntry.findMany({
       where: { userId },
       orderBy: [{ finishedAt: "desc" }, { createdAt: "desc" }],
-      take: 100,
+      take: 40,
       include: {
         mediaItem: { select: { id: true, type: true, title: true } },
         episode: { select: { id: true } },
@@ -172,7 +172,7 @@ me.get("/activity", async (c) => {
     prisma.mediaItem.findMany({
       where: { createdById: userId },
       orderBy: { createdAt: "desc" },
-      take: 40,
+      take: 15,
       select: { id: true, type: true, title: true, createdAt: true },
     }),
   ]);
@@ -227,7 +227,183 @@ me.get("/activity", async (c) => {
     }
   }
 
-  return c.json(items.slice(0, 30));
+  return c.json(items.slice(0, 8));
+});
+
+/**
+ * Following feed: activity from people the signed-in user follows, newest-first
+ * and cursor-paginated. Everyone you follow contributes their PUBLIC reviews;
+ * mutuals (people who also follow you back) additionally contribute their
+ * ratings and watch/read entries. Per-episode TV watches from the same person
+ * on the same show are collapsed into a single "watched N episodes" line.
+ *
+ * The cursor is the ISO timestamp of the last item on the previous page; every
+ * source is ordered and paged by `createdAt` (the moment the action happened)
+ * so a single timestamp cursor merges them cleanly.
+ */
+me.get("/following-activity", async (c) => {
+  const prisma = c.get("prisma");
+  const userId = c.get("user").id;
+  const LIMIT = 20;
+
+  const cursorParam = c.req.query("cursor");
+  const before = cursorParam ? new Date(cursorParam) : null;
+  if (before && Number.isNaN(before.getTime())) {
+    return c.json({ error: "invalid_cursor" }, 400);
+  }
+  const createdBefore = before ? { createdAt: { lt: before } } : {};
+
+  // Who the viewer follows, and which of those follow back (mutuals).
+  const followRows = await prisma.follow.findMany({
+    where: { followerId: userId },
+    select: { followingId: true },
+  });
+  const followingIds = followRows.map((r) => r.followingId);
+  if (followingIds.length === 0) {
+    return c.json({ items: [], nextCursor: null });
+  }
+  const backRows = await prisma.follow.findMany({
+    where: { followingId: userId, followerId: { in: followingIds } },
+    select: { followerId: true },
+  });
+  const mutualIds = backRows.map((r) => r.followerId);
+
+  const actorSelect = {
+    username: true,
+    displayName: true,
+    avatarUrl: true,
+  } as const;
+  const mediaSelect = { id: true, type: true, title: true } as const;
+
+  const [reviews, ratings, entries] = await Promise.all([
+    // Public reviews from everyone the viewer follows.
+    prisma.review.findMany({
+      where: { userId: { in: followingIds }, visibility: "PUBLIC", ...createdBefore },
+      orderBy: { createdAt: "desc" },
+      take: LIMIT + 1,
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        containsSpoilers: true,
+        createdAt: true,
+        user: { select: actorSelect },
+        mediaItem: { select: mediaSelect },
+      },
+    }),
+    // Ratings and watch/read entries only from mutuals.
+    mutualIds.length
+      ? prisma.rating.findMany({
+          where: { userId: { in: mutualIds }, ...createdBefore },
+          orderBy: { createdAt: "desc" },
+          take: LIMIT + 1,
+          select: {
+            id: true,
+            stars: true,
+            createdAt: true,
+            user: { select: actorSelect },
+            mediaItem: { select: mediaSelect },
+          },
+        })
+      : Promise.resolve([]),
+    mutualIds.length
+      ? prisma.mediaEntry.findMany({
+          where: { userId: { in: mutualIds }, ...createdBefore },
+          orderBy: { createdAt: "desc" },
+          take: LIMIT + 1,
+          select: {
+            id: true,
+            status: true,
+            episodeId: true,
+            createdAt: true,
+            user: { select: actorSelect },
+            mediaItem: { select: mediaSelect },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  type Actor = { username: string; displayName: string | null; avatarUrl: string | null };
+  type Media = { id: string; type: MediaType; title: string };
+  type FeedItem =
+    | { kind: "review"; key: string; actor: Actor; media: Media; title: string | null; body: string; containsSpoilers: boolean; at: Date }
+    | { kind: "rating"; key: string; actor: Actor; media: Media; stars: number; at: Date }
+    | { kind: "entry"; key: string; actor: Actor; media: Media; status: string; at: Date }
+    | { kind: "episodes"; key: string; actor: Actor; media: Media; count: number; at: Date };
+
+  // Flatten every source to timestamped rows, newest-first.
+  const rows: (
+    | { t: "review"; at: Date; r: (typeof reviews)[number] }
+    | { t: "rating"; at: Date; r: (typeof ratings)[number] }
+    | { t: "episode"; at: Date; r: (typeof entries)[number] }
+    | { t: "entry"; at: Date; r: (typeof entries)[number] }
+  )[] = [];
+  for (const r of reviews) {
+    if (r.mediaItem) rows.push({ t: "review", at: r.createdAt, r });
+  }
+  for (const r of ratings) {
+    if (r.mediaItem) rows.push({ t: "rating", at: r.createdAt, r });
+  }
+  for (const e of entries) {
+    if (!e.mediaItem) continue;
+    rows.push({ t: e.episodeId ? "episode" : "entry", at: e.createdAt, r: e });
+  }
+  rows.sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  // Collapse consecutive episode watches by the same person on the same show.
+  // `cursorAts[i]` tracks the OLDEST timestamp folded into items[i], so the
+  // next page resumes strictly before an episode group rather than repeating it.
+  const items: FeedItem[] = [];
+  const cursorAts: Date[] = [];
+  for (const row of rows) {
+    const last = items[items.length - 1];
+    if (
+      row.t === "episode" &&
+      last &&
+      last.kind === "episodes" &&
+      last.media.id === row.r.mediaItem!.id &&
+      last.actor.username === row.r.user.username
+    ) {
+      last.count += 1;
+      cursorAts[items.length - 1] = row.at; // rows are newest-first → this is older
+      continue;
+    }
+    if (row.t === "review") {
+      const r = row.r;
+      items.push({
+        kind: "review",
+        key: r.id,
+        actor: r.user,
+        media: r.mediaItem!,
+        title: r.title,
+        body: r.body,
+        containsSpoilers: r.containsSpoilers,
+        at: row.at,
+      });
+    } else if (row.t === "rating") {
+      const r = row.r;
+      items.push({
+        kind: "rating",
+        key: r.id,
+        actor: r.user,
+        media: r.mediaItem!,
+        stars: Number(r.stars),
+        at: row.at,
+      });
+    } else if (row.t === "episode") {
+      const e = row.r;
+      items.push({ kind: "episodes", key: e.id, actor: e.user, media: e.mediaItem!, count: 1, at: row.at });
+    } else {
+      const e = row.r;
+      items.push({ kind: "entry", key: e.id, actor: e.user, media: e.mediaItem!, status: e.status, at: row.at });
+    }
+    cursorAts.push(row.at);
+  }
+
+  const hasMore = items.length > LIMIT;
+  const page = items.slice(0, LIMIT);
+  const nextCursor = hasMore ? cursorAts[LIMIT - 1].toISOString() : null;
+  return c.json({ items: page, nextCursor });
 });
 
 /** The user's own lists, lists they've saved, and lists they collaborate on —

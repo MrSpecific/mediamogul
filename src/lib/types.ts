@@ -265,6 +265,24 @@ export type ActivityItem =
   | { kind: "episodes"; key: string; media: ActivityMedia; count: number; at: string }
   | { kind: "added"; key: string; media: ActivityMedia; at: string };
 
+/** The person whose action a following-feed row describes. */
+export interface FeedActor {
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+/**
+ * One row of the Following feed (GET /me/following-activity). Everyone you
+ * follow contributes `review` rows (public reviews only); mutuals additionally
+ * contribute `rating`, `entry`, and `episodes` rows.
+ */
+export type FollowingActivityItem =
+  | { kind: "review"; key: string; actor: FeedActor; media: ActivityMedia; title: string | null; body: string; containsSpoilers: boolean; at: string }
+  | { kind: "rating"; key: string; actor: FeedActor; media: ActivityMedia; stars: number; at: string }
+  | { kind: "entry"; key: string; actor: FeedActor; media: ActivityMedia; status: EntryStatus; at: string }
+  | { kind: "episodes"; key: string; actor: FeedActor; media: ActivityMedia; count: number; at: string };
+
 export interface AppNotification {
   id: string;
   type: "LIST_INVITE";

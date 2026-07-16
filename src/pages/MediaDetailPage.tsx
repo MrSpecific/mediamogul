@@ -635,9 +635,17 @@ export function MediaDetailPage() {
 
       <Flex gap="3" align="center" justify="space-between" wrap="wrap">
         <Text size="1" color="gray">
-          {data.createdBy
-            ? `Added by ${data.createdBy.displayName ?? `@${data.createdBy.username}`} · `
-            : "Added "}
+          {data.createdBy ? (
+            <>
+              Added by{" "}
+              <Link to={`/u/${data.createdBy.username}`} className="byline-link">
+                @{data.createdBy.username}
+              </Link>{" "}
+              ·{" "}
+            </>
+          ) : (
+            "Added "
+          )}
           {timeAgo(data.createdAt)}
         </Text>
         <MediaFeedbackDialog media={data} />
