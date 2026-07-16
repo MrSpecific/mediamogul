@@ -739,6 +739,20 @@ body {
   left: 3px;
 }
 
+/* Admin submission scrape-merge field rows. */
+.scrape-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.scrape-field-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 /* TV season accordion header — a bare button styled as the season heading. */
 .season-toggle {
   display: flex;

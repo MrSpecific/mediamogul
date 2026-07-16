@@ -150,7 +150,7 @@ submissions.get("/:id/scrape", requireAdmin, async (c) => {
     "";
   if (!q) return c.json({ error: "no_query", items: [] }, 400);
 
-  let items: MediaCandidate[] = [];
+  let items: MediaCandidate[];
   try {
     if (type === "MOVIE" || type === "TV_SHOW") {
       items = (await searchScreenWikidata(q, 0, 6)).slice(0, 5);
