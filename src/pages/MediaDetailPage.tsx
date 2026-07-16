@@ -502,6 +502,19 @@ export function MediaDetailPage() {
             synopsis={data.synopsis}
           />
 
+          {data.wikipediaUrl && (
+            <Flex>
+              <a
+                href={data.wikipediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="ext-link"
+              >
+                <ExternalLink size={14} aria-hidden /> Wikipedia
+              </a>
+            </Flex>
+          )}
+
           <WhereToWatch streaming={data.streaming} />
 
           {libby?.url && (
@@ -513,18 +526,6 @@ export function MediaDetailPage() {
                 className="ext-link"
               >
                 <ExternalLink size={14} aria-hidden /> Borrow on Libby
-              </a>
-            </Flex>
-          )}
-          {data.wikipediaUrl && (
-            <Flex>
-              <a
-                href={data.wikipediaUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="ext-link"
-              >
-                <ExternalLink size={14} aria-hidden /> Wikipedia
               </a>
             </Flex>
           )}
@@ -648,7 +649,10 @@ export function MediaDetailPage() {
           {data.createdBy ? (
             <>
               Added by{" "}
-              <Link to={`/u/${data.createdBy.username}`} className="byline-link">
+              <Link
+                to={`/u/${data.createdBy.username}`}
+                className="byline-link"
+              >
                 @{data.createdBy.username}
               </Link>{" "}
               ·{" "}

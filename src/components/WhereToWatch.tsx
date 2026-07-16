@@ -13,7 +13,7 @@ export function WhereToWatch({
   if (!streaming || streaming.length === 0) return null;
   return (
     <Flex direction="column" gap="2">
-      <Heading size="4">Where to watch</Heading>
+      <Heading size="1">Where to watch</Heading>
       <Flex gap="2" wrap="wrap">
         {streaming.map((s) => (
           <a
