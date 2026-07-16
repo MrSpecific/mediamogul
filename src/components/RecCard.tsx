@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Card, Flex, Skeleton, Text } from "@wlcr/base-ic";
+import { Card, Flex, Skeleton, Text, Tooltip } from "@wlcr/base-ic";
 import { ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { MediaTypeBadge } from "./MediaTypeBadge";
 import { Cover } from "./Cover";
@@ -42,9 +42,11 @@ export function RecCard({
             <Text weight="medium" size="2" truncate>
               {media.title}
             </Text>
-            <Text size="1" color="gray" truncate title={reason}>
-              {reason}
-            </Text>
+            <Tooltip content={reason}>
+              <Text size="1" color="gray" truncate>
+                {reason}
+              </Text>
+            </Tooltip>
           </Flex>
         </Card>
       </Link>
