@@ -8,7 +8,9 @@ export type StreamingProvider =
   | "PRIME_VIDEO"
   | "PEACOCK"
   | "TUBI"
-  | "STARZ";
+  | "STARZ"
+  | "YOUTUBE"
+  | "VIMEO";
 
 /** Display config per provider (brand-ish accent for the badge). */
 export const STREAMING_PROVIDERS: {
@@ -17,7 +19,7 @@ export const STREAMING_PROVIDERS: {
   color: string;
 }[] = [
   { value: "NETFLIX", label: "Netflix", color: "#E50914" },
-  { value: "MAX", label: "Max", color: "#0046FF" },
+  { value: "MAX", label: "HBO Max", color: "#0046FF" },
   { value: "APPLE_TV", label: "Apple TV+", color: "#457bd6" },
   { value: "HULU", label: "Hulu", color: "#1CE783" },
   { value: "PARAMOUNT_PLUS", label: "Paramount+", color: "#0064FF" },
@@ -26,6 +28,8 @@ export const STREAMING_PROVIDERS: {
   { value: "PEACOCK", label: "Peacock", color: "#7d5fff" },
   { value: "TUBI", label: "Tubi", color: "#7408FF" },
   { value: "STARZ", label: "Starz", color: "#7d7d7d" },
+  { value: "YOUTUBE", label: "YouTube", color: "#FF0000" },
+  { value: "VIMEO", label: "Vimeo", color: "#1AB7EA" },
 ];
 
 const BY_VALUE = new Map(STREAMING_PROVIDERS.map((p) => [p.value, p]));

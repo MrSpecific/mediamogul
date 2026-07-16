@@ -18,13 +18,14 @@ import { MediaPicker } from "./MediaPicker";
 import { titleCase } from "../../shared/media-fields";
 import { STREAMING_PROVIDERS, streamingLabel } from "../lib/streaming";
 import type { StreamingProvider } from "../lib/streaming";
-import type { Genre, MediaDetail, MediaItem } from "../lib/types";
+import type { ContentRating, Genre, MediaDetail, MediaItem } from "../lib/types";
 
 type Kind = "MEDIA_EDIT" | "DUPLICATE" | "INCORRECT_INFO" | "ABUSE" | "OTHER";
 
 // Special "fields" with bespoke editors, kept distinct from real column keys.
 const GENRES_FIELD = "__genres";
 const STREAMING_FIELD = "__streaming";
+const CONTENT_RATING_FIELD = "__contentRating";
 
 const SCALAR_FIELDS = [
   ["title", "Title"],
@@ -65,7 +66,15 @@ export function MediaFeedbackDialog({ media }: { media: MediaDetail }) {
   const [addProvider, setAddProvider] = useState<StreamingProvider>("NETFLIX");
   const [addUrl, setAddUrl] = useState("");
 
+  // Content-rating editor state.
+  const { data: ratings } = useApiData<ContentRating[]>(
+    `/content-ratings?type=${media.type}`,
+  );
+  const currentRatingId = media.contentRating?.id ?? "";
+  const [ratingSel, setRatingSel] = useState(currentRatingId);
+
   const canStreaming = media.type === "MOVIE" || media.type === "TV_SHOW";
+  const hasRatings = Boolean(ratings && ratings.length > 0);
 
   const genresAdd = [...genreSel].filter((id) => !applied.has(id));
   const genresRemove = [...applied].filter((id) => !genreSel.has(id));
@@ -82,6 +91,10 @@ export function MediaFeedbackDialog({ media }: { media: MediaDetail }) {
     if (next === STREAMING_FIELD) {
       setRemoveStreaming(new Set());
       setPendingStreaming([]);
+      return;
+    }
+    if (next === CONTENT_RATING_FIELD) {
+      setRatingSel(currentRatingId);
       return;
     }
     const current = media[next as keyof MediaDetail];
@@ -112,6 +125,9 @@ export function MediaFeedbackDialog({ media }: { media: MediaDetail }) {
         streamingAdd: pendingStreaming,
         streamingRemove: [...removeStreaming],
       };
+    }
+    if (field === CONTENT_RATING_FIELD) {
+      return { contentRatingId: ratingSel || null };
     }
     const proposedValue = NUMERIC.has(field)
       ? value.trim()
@@ -148,7 +164,9 @@ export function MediaFeedbackDialog({ media }: { media: MediaDetail }) {
       ? !genreChanged
       : field === STREAMING_FIELD
         ? !streamingChanged
-        : !value.trim());
+        : field === CONTENT_RATING_FIELD
+          ? ratingSel === currentRatingId
+          : !value.trim());
   const submitDisabled = editInvalid || (kind === "DUPLICATE" && !duplicate);
 
   return (
@@ -191,6 +209,11 @@ export function MediaFeedbackDialog({ media }: { media: MediaDetail }) {
                     {canStreaming && (
                       <Select.Item value={STREAMING_FIELD}>
                         Available on
+                      </Select.Item>
+                    )}
+                    {hasRatings && (
+                      <Select.Item value={CONTENT_RATING_FIELD}>
+                        Content rating
                       </Select.Item>
                     )}
                   </Select>
@@ -289,6 +312,20 @@ export function MediaFeedbackDialog({ media }: { media: MediaDetail }) {
                         </Button>
                       </Flex>
                     </Flex>
+                  </Field>
+                ) : field === CONTENT_RATING_FIELD ? (
+                  <Field label="Content rating">
+                    <Select
+                      value={ratingSel}
+                      onValueChange={(v) => setRatingSel(v as string)}
+                    >
+                      <Select.Item value="">Not rated</Select.Item>
+                      {(ratings ?? []).map((r) => (
+                        <Select.Item key={r.id} value={r.id}>
+                          {r.code} — {r.name}
+                        </Select.Item>
+                      ))}
+                    </Select>
                   </Field>
                 ) : (
                   <Field label="Proposed value">

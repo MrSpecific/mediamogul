@@ -750,6 +750,36 @@ body {
   left: 3px;
 }
 
+/* Content/maturity rating badge — a bordered "certificate" box. */
+.content-rating-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  color: var(--color-text-secondary, #b8b8b8);
+  background: transparent;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.content-rating-badge[data-size="2"] {
+  font-size: 0.8rem;
+  padding: 2px 7px;
+  min-width: 1.9em;
+}
+.content-rating-badge[data-size="1"] {
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  min-width: 1.6em;
+}
+/* TV ratings lean slightly cooler than film to read as a distinct system. */
+.content-rating-badge[data-system="US_TV"] {
+  color: var(--color-cyan-11, #6cc);
+}
+
 /* End-of-results "add media" prompt in the catalog. */
 .catalog-cta {
   border-style: dashed;

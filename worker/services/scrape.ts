@@ -38,6 +38,9 @@ export interface MediaCandidate {
   seriesPosition?: number;
   /** Source-specific series id, for fetching all members (e.g. Wikidata QID). */
   seriesId?: string;
+  /** Content rating code as reported by the source (e.g. "PG-13", "TV-MA"),
+   *  resolved to a ContentRating row on save. */
+  contentRatingCode?: string;
   credits?: CandidateCredit[];
   externalIds: { source: ExternalSource; value: string; url?: string }[];
 }
@@ -236,6 +239,28 @@ interface TmdbDetail {
   seasons?: number;
   episodes?: number;
   genre?: string;
+  contentRatingCode?: string;
+}
+
+/** US certification from a TMDB movie `release_dates` append. */
+function usMovieCertification(d: unknown): string | undefined {
+  const results = (d as { release_dates?: { results?: unknown[] } })
+    .release_dates?.results as
+    | { iso_3166_1?: string; release_dates?: { certification?: string }[] }[]
+    | undefined;
+  const us = results?.find((r) => r.iso_3166_1 === "US");
+  const cert = us?.release_dates?.find((x) => x.certification)?.certification;
+  return cert?.trim() || undefined;
+}
+
+/** US rating from a TMDB TV `content_ratings` append. */
+function usTvRating(d: unknown): string | undefined {
+  const results = (d as { content_ratings?: { results?: unknown[] } })
+    .content_ratings?.results as
+    | { iso_3166_1?: string; rating?: string }[]
+    | undefined;
+  const cert = results?.find((r) => r.iso_3166_1 === "US")?.rating;
+  return cert?.trim() || undefined;
 }
 
 /** One detail call per title → director(s)/creator(s) + runtime/genre/seasons. */
@@ -245,8 +270,11 @@ async function tmdbDetail(
   apiKey: string,
 ): Promise<TmdbDetail> {
   try {
+    // Pull the US certification alongside credits: movies expose it via
+    // release_dates, TV via content_ratings.
+    const extra = kind === "movie" ? "release_dates" : "content_ratings";
     const r = await fetch(
-      `${TMDB}/${kind}/${id}?api_key=${apiKey}&append_to_response=credits`,
+      `${TMDB}/${kind}/${id}?api_key=${apiKey}&append_to_response=credits,${extra}`,
       { headers: { Accept: "application/json" } },
     );
     if (!r.ok) return { credits: [] };
@@ -264,7 +292,12 @@ async function tmdbDetail(
       const directors = (d.credits?.crew ?? [])
         .filter((x) => x.job === "Director")
         .map((x): CandidateCredit => ({ role: "DIRECTOR", name: x.name }));
-      return { credits: directors, runtimeMinutes: d.runtime || undefined, genre };
+      return {
+        credits: directors,
+        runtimeMinutes: d.runtime || undefined,
+        genre,
+        contentRatingCode: usMovieCertification(d),
+      };
     }
     const creators = (d.created_by ?? [])
       .filter((x) => x.name)
@@ -275,6 +308,7 @@ async function tmdbDetail(
       episodes: d.number_of_episodes || undefined,
       runtimeMinutes: d.episode_run_time?.[0] || undefined,
       genre,
+      contentRatingCode: usTvRating(d),
     };
   } catch {
     return { credits: [] };
@@ -327,6 +361,7 @@ export async function searchScreen(
       runtimeMinutes: d.runtimeMinutes,
       seasons: isTv ? d.seasons : undefined,
       episodes: isTv ? d.episodes : undefined,
+      contentRatingCode: d.contentRatingCode,
       credits: d.credits,
       externalIds: [
         {
@@ -678,7 +713,7 @@ const WD_TV = new Set([
 // Shared SELECT + body (everything after the item selector) for the movie/TV
 // queries, so both free-text search and series-member lookup parse identically.
 const SCREEN_SELECT =
-  "SELECT ?item ?itemLabel ?itemDescription ?type ?date ?image ?imdb ?directorLabel ?runtime ?seasons ?episodes ?genreLabel ?series ?seriesLabel ?ordinal";
+  "SELECT ?item ?itemLabel ?itemDescription ?type ?date ?image ?imdb ?directorLabel ?runtime ?seasons ?episodes ?genreLabel ?ratingLabel ?series ?seriesLabel ?ordinal";
 const SCREEN_BODY = `
   ?item wdt:P31 ?type .
   VALUES ?type { wd:Q11424 wd:Q506240 wd:Q24856 wd:Q93204 wd:Q202866 wd:Q5398426 wd:Q1259759 wd:Q63952888 wd:Q526877 wd:Q581714 }
@@ -689,7 +724,8 @@ const SCREEN_BODY = `
   OPTIONAL { ?item wdt:P2047 ?runtime . }
   OPTIONAL { ?item wdt:P2437 ?seasons . }
   OPTIONAL { ?item wdt:P1113 ?episodes . }
-  OPTIONAL { ?item wdt:P136 ?genre . }`;
+  OPTIONAL { ?item wdt:P136 ?genre . }
+  OPTIONAL { ?item wdt:P1657 ?rating . }`;
 const SCREEN_LABEL = `  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }`;
 
 /** Run a movie/TV SPARQL query and dedupe rows into candidates. */
@@ -723,6 +759,7 @@ async function runScreenQuery(sparql: string): Promise<MediaCandidate[]> {
 
     const director = b.directorLabel?.value;
     const genre = b.genreLabel?.value;
+    const rating = b.ratingLabel?.value;
     const setSeries = (cand: MediaCandidate) => {
       if (b.seriesLabel?.value && !cand.seriesName) {
         cand.seriesName = b.seriesLabel.value;
@@ -736,6 +773,7 @@ async function runScreenQuery(sparql: string): Promise<MediaCandidate[]> {
     if (existing) {
       if (director && type === "MOVIE") addCredit(existing, "DIRECTOR", director);
       if (genre && !existing.genre) existing.genre = genre;
+      if (rating && !existing.contentRatingCode) existing.contentRatingCode = rating;
       setSeries(existing);
       continue;
     }
@@ -765,6 +803,7 @@ async function runScreenQuery(sparql: string): Promise<MediaCandidate[]> {
       shortDescription: b.itemDescription?.value,
       releaseDate: normalizeDate(b.date?.value),
       genre: genre || undefined,
+      contentRatingCode: rating || undefined,
       credits: [],
       externalIds,
     };

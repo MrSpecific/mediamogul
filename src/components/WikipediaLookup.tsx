@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Badge, Button, Card, Flex, Input, Text } from "@wlcr/base-ic";
-import { Check, Search } from "lucide-react";
+import { Check, Image as ImageIcon, Search } from "lucide-react";
 import { apiGet, apiSend } from "../lib/api";
 
 interface WikipediaCandidate {
@@ -31,6 +31,8 @@ export function WikipediaLookup({
   const [results, setResults] = useState<WikipediaCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [posterBusy, setPosterBusy] = useState<string | null>(null);
+  const [posterMsg, setPosterMsg] = useState<string | null>(null);
 
   const search = async () => {
     setSearching(true);
@@ -55,6 +57,30 @@ export function WikipediaLookup({
       onChanged?.();
     } finally {
       setBusy(null);
+    }
+  };
+
+  // Adopt the article's lead image as the cover (works with the given url, or
+  // the already-linked article when none is passed).
+  const pullPoster = async (url?: string) => {
+    setPosterBusy(url ?? "current");
+    setPosterMsg(null);
+    try {
+      const r = await apiSend<{ coverImageUrl: string | null }>(
+        "POST",
+        `/media/${mediaId}/wikipedia/poster`,
+        { url },
+      );
+      setPosterMsg(
+        r.coverImageUrl
+          ? "Cover image pulled from Wikipedia."
+          : "No image found on that Wikipedia page.",
+      );
+      onChanged?.();
+    } catch (e) {
+      setPosterMsg((e as Error).message);
+    } finally {
+      setPosterBusy(null);
     }
   };
 

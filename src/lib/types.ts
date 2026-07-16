@@ -42,6 +42,8 @@ export interface MediaItem {
   runtimeMinutes: number | null;
   seasons: number | null;
   episodes: number | null;
+  contentRatingId?: string | null;
+  contentRating?: ContentRatingRef | null;
   /** Whether the current user has completed this item; set on catalog results. */
   hasCompleted?: boolean;
 }
@@ -53,6 +55,34 @@ export interface Genre {
   applicableTypes: MediaType[];
   _count?: { media: number };
 }
+
+export type RatingSystem = "MPAA" | "US_TV";
+
+/** A content/maturity rating in the catalog (GET /content-ratings). */
+export interface ContentRating {
+  id: string;
+  system: RatingSystem;
+  /** Short label shown in the badge, e.g. "PG-13" / "TV-MA". */
+  code: string;
+  name: string;
+  description: string | null;
+  applicableTypes: MediaType[];
+  rank: number;
+  _count?: { media: number };
+}
+
+/** The subset of a content rating carried on a media item. */
+export interface ContentRatingRef {
+  id: string;
+  system: RatingSystem;
+  code: string;
+  name: string;
+}
+
+export const RATING_SYSTEMS: { value: RatingSystem; label: string }[] = [
+  { value: "MPAA", label: "MPAA (film)" },
+  { value: "US_TV", label: "US TV" },
+];
 
 export type CreditRole =
   | "AUTHOR"
@@ -207,6 +237,8 @@ export interface MediaCandidate {
   seriesName?: string;
   seriesPosition?: number;
   seriesId?: string;
+  /** Content rating code reported by the source (e.g. "PG-13", "TV-MA"). */
+  contentRatingCode?: string;
   credits?: { role: CreditRole; name: string; externalId?: string }[];
   externalIds: { source: string; value: string; url?: string }[];
   /** Set by /api/lookup when this candidate is already in the catalog. */

@@ -33,6 +33,7 @@ export const entryStatus = z.enum([
   "ABANDONED",
 ]);
 export const visibility = z.enum(["PRIVATE", "UNLISTED", "PUBLIC"]);
+export const ratingSystem = z.enum(["MPAA", "US_TV"]);
 export const creditRole = z.enum([
   "AUTHOR",
   "ILLUSTRATOR",

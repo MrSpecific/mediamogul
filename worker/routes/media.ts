@@ -1,7 +1,7 @@
 import { type Context, Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { type MediaType, Prisma } from "../generated/prisma/client";
+import { type MediaType, type PrismaClient, Prisma } from "../generated/prisma/client";
 import {
   type MediaCandidate,
   importSeasons,
@@ -16,6 +16,7 @@ import { linkGenres, resolveGenreId } from "../services/genres";
 import { libbyTitleUrl, searchLibby } from "../services/libby";
 import {
   fetchWikipediaExtract,
+  fetchWikipediaImage,
   searchWikipedia,
   wikipediaTitleFromUrl,
 } from "../services/wikipedia";
@@ -53,20 +54,21 @@ const creditInput = z.object({
 const mediaInput = z.object({
   type: mediaType,
   title: z.string().min(1).max(500),
-  subtitle: z.string().max(500).optional(),
-  sortTitle: z.string().max(500).optional(),
+  // Nullable columns accept null so an admin edit can clear them.
+  subtitle: z.string().max(500).nullable().optional(),
+  sortTitle: z.string().max(500).nullable().optional(),
   // Accepts absolute URLs (scraped) and relative /uploads/… paths (our R2).
-  coverImageUrl: z.string().max(1000).optional(),
-  shortDescription: z.string().max(500).optional(),
-  synopsis: z.string().optional(),
-  wikipediaUrl: z.string().url().max(1000).optional(),
-  releaseDate: z.coerce.date().optional(),
-  originalLanguage: z.string().max(20).optional(),
-  publisher: z.string().max(300).optional(),
-  pageCount: z.number().int().optional(),
-  runtimeMinutes: z.number().int().optional(),
-  seasons: z.number().int().optional(),
-  episodes: z.number().int().optional(),
+  coverImageUrl: z.string().max(1000).nullable().optional(),
+  shortDescription: z.string().max(500).nullable().optional(),
+  synopsis: z.string().nullable().optional(),
+  wikipediaUrl: z.string().url().max(1000).nullable().optional(),
+  releaseDate: z.coerce.date().nullable().optional(),
+  originalLanguage: z.string().max(20).nullable().optional(),
+  publisher: z.string().max(300).nullable().optional(),
+  pageCount: z.number().int().nullable().optional(),
+  runtimeMinutes: z.number().int().nullable().optional(),
+  seasons: z.number().int().nullable().optional(),
+  episodes: z.number().int().nullable().optional(),
   // `genre` is a transient scrape passthrough (resolved to a Genre on save);
   // `genreIds` are chosen explicitly (manual form).
   genre: z.string().max(100).optional(),
@@ -74,6 +76,11 @@ const mediaInput = z.object({
   // Series membership — auto-creates/links a Series on save when present.
   seriesName: z.string().max(300).optional(),
   seriesPosition: z.number().int().optional(),
+  // Content/maturity rating: `contentRatingId` is chosen explicitly (manual
+  // form); `contentRatingCode` is a transient scrape passthrough resolved to a
+  // catalog row on save. Null id clears the rating.
+  contentRatingId: z.string().nullable().optional(),
+  contentRatingCode: z.string().max(50).optional(),
   credits: z.array(creditInput).optional(),
   externalIds: z.array(externalIdInput).optional(),
 });
@@ -87,15 +94,35 @@ const withRelations = {
   streaming: { orderBy: { provider: "asc" } },
   credits: { orderBy: { position: "asc" } },
   genres: { include: { genre: true } },
+  contentRating: true,
 } satisfies Prisma.MediaItemInclude;
+
+/** Resolve a scraped content-rating code to a catalog row id for the item's
+ *  type (MPAA for film, US TV for television). Unknown codes → undefined. */
+async function resolveContentRatingId(
+  prisma: Prisma.TransactionClient | PrismaClient,
+  cand: { type: MediaType; contentRatingCode?: string },
+): Promise<string | undefined> {
+  if (!cand.contentRatingCode) return undefined;
+  const system =
+    cand.type === "MOVIE" ? "MPAA" : cand.type === "TV_SHOW" ? "US_TV" : null;
+  if (!system) return undefined;
+  const row = await prisma.contentRating
+    .findUnique({
+      where: { system_code: { system, code: cand.contentRatingCode } },
+      select: { id: true },
+    })
+    .catch(() => null);
+  return row?.id ?? undefined;
+}
 
 /** Column fields shared by create/import (people, genres, ids are separate). */
 function columnData(d: {
-  publisher?: string;
-  pageCount?: number;
-  runtimeMinutes?: number;
-  seasons?: number;
-  episodes?: number;
+  publisher?: string | null;
+  pageCount?: number | null;
+  runtimeMinutes?: number | null;
+  seasons?: number | null;
+  episodes?: number | null;
 }) {
   return {
     publisher: d.publisher,
@@ -214,6 +241,7 @@ async function importScrapeCandidate(
       releaseDate: cand.releaseDate ? new Date(cand.releaseDate) : undefined,
       originalLanguage: cand.originalLanguage,
       ...columnData(cand),
+      contentRatingId: await resolveContentRatingId(prisma, cand),
       source: "SCRAPED",
       createdById: userId,
     },
@@ -498,6 +526,8 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
       releaseDate: data.releaseDate,
       originalLanguage: data.originalLanguage,
       ...columnData(data),
+      contentRatingId:
+        data.contentRatingId ?? (await resolveContentRatingId(prisma, data)),
       source: "USER_SUBMITTED",
       createdById: c.get("user").id,
     },
@@ -575,6 +605,7 @@ media.post(
         releaseDate: cand.releaseDate ? new Date(cand.releaseDate) : undefined,
         originalLanguage: cand.originalLanguage,
         ...columnData(cand),
+        contentRatingId: await resolveContentRatingId(prisma, cand),
         source: "SCRAPED",
         createdById: c.get("user").id,
       },
@@ -1484,10 +1515,25 @@ media.get("/:id/description-source", requireAdmin, async (c) => {
 });
 
 media.patch("/:id", zValidator("json", mediaInput.partial()), async (c) => {
-  // Column updates only; external ids / credits are managed via their own flows.
-  const { externalIds, credits, ...rest } = c.req.valid("json");
+  // Column updates only; relations and transient scrape passthroughs are
+  // managed via their own flows and must not reach mediaItem.update.
+  const {
+    externalIds,
+    credits,
+    genre,
+    genreIds,
+    seriesName,
+    seriesPosition,
+    contentRatingCode,
+    ...rest
+  } = c.req.valid("json");
   void externalIds;
   void credits;
+  void genre;
+  void genreIds;
+  void seriesName;
+  void seriesPosition;
+  void contentRatingCode;
   const updated = await c
     .get("prisma")
     .mediaItem.update({
@@ -1836,6 +1882,7 @@ media.post(
           runtimeMinutes: z.number().int().nullable().optional(),
           seasons: z.number().int().nullable().optional(),
           episodes: z.number().int().nullable().optional(),
+          contentRatingId: z.string().nullable().optional(),
         })
         .optional(),
       replaceCredits: z.array(creditInput).optional(),
@@ -1915,6 +1962,8 @@ const streamingProvider = z.enum([
   "PEACOCK",
   "TUBI",
   "STARZ",
+  "YOUTUBE",
+  "VIMEO",
 ]);
 
 /** Admin: add/update where this item streams (upsert by provider+region). */
@@ -2044,6 +2093,38 @@ media.put(
       .catch(() => null);
     if (!item) return c.json({ error: "not_found" }, 404);
     return c.json(item);
+  },
+);
+
+/**
+ * Admin: adopt the linked (or given) Wikipedia article's lead image as the
+ * item's cover — ingested into R2 with Wikipedia provenance.
+ */
+media.post(
+  "/:id/wikipedia/poster",
+  requireAdmin,
+  zValidator("json", z.object({ url: z.string().url().max(1000).optional() })),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const id = c.req.param("id");
+    const item = await prisma.mediaItem.findUnique({
+      where: { id },
+      select: { wikipediaUrl: true },
+    });
+    if (!item) return c.json({ error: "not_found" }, 404);
+    const pageUrl = c.req.valid("json").url ?? item.wikipediaUrl;
+    if (!pageUrl) return c.json({ error: "no_wikipedia_link" }, 400);
+    const title = wikipediaTitleFromUrl(pageUrl);
+    if (!title) return c.json({ error: "bad_url" }, 400);
+    const imageUrl = await fetchWikipediaImage(title);
+    if (!imageUrl) return c.json({ error: "no_image" }, 404);
+    const coverImageUrl = await ingestRemoteCover(c, id, {
+      imageUrl,
+      sourceName: "Wikipedia",
+      sourceUrl: pageUrl,
+      license: "CC BY-SA",
+    });
+    return c.json({ coverImageUrl });
   },
 );
 

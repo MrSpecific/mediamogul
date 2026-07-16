@@ -28,6 +28,13 @@ enum MediaType {
   MAGAZINE
 }
 
+/// Content/maturity rating system (e.g. MPAA film ratings, US TV Parental
+/// Guidelines). The available codes per system live in the ContentRating table.
+enum RatingSystem {
+  MPAA // US film ratings: G, PG, PG-13, R, NC-17
+  US_TV // US TV Parental Guidelines: TV-Y … TV-MA
+}
+
 /// How two media items relate.
 enum MediaRelationType {
   ALTERNATE_FORMAT // same work, different format (book ↔ audiobook ↔ ebook)
@@ -94,6 +101,8 @@ enum StreamingProvider {
   PEACOCK
   TUBI
   STARZ
+  YOUTUBE
+  VIMEO
 }
 
 /// The kind of contribution a person made to a media item.
@@ -237,13 +246,16 @@ model MediaItem {
   lastRefreshedAt DateTime? @map("last_refreshed_at")
   refreshEnabled  Boolean   @default(true) @map("refresh_enabled")
 
-  source      MediaSource @default(USER_SUBMITTED)
-  visibility  Visibility  @default(PUBLIC)
-  archivedAt  DateTime?   @map("archived_at")
-  createdById String?     @map("created_by_id")
-  createdBy   User?       @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  source          MediaSource    @default(USER_SUBMITTED)
+  visibility      Visibility     @default(PUBLIC)
+  archivedAt      DateTime?      @map("archived_at")
+  createdById     String?        @map("created_by_id")
+  createdBy       User?          @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  // Age/maturity rating (MPAA for film, US TV Parental Guidelines for TV, …).
+  contentRatingId String?        @map("content_rating_id")
+  contentRating   ContentRating? @relation(fields: [contentRatingId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
 
   externalIds       ExternalId[]
   streaming         StreamingAvailability[]
@@ -264,6 +276,7 @@ model MediaItem {
   @@index([type])
   @@index([title])
   @@index([createdById])
+  @@index([contentRatingId])
   // Scheduled-refresh queue: eligible items by type, ordered by staleness.
   @@index([type, refreshEnabled, lastRefreshedAt])
   @@map("media_items")
@@ -380,6 +393,26 @@ model Genre {
   media           MediaGenre[]
 
   @@map("genres")
+}
+
+/// A content/maturity rating available for assignment (e.g. MPAA "PG-13", US TV
+/// "TV-MA"). A fixed catalog seeded per system; media point at one via FK.
+model ContentRating {
+  id              String       @id @default(uuid())
+  system          RatingSystem
+  /// Short label shown in the badge, e.g. "PG-13" or "TV-MA".
+  code            String
+  /// Full name, e.g. "Parents Strongly Cautioned".
+  name            String
+  description     String?
+  applicableTypes MediaType[]  @map("applicable_types")
+  /// Severity order within a system, lowest (most permissive) first.
+  rank            Int          @default(0)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  media           MediaItem[]
+
+  @@unique([system, code])
+  @@map("content_ratings")
 }
 
 /// Media ↔ genre join (a media item can have several genres).

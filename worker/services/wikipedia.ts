@@ -108,6 +108,37 @@ export async function fetchWikipediaExtract(
   return page?.extract?.trim() || null;
 }
 
+/**
+ * Fetch the original lead/poster image URL for a Wikipedia article title (used
+ * to adopt the article's main image as a cover). Returns null if none.
+ */
+export async function fetchWikipediaImage(
+  title: string,
+): Promise<string | null> {
+  const t = title.trim();
+  if (!t) return null;
+  const url = new URL(WIKI_API);
+  const params: Record<string, string> = {
+    action: "query",
+    format: "json",
+    origin: "*",
+    titles: t,
+    prop: "pageimages",
+    piprop: "original",
+    redirects: "1",
+  };
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const res = await fetch(url, {
+    headers: { Accept: "application/json", "User-Agent": UA },
+  }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const data = (await res.json()) as {
+    query?: { pages?: Record<string, { original?: { source?: string } }> };
+  };
+  const page = Object.values(data.query?.pages ?? {})[0];
+  return page?.original?.source ?? null;
+}
+
 /** Extract the article title from a Wikipedia URL (…/wiki/Article_Title). */
 export function wikipediaTitleFromUrl(url: string): string | null {
   const m = url.match(/\/wiki\/([^#?]+)/);

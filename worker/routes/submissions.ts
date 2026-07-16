@@ -44,6 +44,7 @@ const editableMedia = z.object({
   runtimeMinutes: z.number().int().positive().nullable().optional(),
   seasons: z.number().int().nonnegative().nullable().optional(),
   episodes: z.number().int().nonnegative().nullable().optional(),
+  contentRatingId: z.string().nullable().optional(),
 }).strict();
 
 const streamingProvider = z.enum([
@@ -57,6 +58,8 @@ const streamingProvider = z.enum([
   "PEACOCK",
   "TUBI",
   "STARZ",
+  "YOUTUBE",
+  "VIMEO",
 ]);
 
 /** MEDIA_EDIT proposals can also add/remove genres and streaming platforms.

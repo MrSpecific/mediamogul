@@ -22,6 +22,7 @@ import { ListDetailPage } from "./pages/ListDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AdminGenresPage } from "./pages/AdminGenresPage";
+import { AdminContentRatingsPage } from "./pages/AdminContentRatingsPage";
 import { AdminSubmissionsPage } from "./pages/AdminSubmissionsPage";
 import { SeriesPage } from "./pages/SeriesPage";
 import { StatsPage } from "./pages/StatsPage";
@@ -75,6 +76,10 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/settings/profile" element={<ProfileSettingsPage />} />
                 <Route path="/account/:pathname" element={<AccountPage />} />
                 <Route path="/admin/genres" element={<AdminGenresPage />} />
+                <Route
+                  path="/admin/content-ratings"
+                  element={<AdminContentRatingsPage />}
+                />
                 <Route path="/admin/submissions" element={<AdminSubmissionsPage />} />
                 <Route path="/admin/users" element={<AdminUsersPage />} />
                 <Route path="/admin/control" element={<AdminControlPage />} />

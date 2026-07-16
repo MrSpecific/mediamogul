@@ -5,6 +5,7 @@ import {
   BarChart3,
   CreditCard,
   Shield,
+  ShieldAlert,
   SlidersHorizontal,
   User as UserIcon,
   Users,
@@ -47,6 +48,12 @@ const ADMIN_MENU_LINKS = [
     href: "/admin/users",
     label: "Manage users",
     icon: <Users size={16} aria-hidden />,
+    signedIn: true,
+  },
+  {
+    href: "/admin/content-ratings",
+    label: "Content ratings",
+    icon: <ShieldAlert size={16} aria-hidden />,
     signedIn: true,
   },
   {

@@ -109,3 +109,35 @@ for (const [name, types] of GENRES) {
   count++;
 }
 console.log(`Seeded ${count} genres.`);
+
+/** Content ratings: [system, code, name, applicableTypes, rank]. Rank orders
+ *  by severity (most permissive first). Idempotent by (system, code). */
+const CONTENT_RATINGS = [
+  // MPAA — films
+  ["MPAA", "G", "General Audiences", [M], 0],
+  ["MPAA", "PG", "Parental Guidance Suggested", [M], 1],
+  ["MPAA", "PG-13", "Parents Strongly Cautioned", [M], 2],
+  ["MPAA", "R", "Restricted", [M], 3],
+  ["MPAA", "NC-17", "Adults Only", [M], 4],
+  // US TV Parental Guidelines — television
+  ["US_TV", "TV-Y", "All Children", [T], 0],
+  ["US_TV", "TV-Y7", "Directed to Older Children", [T], 1],
+  ["US_TV", "TV-G", "General Audience", [T], 2],
+  ["US_TV", "TV-PG", "Parental Guidance Suggested", [T], 3],
+  ["US_TV", "TV-14", "Parents Strongly Cautioned", [T], 4],
+  ["US_TV", "TV-MA", "Mature Audience Only", [T], 5],
+];
+
+let ratingCount = 0;
+for (const [system, code, name, types, rank] of CONTENT_RATINGS) {
+  await sql`
+    insert into content_ratings (id, system, code, name, applicable_types, rank, created_at)
+    values (gen_random_uuid(), ${system}::"RatingSystem", ${code}, ${name}, ${types}::"MediaType"[], ${rank}, now())
+    on conflict (system, code) do update
+      set name = excluded.name,
+          applicable_types = excluded.applicable_types,
+          rank = excluded.rank
+  `;
+  ratingCount++;
+}
+console.log(`Seeded ${ratingCount} content ratings.`);

@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ExternalLink,
   ListPlus,
+  Pencil,
   RefreshCw,
   Search,
   Share2,
@@ -33,6 +34,8 @@ import { apiSend } from "../lib/api";
 import { CopyButton } from "../components/CopyButton";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { ContentRatingBadge } from "../components/ContentRatingBadge";
+import { ContentRatingEditor } from "../components/ContentRatingEditor";
 import { RecCard, RecCardSkeleton } from "../components/RecCard";
 import { GenreEditor } from "../components/GenreEditor";
 import { MediaDescriptions } from "../components/MediaDescriptions";
@@ -43,6 +46,7 @@ import { CoverFinderDialog } from "../components/CoverFinderDialog";
 import { CoverUploadDialog } from "../components/CoverUploadDialog";
 import { RescrapeDialog } from "../components/RescrapeDialog";
 import { DescriptionSourceDialog } from "../components/DescriptionSourceDialog";
+import { AdminEditDialog } from "../components/AdminEditDialog";
 import { MediaDetailSkeleton } from "../components/MediaDetailSkeleton";
 import { TvSeasons } from "../components/TvSeasons";
 import { CoverGallery, type CoverInfo } from "../components/CoverGallery";
@@ -146,6 +150,7 @@ function MediaDetailContent() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [rescrapeOpen, setRescrapeOpen] = useState(false);
   const [descSourceOpen, setDescSourceOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adminMode, setAdminMode] = useAdminMode();
@@ -504,8 +509,16 @@ function MediaDetailContent() {
             </Text>
           </Flex>
 
-          {factsOf(data).length > 0 && (
-            <Flex gap="5" wrap="wrap">
+          {(data.contentRating || factsOf(data).length > 0) && (
+            <Flex gap="5" wrap="wrap" align="start">
+              {data.contentRating && (
+                <Flex direction="column" gap="1">
+                  <Text size="1" color="gray">
+                    Rating
+                  </Text>
+                  <ContentRatingBadge rating={data.contentRating} />
+                </Flex>
+              )}
               {factsOf(data).map((f) => (
                 <Flex key={f.label} direction="column" gap="0">
                   <Text size="1" color="gray">
@@ -520,12 +533,20 @@ function MediaDetailContent() {
           )}
 
           {showAdmin ? (
-            <GenreEditor
-              mediaId={data.id}
-              mediaType={data.type}
-              genres={data.genres}
-              onChanged={reload}
-            />
+            <>
+              <GenreEditor
+                mediaId={data.id}
+                mediaType={data.type}
+                genres={data.genres}
+                onChanged={reload}
+              />
+              <ContentRatingEditor
+                mediaId={data.id}
+                mediaType={data.type}
+                current={data.contentRating ?? null}
+                onChanged={reload}
+              />
+            </>
           ) : (
             data.genres.length > 0 && (
               <Flex gap="2" wrap="wrap">
@@ -929,6 +950,9 @@ function MediaDetailContent() {
                 Data
               </Text>
               <Flex gap="2" wrap="wrap">
+                <Button onClick={() => setEditOpen(true)}>
+                  <Pencil size={16} aria-hidden /> Edit details
+                </Button>
                 <Button variant="soft" onClick={() => setRescrapeOpen(true)}>
                   <RefreshCw size={16} aria-hidden /> Re-scrape data
                 </Button>
@@ -1079,6 +1103,13 @@ function MediaDetailContent() {
             open={descSourceOpen}
             onOpenChange={setDescSourceOpen}
             mediaId={data.id}
+            onChanged={reload}
+          />
+
+          <AdminEditDialog
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            media={data}
             onChanged={reload}
           />
 

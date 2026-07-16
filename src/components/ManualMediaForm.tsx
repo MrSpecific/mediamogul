@@ -7,6 +7,7 @@ import {
   Flex,
   Heading,
   Input,
+  Select,
   Text,
   Textarea,
   Toggle,
@@ -16,7 +17,7 @@ import { apiSend, apiUpload } from "../lib/api";
 import { useApiData } from "../lib/hooks";
 import { SegmentedControl } from "./SegmentedControl";
 import { MEDIA_FIELDS, type MediaType } from "../../shared/media-fields";
-import type { Genre } from "../lib/types";
+import type { ContentRating, Genre } from "../lib/types";
 
 const TYPE_OPTIONS = (Object.keys(MEDIA_FIELDS) as MediaType[]).map((value) => ({
   value,
@@ -36,6 +37,7 @@ export function ManualMediaForm() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [credits, setCredits] = useState<Record<string, string>>({});
   const [genreIds, setGenreIds] = useState<string[]>([]);
+  const [contentRatingId, setContentRatingId] = useState("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,11 +45,15 @@ export function ManualMediaForm() {
 
   const cfg = MEDIA_FIELDS[type];
   const { data: genres } = useApiData<Genre[]>(`/genres?type=${type}`);
+  const { data: ratings } = useApiData<ContentRating[]>(
+    `/content-ratings?type=${type}`,
+  );
 
-  // Reset genre selection when the type changes (available genres differ).
+  // Reset type-specific selections when the type changes.
   const changeType = (t: MediaType) => {
     setType(t);
     setGenreIds([]);
+    setContentRatingId("");
   };
 
   const onFile = async (file: File | undefined) => {
@@ -89,6 +95,7 @@ export function ManualMediaForm() {
     );
     if (creditList.length) payload.credits = creditList;
     if (genreIds.length) payload.genreIds = genreIds;
+    if (contentRatingId) payload.contentRatingId = contentRatingId;
 
     try {
       const item = await apiSend<{ id: string }>("POST", "/media", payload);
@@ -200,6 +207,22 @@ export function ManualMediaForm() {
                 </Toggle>
               ))}
             </ToggleGroup>
+          </Field>
+        )}
+
+        {ratings && ratings.length > 0 && (
+          <Field label="Content rating">
+            <Select
+              value={contentRatingId}
+              onValueChange={(v) => setContentRatingId(v as string)}
+            >
+              <Select.Item value="">Not rated</Select.Item>
+              {ratings.map((r) => (
+                <Select.Item key={r.id} value={r.id}>
+                  {r.code} — {r.name}
+                </Select.Item>
+              ))}
+            </Select>
           </Field>
         )}
 
