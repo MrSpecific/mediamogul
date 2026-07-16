@@ -272,6 +272,52 @@ body {
   position: relative;
 }
 
+/* Recommendation card: hover-reveal thumbs-up / thumbs-down / hide overlay. */
+.rec-card {
+  position: relative;
+}
+.rec-card-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  z-index: 2;
+}
+.rec-card:hover .rec-card-actions,
+.rec-card:focus-within .rec-card-actions {
+  opacity: 1;
+}
+.rec-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+.rec-action:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+.rec-action[data-active="true"] {
+  background: var(--color-accent-9, #d4b106);
+  color: #111;
+}
+/* On touch (no hover), keep the controls visible. */
+@media (hover: none) {
+  .rec-card-actions {
+    opacity: 1;
+  }
+}
+
 .media-card-complete {
   position: absolute;
   top: 8px;

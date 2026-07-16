@@ -430,12 +430,14 @@ me.get("/following-activity", async (c) => {
  */
 const CONTENT_WEIGHT = 1;
 const SOCIAL_WEIGHT = 2;
+// How hard a thumbs-down on one item penalizes candidates similar to it.
+const DOWN_INFLUENCE = 0.75;
 
 me.get("/recommendations", async (c) => {
   const prisma = c.get("prisma");
   const userId = c.get("user").id;
 
-  const [entries, ratings, followRows] = await Promise.all([
+  const [entries, ratings, followRows, feedback] = await Promise.all([
     prisma.mediaEntry.findMany({
       where: { userId },
       select: { mediaItemId: true, status: true },
@@ -448,7 +450,16 @@ me.get("/recommendations", async (c) => {
       where: { followerId: userId },
       select: { followingId: true },
     }),
+    prisma.recommendationFeedback.findMany({
+      where: { userId },
+      select: { mediaItemId: true, signal: true },
+    }),
   ]);
+
+  // Feedback shapes the feed: every reacted-to item leaves the feed; UP items
+  // become extra positive seeds, DOWN items become a negative influence.
+  const upIds: string[] = [];
+  const downIds: string[] = [];
 
   const ratingByItem = new Map(
     ratings.map((r) => [r.mediaItemId, Number(r.stars)]),
@@ -461,6 +472,11 @@ me.get("/recommendations", async (c) => {
     ...ratingByItem.keys(),
     ...statusByItem.keys(),
   ]);
+  for (const f of feedback) {
+    seen.add(f.mediaItemId); // never re-surface anything the user reacted to
+    if (f.signal === "UP") upIds.push(f.mediaItemId);
+    else if (f.signal === "DOWN") downIds.push(f.mediaItemId);
+  }
   // Optionally treat anything already on one of the user's own lists as "seen"
   // too, so recommendations don't surface things they've already collected.
   if (c.req.query("excludeListed")) {
@@ -486,8 +502,11 @@ me.get("/recommendations", async (c) => {
   };
   const recs = new Map<string, Rec>();
 
-  // --- Content-based: neighbours of the user's top liked items. ---
-  const seedIds = [...seen]
+  // --- Content-based: neighbours of the user's liked items (+ thumbs-up),
+  //     pushed down by resemblance to thumbs-down items. ---
+  const likedIds = [
+    ...new Set([...ratingByItem.keys(), ...statusByItem.keys()]),
+  ]
     .map((id) => ({
       id,
       aff: affinityFromSignals(
@@ -499,18 +518,26 @@ me.get("/recommendations", async (c) => {
     .sort((a, b) => b.aff - a.aff)
     .slice(0, 20)
     .map((a) => a.id);
+  // Thumbs-up items are strong explicit positives — always include them.
+  const positiveSeedIds = [...new Set([...likedIds, ...upIds])].slice(0, 25);
 
-  if (seedIds.length > 0) {
+  if (positiveSeedIds.length > 0) {
     const seedItems = await prisma.mediaItem.findMany({
-      where: { id: { in: seedIds } },
+      where: { id: { in: [...new Set([...positiveSeedIds, ...downIds])] } },
       select: FEATURE_SELECT,
     });
-    const seeds = seedItems.map(featuresOf);
+    const featById = new Map(seedItems.map((it) => [it.id, featuresOf(it)]));
+    const posSeeds = positiveSeedIds
+      .map((id) => featById.get(id))
+      .filter((f): f is NonNullable<typeof f> => Boolean(f));
+    const negSeeds = downIds
+      .map((id) => featById.get(id))
+      .filter((f): f is NonNullable<typeof f> => Boolean(f));
 
     const genreIds = new Set<string>();
     const people = new Set<string>();
     const seriesIds = new Set<string>();
-    for (const s of seeds) {
+    for (const s of posSeeds) {
       s.genreIds.forEach((x) => genreIds.add(x));
       s.people.forEach((x) => people.add(x));
       s.seriesIds.forEach((x) => seriesIds.add(x));
@@ -540,7 +567,7 @@ me.get("/recommendations", async (c) => {
         const cf = featuresOf(ci);
         let best = 0;
         let bestTitle = "";
-        for (const s of seeds) {
+        for (const s of posSeeds) {
           const { score } = scoreSimilarity(s, cf);
           if (score > best) {
             best = score;
@@ -548,6 +575,13 @@ me.get("/recommendations", async (c) => {
           }
         }
         if (best <= 0) continue;
+        // Penalize by the strongest resemblance to a thumbs-down item.
+        let negBest = 0;
+        for (const s of negSeeds) {
+          const { score } = scoreSimilarity(s, cf);
+          if (score > negBest) negBest = score;
+        }
+        const score = best - DOWN_INFLUENCE * negBest;
         recs.set(ci.id, {
           media: {
             id: ci.id,
@@ -556,7 +590,7 @@ me.get("/recommendations", async (c) => {
             coverImageUrl: ci.coverImageUrl,
             shortDescription: ci.shortDescription,
           },
-          content: { score: best, reason: `Because you liked ${bestTitle}` },
+          content: { score, reason: `Because you liked ${bestTitle}` },
           social: null,
         });
       }
@@ -643,6 +677,37 @@ me.get("/recommendations", async (c) => {
 
   return c.json(ranked);
 });
+
+/**
+ * Record (or clear) the user's reaction to a recommended item. UP/DOWN/HIDE all
+ * remove it from future feeds; UP/DOWN additionally shape content scoring.
+ * A null signal clears any existing reaction.
+ */
+me.put(
+  "/recommendations/:mediaItemId/feedback",
+  zValidator(
+    "json",
+    z.object({ signal: z.enum(["UP", "DOWN", "HIDE"]).nullable() }),
+  ),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const userId = c.get("user").id;
+    const mediaItemId = c.req.param("mediaItemId");
+    const { signal } = c.req.valid("json");
+    if (signal === null) {
+      await prisma.recommendationFeedback.deleteMany({
+        where: { userId, mediaItemId },
+      });
+      return c.json({ signal: null });
+    }
+    await prisma.recommendationFeedback.upsert({
+      where: { userId_mediaItemId: { userId, mediaItemId } },
+      create: { userId, mediaItemId, signal },
+      update: { signal },
+    });
+    return c.json({ signal });
+  },
+);
 
 /** The user's own lists, lists they've saved, and lists they collaborate on —
  *  each flagged with whether the user has starred it. */

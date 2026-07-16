@@ -10,7 +10,9 @@ import {
   Tv,
   UserCheckIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { useApiData } from "../lib/hooks";
+import { apiSend } from "../lib/api";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { RecCard, RecCardSkeleton } from "../components/RecCard";
@@ -30,6 +32,32 @@ export function HomePage() {
   const { data: recommendations, loading: recsLoading } = useApiData<
     Recommendation[]
   >("/me/recommendations?excludeListed=1");
+
+  // Local, optimistic feedback state. Thumbs up/down toggle a pressed state;
+  // hide (and any thumbs press implies a persisted signal) removes on reload.
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [signals, setSignals] = useState<Record<string, "UP" | "DOWN">>({});
+
+  const sendFeedback = (mediaId: string, signal: "UP" | "DOWN" | "HIDE" | null) =>
+    void apiSend("PUT", `/me/recommendations/${mediaId}/feedback`, {
+      signal,
+    }).catch(() => undefined);
+
+  const onSignal = (mediaId: string, signal: "UP" | "DOWN") => {
+    const next = signals[mediaId] === signal ? null : signal;
+    setSignals((s) => {
+      const copy = { ...s };
+      if (next) copy[mediaId] = next;
+      else delete copy[mediaId];
+      return copy;
+    });
+    sendFeedback(mediaId, next);
+  };
+
+  const onHide = (mediaId: string) => {
+    setHidden((h) => new Set(h).add(mediaId));
+    sendFeedback(mediaId, "HIDE");
+  };
 
   return (
     <Flex direction="column" gap="5">
@@ -100,27 +128,37 @@ export function HomePage() {
         </Flex>
       )}
 
-      {(recsLoading || (recommendations && recommendations.length > 0)) && (
-        <Flex direction="column" gap="3">
-          <Flex gap="2" align="center">
-            <Sparkles size={18} aria-hidden className="dim-icon" />
-            <Heading size="4">Recommended for you</Heading>
+      {(() => {
+        const visibleRecs =
+          recommendations?.filter((r) => !hidden.has(r.media.id)) ?? [];
+        if (!recsLoading && visibleRecs.length === 0) return null;
+        return (
+          <Flex direction="column" gap="3">
+            <Flex gap="2" align="center">
+              <Sparkles size={18} aria-hidden className="dim-icon" />
+              <Heading size="4">Recommended for you</Heading>
+            </Flex>
+            <div className="media-grid">
+              {recsLoading
+                ? Array.from({ length: 6 }).map((_, i) => (
+                    <RecCardSkeleton key={i} />
+                  ))
+                : visibleRecs.map((rec) => (
+                    <RecCard
+                      key={rec.media.id}
+                      media={rec.media}
+                      reason={rec.reason}
+                      feedback={{
+                        signal: signals[rec.media.id] ?? null,
+                        onSignal: (s) => onSignal(rec.media.id, s),
+                        onHide: () => onHide(rec.media.id),
+                      }}
+                    />
+                  ))}
+            </div>
           </Flex>
-          <div className="media-grid">
-            {recsLoading
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <RecCardSkeleton key={i} />
-                ))
-              : recommendations!.map((rec) => (
-                  <RecCard
-                    key={rec.media.id}
-                    media={rec.media}
-                    reason={rec.reason}
-                  />
-                ))}
-          </div>
-        </Flex>
-      )}
+        );
+      })()}
 
       <Flex direction="column" gap="3">
         <Heading size="4">Recent activity</Heading>
