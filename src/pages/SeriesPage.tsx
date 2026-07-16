@@ -182,7 +182,10 @@ export function SeriesPage() {
                     className="shrink"
                   >
                     <Flex gap="2" align="center" wrap="wrap">
-                      <MediaTypeBadge type={mediaItem.type} />
+                      <MediaTypeBadge
+                        type={mediaItem.type}
+                        linkToCatalog={false}
+                      />
                       {mediaItem.releaseDate && (
                         <Text size="1" color="gray">
                           {mediaItem.releaseDate.slice(0, 4)}

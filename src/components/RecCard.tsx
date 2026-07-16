@@ -38,7 +38,7 @@ export function RecCard({
                 src={media.coverImageUrl}
               />
             </div>
-            <MediaTypeBadge type={media.type} />
+            <MediaTypeBadge type={media.type} linkToCatalog={false} />
             <Text weight="medium" size="2" truncate>
               {media.title}
             </Text>

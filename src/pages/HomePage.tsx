@@ -172,7 +172,10 @@ export function HomePage() {
             <Link to={`/media/${item.media.id}`}>
               <Flex justify="space-between" align="center" gap="3" wrap="wrap">
                 <Flex gap="3" align="center">
-                  <MediaTypeBadge type={item.media.type} />
+                  <MediaTypeBadge
+                    type={item.media.type}
+                    linkToCatalog={false}
+                  />
                   <Text weight="medium">{item.media.title}</Text>
                 </Flex>
                 <Flex gap="2" align="center">

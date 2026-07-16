@@ -29,7 +29,7 @@ export function MediaCard({ item }: { item: MediaItem }) {
               </Badge>
             )}
           </div>
-          <MediaTypeBadge type={item.type} />
+          <MediaTypeBadge type={item.type} linkToCatalog={false} />
           <Text weight="medium" size="2" truncate>
             {item.title}
           </Text>
