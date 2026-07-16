@@ -74,7 +74,7 @@ export function HomePage() {
         )}
         {activity?.map((item) => (
           <Card key={item.key} size="2">
-            <Link to={`/media/${item.media.id}`} className="media-card-link">
+            <Link to={`/media/${item.media.id}`}>
               <Flex justify="space-between" align="center" gap="3" wrap="wrap">
                 <Flex gap="3" align="center">
                   <MediaTypeBadge type={item.media.type} />
