@@ -626,6 +626,7 @@ function MediaDetailContent() {
                     setPrefillStars(null);
                     setCompleteOpen(true);
                   }}
+                  size="3"
                 >
                   {hasConsumed ? `Re-${cfg.logVerb}` : `Mark as ${cfg.logPast}`}
                 </Button>
@@ -633,6 +634,7 @@ function MediaDetailContent() {
                   variant="soft"
                   color={hasConsumed ? "gray" : undefined}
                   onClick={() => void start()}
+                  size="3"
                 >
                   {hasConsumed ? `Start re-${gerund}` : `Start ${gerund}`}
                 </Button>
@@ -675,7 +677,11 @@ function MediaDetailContent() {
           )}
 
           <Flex>
-            <Button variant="soft" onClick={() => setAddListOpen(true)}>
+            <Button
+              variant="solid"
+              color="gold"
+              onClick={() => setAddListOpen(true)}
+            >
               <ListPlus size={16} aria-hidden />{" "}
               {listMembership && listMembership.lists.length > 0
                 ? "Add or remove from lists"
@@ -897,11 +903,7 @@ function MediaDetailContent() {
                     </Text>
                   </Collapsible.Trigger>
                   <Collapsible.Content>
-                    <Flex
-                      direction="column"
-                      gap="2"
-                      style={{ paddingTop: 8 }}
-                    >
+                    <Flex direction="column" gap="2" style={{ paddingTop: 8 }}>
                       <Select
                         value={relType}
                         onValueChange={(v) =>
