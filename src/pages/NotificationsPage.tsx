@@ -46,6 +46,15 @@ export function NotificationsPage() {
                 {timeAgo(n.createdAt)}
               </Text>
             </Flex>
+            {n.type === "CONTENT_SUBMISSION" && (
+              <Flex gap="2" align="center" wrap="wrap">
+                <Link to="/admin/submissions" className="media-card-link">
+                  <Button size="1" variant="soft">
+                    Review submissions
+                  </Button>
+                </Link>
+              </Flex>
+            )}
             {n.type === "LIST_INVITE" && n.listId && (
               <Flex gap="2" align="center" wrap="wrap">
                 {responded[n.id] ? (

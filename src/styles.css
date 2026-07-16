@@ -739,6 +739,24 @@ body {
   left: 3px;
 }
 
+/* TV season accordion header — a bare button styled as the season heading. */
+.season-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.season-toggle-text {
+  display: flex;
+  flex-direction: column;
+}
+
 /* TV episode rows */
 .episode-row {
   display: flex;

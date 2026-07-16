@@ -9,7 +9,16 @@ import {
   Progress,
   Text,
 } from "@wlcr/base-ic";
-import { Check, ChevronDown, ChevronRight, Download, Plus, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Download,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { apiSend, ApiError } from "../lib/api";
 import { formatRuntime } from "../../shared/media-fields";
@@ -47,6 +56,8 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Which season accordions are open. Empty = all collapsed (the default).
+  const [openSeasons, setOpenSeasons] = useState<Set<string>>(new Set());
 
   const toggleExpanded = (episodeId: string) =>
     setExpanded((prev) => {
@@ -56,7 +67,22 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
       return next;
     });
 
+  const toggleSeason = (seasonId: string) =>
+    setOpenSeasons((prev) => {
+      const next = new Set(prev);
+      if (next.has(seasonId)) next.delete(seasonId);
+      else next.add(seasonId);
+      return next;
+    });
+
   if (!data) return null;
+
+  const allSeasonsOpen =
+    data.seasons.length > 0 && data.seasons.every((s) => openSeasons.has(s.id));
+  const toggleAllSeasons = () =>
+    setOpenSeasons(
+      allSeasonsOpen ? new Set() : new Set(data.seasons.map((s) => s.id)),
+    );
 
   const watched = new Set(data.watchedEpisodeIds);
 
@@ -158,7 +184,27 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
     <Flex direction="column" gap="3">
       <Flex direction="column" gap="2">
         <Flex justify="space-between" align="center" gap="2" wrap="wrap">
-          <Heading size="5">Seasons &amp; episodes</Heading>
+          <Flex gap="1" align="center">
+            <Heading size="5">Seasons &amp; episodes</Heading>
+            {data.seasons.length > 0 && (
+              <Button
+                size="1"
+                variant="ghost"
+                color="gray"
+                aria-label={
+                  allSeasonsOpen ? "Collapse all seasons" : "Expand all seasons"
+                }
+                title={allSeasonsOpen ? "Collapse all" : "Expand all"}
+                onClick={toggleAllSeasons}
+              >
+                {allSeasonsOpen ? (
+                  <ChevronsDownUp size={16} aria-hidden />
+                ) : (
+                  <ChevronsUpDown size={16} aria-hidden />
+                )}
+              </Button>
+            )}
+          </Flex>
           {totalEpisodes > 0 && (
             <Text size="2" color={complete ? "green" : "gray"}>
               {watchedEpisodes}/{totalEpisodes} episodes watched
@@ -200,20 +246,33 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
         const done = seasonWatchedCount(s);
         const total = s.episodes.length;
         const allWatched = total > 0 && done === total;
+        const isOpen = openSeasons.has(s.id);
         return (
           <Card key={s.id} size="2">
             <Flex direction="column" gap="3">
               <Flex justify="space-between" align="center" gap="2" wrap="wrap">
-                <Flex direction="column">
-                  <Text weight="medium">
-                    {s.title || `Season ${s.number}`}
-                  </Text>
-                  <Text size="1" color="gray">
-                    {total > 0
-                      ? `${done}/${total} watched`
-                      : "No episodes yet"}
-                  </Text>
-                </Flex>
+                <button
+                  type="button"
+                  className="season-toggle"
+                  aria-expanded={isOpen}
+                  onClick={() => toggleSeason(s.id)}
+                >
+                  {isOpen ? (
+                    <ChevronDown size={16} aria-hidden />
+                  ) : (
+                    <ChevronRight size={16} aria-hidden />
+                  )}
+                  <span className="season-toggle-text">
+                    <Text weight="medium">
+                      {s.title || `Season ${s.number}`}
+                    </Text>
+                    <Text size="1" color="gray">
+                      {total > 0
+                        ? `${done}/${total} watched`
+                        : "No episodes yet"}
+                    </Text>
+                  </span>
+                </button>
                 <Flex gap="2" align="center">
                   {total > 0 && (
                     <Button
@@ -239,7 +298,7 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
                 </Flex>
               </Flex>
 
-              {s.episodes.length > 0 && (
+              {isOpen && s.episodes.length > 0 && (
                 <Flex direction="column" gap="1">
                   {s.episodes.map((e) => {
                     const isWatched = watched.has(e.id);

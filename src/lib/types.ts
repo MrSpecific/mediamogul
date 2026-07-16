@@ -287,7 +287,7 @@ export type FollowingActivityItem =
 
 export interface AppNotification {
   id: string;
-  type: "LIST_INVITE";
+  type: "LIST_INVITE" | "CONTENT_SUBMISSION";
   message: string;
   readAt: string | null;
   createdAt: string;

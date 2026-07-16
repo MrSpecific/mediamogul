@@ -302,22 +302,33 @@ export function MediaDetailPage() {
       : []);
   return (
     <Flex direction="column" gap="5">
-      {isAdmin && (
-        <Flex justify="end" align="center" gap="2">
-          <Text size="1" color="gray">
-            {adminMode ? "Editing as admin" : ""}
-          </Text>
-          <Button
-            size="1"
-            variant={adminMode ? "solid" : "soft"}
-            color={adminMode ? "amber" : "gray"}
-            onClick={() => setAdminMode((v) => !v)}
-          >
-            <Shield size={14} aria-hidden />
-            {adminMode ? "Admin mode: on" : "Admin mode"}
-          </Button>
-        </Flex>
-      )}
+      <Flex justify="end" align="center" gap="2">
+        {isAdmin && (
+          <>
+            <Text size="1" color="gray">
+              {adminMode ? "Editing as admin" : ""}
+            </Text>
+            <Button
+              size="1"
+              variant={adminMode ? "solid" : "soft"}
+              color={adminMode ? "amber" : "gray"}
+              onClick={() => setAdminMode((v) => !v)}
+            >
+              <Shield size={14} aria-hidden />
+              {adminMode ? "Admin mode: on" : "Admin mode"}
+            </Button>
+          </>
+        )}
+        {data.visibility === "PUBLIC" && !data.archivedAt && (
+          <CopyButton
+            value={`${window.location.origin}/m/${data.id}`}
+            label="Share"
+            copiedLabel="Link copied!"
+            icon={<Share2 size={14} aria-hidden />}
+            color="cyan"
+          />
+        )}
+      </Flex>
 
       <Flex gap="5" wrap="wrap">
         <Flex direction="column" gap="2" align="center">
@@ -336,6 +347,7 @@ export function MediaDetailPage() {
                 : undefined
             }
           />
+
           {(showAdmin || coverList.length === 0) && (
             <Flex gap="2" wrap="wrap" justify="center">
               <Button
@@ -355,6 +367,7 @@ export function MediaDetailPage() {
               </Button>
             </Flex>
           )}
+
           <CoverFinderDialog
             open={coverOpen}
             onOpenChange={setCoverOpen}
@@ -362,6 +375,7 @@ export function MediaDetailPage() {
             title={data.title}
             onChanged={refreshCovers}
           />
+
           <CoverUploadDialog
             open={uploadOpen}
             onOpenChange={setUploadOpen}
@@ -369,6 +383,7 @@ export function MediaDetailPage() {
             onChanged={refreshCovers}
           />
         </Flex>
+
         <Flex direction="column" gap="3" style={{ flex: 1, minWidth: 260 }}>
           <Flex direction="column" gap="1">
             <Flex gap="2" align="center" wrap="wrap">
@@ -384,6 +399,7 @@ export function MediaDetailPage() {
                 </Badge>
               )}
             </Flex>
+
             <Heading size="8">{data.title}</Heading>
             {data.subtitle && (
               <Text size="4" color="gray">
@@ -625,20 +641,6 @@ export function MediaDetailPage() {
               {msg}
             </Text>
           )}
-
-          <Flex gap="3" align="center" wrap="wrap">
-            {data.visibility === "PUBLIC" && !data.archivedAt && (
-              <CopyButton
-                value={`${window.location.origin}/m/${data.id}`}
-                label="Share"
-                copiedLabel="Link copied!"
-                icon={<Share2 size={14} aria-hidden />}
-                color="cyan"
-              />
-            )}
-          </Flex>
-
-          <Flex></Flex>
         </Flex>
       </Flex>
 
