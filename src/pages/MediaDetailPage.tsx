@@ -665,7 +665,7 @@ function MediaDetailContent() {
                   to={`/lists/${l.id}`}
                   className="media-card-link"
                 >
-                  <Badge variant="soft" size="1" color="gray">
+                  <Badge variant="soft" size="1" color="teal">
                     {l.title}
                   </Badge>
                 </Link>
@@ -956,10 +956,7 @@ function MediaDetailContent() {
                 <Button variant="soft" onClick={() => setRescrapeOpen(true)}>
                   <RefreshCw size={16} aria-hidden /> Re-scrape data
                 </Button>
-                <Button
-                  variant="soft"
-                  onClick={() => setDescSourceOpen(true)}
-                >
+                <Button variant="soft" onClick={() => setDescSourceOpen(true)}>
                   <Sparkles size={16} aria-hidden /> Improve description
                 </Button>
               </Flex>
@@ -972,7 +969,11 @@ function MediaDetailContent() {
           <Card size="2">
             <Collapsible defaultOpen={!libby}>
               <Collapsible.Trigger className="section-collapse-trigger">
-                <ChevronDown size={16} aria-hidden className="section-chevron" />
+                <ChevronDown
+                  size={16}
+                  aria-hidden
+                  className="section-chevron"
+                />
                 <Text size="2" weight="medium">
                   Libby / OverDrive
                 </Text>
@@ -1004,7 +1005,11 @@ function MediaDetailContent() {
           <Card size="2">
             <Collapsible defaultOpen={!data.wikipediaUrl}>
               <Collapsible.Trigger className="section-collapse-trigger">
-                <ChevronDown size={16} aria-hidden className="section-chevron" />
+                <ChevronDown
+                  size={16}
+                  aria-hidden
+                  className="section-chevron"
+                />
                 <Text size="2" weight="medium">
                   Wikipedia
                 </Text>

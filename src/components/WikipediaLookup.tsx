@@ -105,6 +105,24 @@ export function WikipediaLookup({
         </Button>
       </Flex>
 
+      {currentUrl && (
+        <Flex gap="2" align="center" wrap="wrap">
+          <Button
+            size="1"
+            variant="soft"
+            loading={posterBusy === "current"}
+            onClick={() => void pullPoster()}
+          >
+            <ImageIcon size={13} aria-hidden /> Use Wikipedia image as cover
+          </Button>
+        </Flex>
+      )}
+      {posterMsg && (
+        <Text size="1" color="gray">
+          {posterMsg}
+        </Text>
+      )}
+
       {results?.length === 0 && (
         <Text size="1" color="gray">
           No Wikipedia matches.
@@ -122,9 +140,19 @@ export function WikipediaLookup({
                     {r.title}
                   </Text>
                   {linked ? (
-                    <Badge size="1" color="green" variant="soft">
-                      <Check size={12} aria-hidden /> Linked
-                    </Badge>
+                    <Flex gap="1" align="center" className="shrink">
+                      <Badge size="1" color="green" variant="soft">
+                        <Check size={12} aria-hidden /> Linked
+                      </Badge>
+                      <Button
+                        size="1"
+                        variant="soft"
+                        loading={posterBusy === r.url}
+                        onClick={() => void pullPoster(r.url)}
+                      >
+                        <ImageIcon size={12} aria-hidden /> Image
+                      </Button>
+                    </Flex>
                   ) : (
                     <Flex gap="1" className="shrink">
                       <Button
@@ -144,6 +172,15 @@ export function WikipediaLookup({
                           Link + synopsis
                         </Button>
                       )}
+                      <Button
+                        size="1"
+                        variant="soft"
+                        loading={posterBusy === r.url}
+                        onClick={() => void pullPoster(r.url)}
+                        title="Set this article's image as the cover"
+                      >
+                        <ImageIcon size={12} aria-hidden /> Image
+                      </Button>
                     </Flex>
                   )}
                 </Flex>
