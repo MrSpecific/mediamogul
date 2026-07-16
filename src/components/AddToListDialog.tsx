@@ -142,13 +142,10 @@ export function AddToListDialog({
       // description="Add or remove this from your lists."
       content={
         <Flex direction="column" gap="3">
-          <Field
-            label="Note"
-            description="Optionally say why you've added it to this list."
-          >
+          <Field label="Note">
             <Textarea
               rows={2}
-              placeholder="Why are you adding this?"
+              placeholder="Optionally, why are you adding this?"
               value={note}
               onChange={(e) => setNote(e.currentTarget.value)}
             />
@@ -173,7 +170,7 @@ export function AddToListDialog({
             return (
               <Flex key={l.id} justify="space-between" align="center" gap="1">
                 <Flex direction="column" className="shrink" gap="0">
-                  <Text weight="medium" truncate>
+                  <Text weight="medium" color="yellow" truncate>
                     {l.title}
                   </Text>
                   <Text size="1" color="gray">
@@ -201,7 +198,7 @@ export function AddToListDialog({
                     </Button>
                   ) : (
                     <Button
-                      size="1"
+                      size="2"
                       variant="soft"
                       loading={busyId === l.id}
                       disabled={busyId !== null}
@@ -247,7 +244,7 @@ export function AddToListDialog({
               />
               <Button
                 type="submit"
-                size="1"
+                size="2"
                 loading={creating}
                 disabled={!newTitle.trim()}
               >
