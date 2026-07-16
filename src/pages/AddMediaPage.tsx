@@ -294,6 +294,15 @@ export function AddMediaPage() {
                 lookupControllerRef.current?.abort();
                 setQ(e.currentTarget.value);
               }}
+              onPaste={(e) => {
+                e.preventDefault();
+                lookupControllerRef.current?.abort();
+                const pasted = e.clipboardData.getData("text").trim();
+                const input = e.currentTarget;
+                const start = input.selectionStart ?? q.length;
+                const end = input.selectionEnd ?? q.length;
+                setQ(q.slice(0, start) + pasted + q.slice(end));
+              }}
               autoFocus={true}
             />
             <Button type="submit" loading={searching}>
