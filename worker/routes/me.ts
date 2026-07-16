@@ -430,6 +430,14 @@ me.get("/following-activity", async (c) => {
  */
 const CONTENT_WEIGHT = 1;
 const SOCIAL_WEIGHT = 2;
+// Freshly-added catalog items get a small recency-scored nudge so new media
+// surfaces and the feed doesn't ossify around a user's fixed set of seeds.
+// Kept below a strong content match (series/creator) but competitive with a
+// weak genre-only one, so it fills gaps rather than dominating.
+const FRESH_WEIGHT = 1.5;
+// How recent an item must be to count as "fresh" discovery, and the decay
+// window over which its recency score falls from 1 (brand new) to 0.
+const FRESH_WINDOW_MS = 45 * 24 * 60 * 60 * 1000;
 // How hard a thumbs-down on one item penalizes candidates similar to it.
 const DOWN_INFLUENCE = 0.75;
 
@@ -499,6 +507,7 @@ me.get("/recommendations", async (c) => {
     };
     content: { score: number; reason: string } | null;
     social: { score: number; reason: string } | null;
+    fresh: { score: number; reason: string } | null;
   };
   const recs = new Map<string, Rec>();
 
@@ -592,6 +601,7 @@ me.get("/recommendations", async (c) => {
           },
           content: { score, reason: `Because you liked ${bestTitle}` },
           social: null,
+          fresh: null,
         });
       }
     }
@@ -647,15 +657,76 @@ me.get("/recommendations", async (c) => {
       const social = { score: e.score, reason };
       const existing = recs.get(id);
       if (existing) existing.social = social;
-      else recs.set(id, { media: e.media, content: null, social });
+      else recs.set(id, { media: e.media, content: null, social, fresh: null });
     }
   }
 
-  const ranked = [...recs.values()]
+  // --- Fresh discovery: recently-added items across EVERY media type, so new
+  //     catalog additions surface and the feed isn't confined to whatever type
+  //     the user's existing taste already matches. Pulled per-type so a
+  //     book-heavy catalog can't starve movies/TV, and scored by recency. ---
+  const now = Date.now();
+  const freshCutoff = new Date(now - FRESH_WINDOW_MS);
+  const freshTypes: MediaType[] = [
+    "MOVIE",
+    "TV_SHOW",
+    "BOOK",
+    "AUDIOBOOK",
+    "MAGAZINE",
+  ];
+  const freshByType = await Promise.all(
+    freshTypes.map((type) =>
+      prisma.mediaItem.findMany({
+        where: {
+          id: { notIn: [...seen] },
+          archivedAt: null,
+          visibility: "PUBLIC",
+          type,
+          createdAt: { gte: freshCutoff },
+        },
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          coverImageUrl: true,
+          shortDescription: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+      }),
+    ),
+  );
+  for (const list of freshByType) {
+    for (const fi of list) {
+      // recency: 1 for brand-new, decaying linearly to 0 at the window edge.
+      const recency = Math.max(0, 1 - (now - fi.createdAt.getTime()) / FRESH_WINDOW_MS);
+      if (recency <= 0) continue;
+      const fresh = { score: recency, reason: "Recently added" };
+      const existing = recs.get(fi.id);
+      if (existing) existing.fresh = fresh;
+      else
+        recs.set(fi.id, {
+          media: {
+            id: fi.id,
+            type: fi.type,
+            title: fi.title,
+            coverImageUrl: fi.coverImageUrl,
+            shortDescription: fi.shortDescription,
+          },
+          content: null,
+          social: null,
+          fresh,
+        });
+    }
+  }
+
+  const scored = [...recs.values()]
     .map((r) => {
       const contentContribution = (r.content?.score ?? 0) * CONTENT_WEIGHT;
       const socialContribution = (r.social?.score ?? 0) * SOCIAL_WEIGHT;
-      const score = contentContribution + socialContribution;
+      const freshContribution = (r.fresh?.score ?? 0) * FRESH_WEIGHT;
+      const score = contentContribution + socialContribution + freshContribution;
       // Lead with the social reason only when it's a positive, dominant signal;
       // a negative social score never speaks for the card.
       const socialWins =
@@ -668,12 +739,37 @@ me.get("/recommendations", async (c) => {
       else if (r.content?.reason) reason = r.content.reason;
       else if (r.social && r.social.score > 0 && r.social.reason)
         reason = r.social.reason;
+      else if (r.fresh?.reason) reason = r.fresh.reason;
       return { media: r.media, reason, score };
     })
     .filter((r) => r.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 12)
-    .map(({ media, reason }) => ({ media, reason }));
+    .sort((a, b) => b.score - a.score);
+
+  // Diversify by media type: round-robin one pick per type each pass, strongest
+  // type first. A book-heavy catalog no longer crowds movies/TV out of the top
+  // 12 — any type with a qualifying candidate is represented before books fill
+  // the remaining slots.
+  const byType = new Map<MediaType, typeof scored>();
+  for (const r of scored) {
+    const list = byType.get(r.media.type);
+    if (list) list.push(r);
+    else byType.set(r.media.type, [r]);
+  }
+  const typeOrder = [...byType.entries()]
+    .sort((a, b) => b[1][0].score - a[1][0].score)
+    .map(([type]) => type);
+  const ranked: { media: Rec["media"]; reason: string }[] = [];
+  let progressed = true;
+  while (ranked.length < 12 && progressed) {
+    progressed = false;
+    for (const type of typeOrder) {
+      const next = byType.get(type)?.shift();
+      if (!next) continue;
+      ranked.push({ media: next.media, reason: next.reason });
+      progressed = true;
+      if (ranked.length >= 12) break;
+    }
+  }
 
   return c.json(ranked);
 });
