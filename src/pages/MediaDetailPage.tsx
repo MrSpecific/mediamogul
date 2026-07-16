@@ -113,9 +113,9 @@ export function MediaDetailPage() {
   const { data: covers, reload: reloadCovers } = useApiData<CoverInfo[]>(
     id ? `/media/${id}/covers` : null,
   );
-  const { data: similar } = useApiData<Recommendation[]>(
-    id ? `/media/${id}/similar` : null,
-  );
+  const { data: similar, loading: similarLoading } = useApiData<
+    Recommendation[]
+  >(id ? `/media/${id}/similar` : null);
 
   const [reviewBody, setReviewBody] = useState("");
   const [reviewVis, setReviewVis] = useState<Visibility>("PUBLIC");
@@ -1070,13 +1070,21 @@ export function MediaDetailPage() {
         ))}
       </Flex>
 
-      {similar && similar.length > 0 && (
+      {(similarLoading || (similar && similar.length > 0)) && (
         <Flex direction="column" gap="3">
           <Heading size="5">More like this</Heading>
           <div className="media-grid">
-            {similar.map((rec) => (
-              <RecCard key={rec.media.id} media={rec.media} reason={rec.reason} />
-            ))}
+            {similarLoading
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <RecCardSkeleton key={i} />
+                ))
+              : similar!.map((rec) => (
+                  <RecCard
+                    key={rec.media.id}
+                    media={rec.media}
+                    reason={rec.reason}
+                  />
+                ))}
           </div>
         </Flex>
       )}

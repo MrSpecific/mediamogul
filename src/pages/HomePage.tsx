@@ -13,7 +13,7 @@ import {
 import { useApiData } from "../lib/hooks";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StatusBadge } from "../components/StatusBadge";
-import { RecCard } from "../components/RecCard";
+import { RecCard, RecCardSkeleton } from "../components/RecCard";
 import { formatDate, timeAgo } from "../lib/time";
 import type {
   ActivityItem,
@@ -27,9 +27,9 @@ export function HomePage() {
   const { data: me } = useApiData<Profile>("/me");
   const { data: activity } = useApiData<ActivityItem[]>("/me/activity");
   const { data: starred } = useApiData<ListSummary[]>("/me/starred");
-  const { data: recommendations } = useApiData<Recommendation[]>(
-    "/me/recommendations",
-  );
+  const { data: recommendations, loading: recsLoading } = useApiData<
+    Recommendation[]
+  >("/me/recommendations?excludeListed=1");
 
   return (
     <Flex direction="column" gap="5">
@@ -70,24 +70,6 @@ export function HomePage() {
         </Button>
       </Flex>
 
-      {recommendations && recommendations.length > 0 && (
-        <Flex direction="column" gap="3">
-          <Flex gap="2" align="center">
-            <Sparkles size={18} aria-hidden className="dim-icon" />
-            <Heading size="4">Recommended for you</Heading>
-          </Flex>
-          <div className="media-grid">
-            {recommendations.map((rec) => (
-              <RecCard
-                key={rec.media.id}
-                media={rec.media}
-                reason={rec.reason}
-              />
-            ))}
-          </div>
-        </Flex>
-      )}
-
       {starred && starred.length > 0 && (
         <Flex direction="column" gap="3">
           <Flex gap="2" align="center">
@@ -114,6 +96,28 @@ export function HomePage() {
                 </Card>
               </Link>
             ))}
+          </div>
+        </Flex>
+      )}
+
+      {(recsLoading || (recommendations && recommendations.length > 0)) && (
+        <Flex direction="column" gap="3">
+          <Flex gap="2" align="center">
+            <Sparkles size={18} aria-hidden className="dim-icon" />
+            <Heading size="4">Recommended for you</Heading>
+          </Flex>
+          <div className="media-grid">
+            {recsLoading
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <RecCardSkeleton key={i} />
+                ))
+              : recommendations!.map((rec) => (
+                  <RecCard
+                    key={rec.media.id}
+                    media={rec.media}
+                    reason={rec.reason}
+                  />
+                ))}
           </div>
         </Flex>
       )}

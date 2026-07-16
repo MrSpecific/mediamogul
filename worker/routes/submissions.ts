@@ -46,6 +46,37 @@ const editableMedia = z.object({
   episodes: z.number().int().nonnegative().nullable().optional(),
 }).strict();
 
+const streamingProvider = z.enum([
+  "NETFLIX",
+  "MAX",
+  "APPLE_TV",
+  "HULU",
+  "PARAMOUNT_PLUS",
+  "DISNEY_PLUS",
+  "PRIME_VIDEO",
+  "PEACOCK",
+  "TUBI",
+  "STARZ",
+]);
+
+/** MEDIA_EDIT proposals can also add/remove genres and streaming platforms.
+ *  Genre changes carry genre ids; streaming removals carry availability ids. */
+const mediaEditProposal = editableMedia.extend({
+  genresAdd: z.array(z.string().min(1)).max(50).optional(),
+  genresRemove: z.array(z.string().min(1)).max(50).optional(),
+  streamingAdd: z
+    .array(
+      z.object({
+        provider: streamingProvider,
+        url: z.string().url().max(1000),
+        region: z.string().min(2).max(5).optional(),
+      }),
+    )
+    .max(50)
+    .optional(),
+  streamingRemove: z.array(z.string().min(1)).max(50).optional(),
+});
+
 const newMedia = editableMedia.extend({
   type: mediaType,
   title: z.string().trim().min(1).max(500),
@@ -189,11 +220,19 @@ submissions.post(
 
     await prisma.$transaction(async (tx) => {
       if (decision === "APPROVE" && submission.kind === "MEDIA_EDIT") {
-        if (!submission.targetMediaItemId) throw new Error("target_required");
-        const patch = editableMedia.parse(effectiveProposal);
-        const { releaseDate, ...rest } = patch;
+        const mediaItemId = submission.targetMediaItemId;
+        if (!mediaItemId) throw new Error("target_required");
+        const patch = mediaEditProposal.parse(effectiveProposal);
+        const {
+          releaseDate,
+          genresAdd,
+          genresRemove,
+          streamingAdd,
+          streamingRemove,
+          ...rest
+        } = patch;
         await tx.mediaItem.update({
-          where: { id: submission.targetMediaItemId },
+          where: { id: mediaItemId },
           data: {
             ...rest,
             ...(releaseDate !== undefined
@@ -201,6 +240,42 @@ submissions.post(
               : {}),
           },
         });
+        if (genresRemove?.length) {
+          await tx.mediaGenre.deleteMany({
+            where: { mediaItemId, genreId: { in: genresRemove } },
+          });
+        }
+        if (genresAdd?.length) {
+          await tx.mediaGenre.createMany({
+            data: genresAdd.map((genreId) => ({ mediaItemId, genreId })),
+            skipDuplicates: true,
+          });
+        }
+        if (streamingRemove?.length) {
+          await tx.streamingAvailability.deleteMany({
+            where: { mediaItemId, id: { in: streamingRemove } },
+          });
+        }
+        for (const s of streamingAdd ?? []) {
+          const region = s.region ?? "US";
+          await tx.streamingAvailability.upsert({
+            where: {
+              mediaItemId_provider_region: {
+                mediaItemId,
+                provider: s.provider,
+                region,
+              },
+            },
+            create: {
+              mediaItemId,
+              provider: s.provider,
+              region,
+              url: s.url,
+              addedById: c.get("user").id,
+            },
+            update: { url: s.url },
+          });
+        }
       }
       if (decision === "APPROVE" && submission.kind === "NEW_MEDIA") {
         const proposal = newMedia.parse(effectiveProposal);

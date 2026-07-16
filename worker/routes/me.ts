@@ -417,10 +417,16 @@ me.get("/following-activity", async (c) => {
  * "Recommended for you": blends two signals the app already has —
  *   • content-based — items similar to what the user has liked (rated highly or
  *     finished), scored by shared genres/creators/series;
- *   • social — items rated 4★+ by people the user follows.
- * Anything the user has already logged is excluded. Returns each pick with a
- * human reason ("Because you liked X" / "Liked by @user"). Weights are
- * deliberately simple and live here so they're easy to tune later.
+ *   • social — how people the user follows rated things: high ratings boost an
+ *     item, low ratings are anti-recommendations that push it down (the same
+ *     `stars − 3` term does both, so a 5★ adds +2 while a 1★ subtracts −2).
+ * Anything the user has already logged is excluded, as is anything whose blended
+ * score ends up non-positive (e.g. a content match your follows panned). Returns
+ * each pick with a human reason ("Because you liked X" / "Liked by @user").
+ * Weights are deliberately simple and live here so they're easy to tune later.
+ *
+ * `?excludeListed=1` also drops anything already on one of the user's own lists
+ * (used on the home feed, not on a media page's "More like this").
  */
 const CONTENT_WEIGHT = 1;
 const SOCIAL_WEIGHT = 2;
@@ -455,6 +461,15 @@ me.get("/recommendations", async (c) => {
     ...ratingByItem.keys(),
     ...statusByItem.keys(),
   ]);
+  // Optionally treat anything already on one of the user's own lists as "seen"
+  // too, so recommendations don't surface things they've already collected.
+  if (c.req.query("excludeListed")) {
+    const listed = await prisma.mediaListItem.findMany({
+      where: { list: { ownerId: userId } },
+      select: { mediaItemId: true },
+    });
+    for (const li of listed) seen.add(li.mediaItemId);
+  }
   const followingIds = followRows.map((r) => r.followingId);
 
   // Result accumulator, keyed by media id.
@@ -548,12 +563,14 @@ me.get("/recommendations", async (c) => {
     }
   }
 
-  // --- Social: highly rated by people the user follows. ---
+  // --- Social: how people the user follows rated things. High ratings boost,
+  //     low ratings are anti-recommendations (the `stars - 3` term is signed).
   if (followingIds.length > 0) {
     const followRatings = await prisma.rating.findMany({
       where: {
         userId: { in: followingIds },
-        stars: { gte: 4 },
+        // Only opinionated ratings move the needle; 3★ (neutral) is skipped.
+        OR: [{ stars: { gte: 4 } }, { stars: { lte: 2 } }],
         mediaItemId: { notIn: [...seen] },
         mediaItem: { archivedAt: null, visibility: "PUBLIC" },
       },
@@ -570,48 +587,56 @@ me.get("/recommendations", async (c) => {
           },
         },
       },
-      take: 500,
+      take: 800,
     });
 
+    // `fans` are only the followers who rated it highly — they name the reason;
+    // `score` nets the positive and negative ratings together.
     const agg = new Map<
       string,
-      { score: number; users: Set<string>; media: Rec["media"] }
+      { score: number; fans: string[]; media: Rec["media"] }
     >();
     for (const r of followRatings) {
       const m = r.mediaItem;
-      const e =
-        agg.get(m.id) ?? { score: 0, users: new Set<string>(), media: m };
-      e.score += Number(r.stars) - 3; // 4★ → +1, 5★ → +2
-      e.users.add(r.user.username);
+      const e = agg.get(m.id) ?? { score: 0, fans: [], media: m };
+      const stars = Number(r.stars);
+      e.score += stars - 3; // 5★ → +2, 4★ → +1, 2★ → −1, 1★ → −2
+      if (stars >= 4) e.fans.push(r.user.username);
       agg.set(m.id, e);
     }
 
     for (const [id, e] of agg) {
-      const users = [...e.users];
-      const others = users.length - 1;
-      const reason = `Liked by @${users[0]}${others > 0 ? ` +${others} you follow` : ""}`;
+      const others = e.fans.length - 1;
+      const reason = e.fans.length
+        ? `Liked by @${e.fans[0]}${others > 0 ? ` +${others} you follow` : ""}`
+        : "";
+      const social = { score: e.score, reason };
       const existing = recs.get(id);
-      if (existing) existing.social = { score: e.score, reason };
-      else recs.set(id, { media: e.media, content: null, social: { score: e.score, reason } });
+      if (existing) existing.social = social;
+      else recs.set(id, { media: e.media, content: null, social });
     }
   }
 
   const ranked = [...recs.values()]
     .map((r) => {
-      const score =
-        (r.content?.score ?? 0) * CONTENT_WEIGHT +
-        (r.social?.score ?? 0) * SOCIAL_WEIGHT;
-      // Lead with whichever signal contributed more to the ranking.
+      const contentContribution = (r.content?.score ?? 0) * CONTENT_WEIGHT;
+      const socialContribution = (r.social?.score ?? 0) * SOCIAL_WEIGHT;
+      const score = contentContribution + socialContribution;
+      // Lead with the social reason only when it's a positive, dominant signal;
+      // a negative social score never speaks for the card.
       const socialWins =
-        (r.social?.score ?? 0) * SOCIAL_WEIGHT >=
-        (r.content?.score ?? 0) * CONTENT_WEIGHT;
-      const reason =
-        (socialWins ? r.social?.reason : r.content?.reason) ??
-        r.content?.reason ??
-        r.social?.reason ??
-        "Recommended";
+        !!r.social &&
+        r.social.score > 0 &&
+        !!r.social.reason &&
+        socialContribution >= contentContribution;
+      let reason = "Recommended";
+      if (socialWins && r.social?.reason) reason = r.social.reason;
+      else if (r.content?.reason) reason = r.content.reason;
+      else if (r.social && r.social.score > 0 && r.social.reason)
+        reason = r.social.reason;
       return { media: r.media, reason, score };
     })
+    .filter((r) => r.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 12)
     .map(({ media, reason }) => ({ media, reason }));

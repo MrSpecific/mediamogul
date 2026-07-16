@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Card, Flex, Text } from "@wlcr/base-ic";
+import { Card, Flex, Skeleton, Text } from "@wlcr/base-ic";
 import { MediaTypeBadge } from "./MediaTypeBadge";
 import { Cover } from "./Cover";
 import type { Recommendation } from "../lib/types";
@@ -24,5 +24,24 @@ export function RecCard({ media, reason }: Recommendation) {
         </Flex>
       </Card>
     </Link>
+  );
+}
+
+/** Placeholder card matching RecCard's footprint, so a loading rec grid holds
+ *  its layout instead of shifting when data arrives. */
+export function RecCardSkeleton() {
+  return (
+    <Card size="2">
+      <Flex direction="column" gap="2">
+        <Skeleton
+          width="100%"
+          radius="medium"
+          style={{ aspectRatio: "2 / 3" }}
+        />
+        <Skeleton width={56} height={18} radius="full" />
+        <Skeleton width="85%" height={15} />
+        <Skeleton width="55%" height={12} />
+      </Flex>
+    </Card>
   );
 }
