@@ -51,6 +51,7 @@ function UserRow({
             size="2"
             src={user.avatarUrl ?? undefined}
             fallback={getInitials(user.displayName ?? user.username)}
+            color="amber"
           />
           <Flex direction="column">
             <Text weight="medium" size="2">
@@ -99,7 +100,9 @@ export function FollowRosterDialog({
 }) {
   const base = signedIn ? "" : "/public";
   const { items, loading, loadingMore, hasMore, loadMore } =
-    usePaginatedApi<UserSummary>(open ? `${base}/users/${username}/${mode}` : null);
+    usePaginatedApi<UserSummary>(
+      open ? `${base}/users/${username}/${mode}` : null,
+    );
 
   return (
     <Dialog
