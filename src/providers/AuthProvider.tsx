@@ -2,7 +2,7 @@ import type { ComponentType, ReactNode } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { NeonAuthUIProvider } from "@neondatabase/auth/react";
 import "@neondatabase/auth/ui/css";
-import { authClient } from "../auth";
+import { authClient, clearAuthTokenCache } from "../auth";
 
 // Adapts react-router's <Link> to the shape the auth UI expects.
 const Link: ComponentType<{
@@ -24,6 +24,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <NeonAuthUIProvider
       authClient={authClient}
+      // Use the library's callback view for OAuth instead of returning straight
+      // to the signed-out homepage. It consumes Neon's session verifier and
+      // refetches the session before navigating to the app — especially
+      // important when iOS hands control back to an installed PWA.
+      baseURL={window.location.origin}
+      persistClient
+      redirectTo="/"
+      onSessionChange={clearAuthTokenCache}
       navigate={(href: string) => navigate(href)}
       replace={(href: string) => navigate(href, { replace: true })}
       Link={Link}

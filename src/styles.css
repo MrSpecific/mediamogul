@@ -78,19 +78,23 @@ body {
 
 .layout {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
 .topbar {
-  padding: 0.85rem 1.25rem;
+  --topbar-pad-y: 0.85rem;
+  --topbar-pad-x: 1.25rem;
   /* The opaque iOS status bar (see index.html) already insets the web view, so
      these safe-area insets are belt-and-suspenders: they keep the sticky header
      clear of the status bar / side notches on any device that DOES draw
-     edge-to-edge. `max(...)` keeps the normal padding when insets are 0. */
-  padding-top: max(0.85rem, env(safe-area-inset-top));
-  padding-left: max(1.25rem, env(safe-area-inset-left));
-  padding-right: max(1.25rem, env(safe-area-inset-right));
+     edge-to-edge. Add the top inset to the normal padding so the header's
+     controls sit below the Dynamic Island rather than directly against it. */
+  padding-top: calc(var(--topbar-pad-y) + env(safe-area-inset-top, 0px));
+  padding-right: max(var(--topbar-pad-x), env(safe-area-inset-right, 0px));
+  padding-bottom: var(--topbar-pad-y);
+  padding-left: max(var(--topbar-pad-x), env(safe-area-inset-left, 0px));
   border-bottom: 1px solid var(--color-gray-6, rgba(128, 128, 128, 0.25));
   position: sticky;
   top: 0;
@@ -122,10 +126,14 @@ body {
 /* Sign-in / sign-up view: centered card, full viewport. */
 .auth-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding-top: calc(2rem + env(safe-area-inset-top, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
 }
 .auth-page > * {
   width: 100%;
@@ -162,26 +170,36 @@ body {
 }
 
 .content {
+  --content-pad-top: 1.5rem;
+  --content-pad-x: 1.25rem;
+  --content-pad-bottom: 4rem;
   flex: 1;
   width: 100%;
   max-width: 1080px;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
   /* Clear side notches (landscape) and the home indicator in a standalone PWA. */
-  padding-left: max(1.25rem, env(safe-area-inset-left));
-  padding-right: max(1.25rem, env(safe-area-inset-right));
-  padding-bottom: max(4rem, calc(1.5rem + env(safe-area-inset-bottom)));
+  padding-top: var(--content-pad-top);
+  padding-right: max(var(--content-pad-x), env(safe-area-inset-right, 0px));
+  padding-bottom: calc(
+    var(--content-pad-bottom) + env(safe-area-inset-bottom, 0px)
+  );
+  padding-left: max(var(--content-pad-x), env(safe-area-inset-left, 0px));
 }
 
 @media (max-width: 640px) {
   .topbar {
-    padding: 0.6rem 0.9rem;
+    /* Change only the base spacing. A padding shorthand here would reset the
+       safe-area declarations above on every iPhone-sized viewport. */
+    --topbar-pad-y: 0.6rem;
+    --topbar-pad-x: 0.9rem;
   }
   .brand {
     font-size: 1.05rem;
   }
   .content {
-    padding: 1rem 0.9rem 3rem;
+    --content-pad-top: 1rem;
+    --content-pad-x: 0.9rem;
+    --content-pad-bottom: 3rem;
   }
   .app-main h1,
   .hero {
