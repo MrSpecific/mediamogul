@@ -17,13 +17,50 @@ export const authClient = createAuthClient(url, {
   adapter: BetterAuthReactAdapter(),
 });
 
+// The Neon Auth server lives on a different origin, so `getSession()` is a
+// cross-origin request. Caching the still-valid JWT avoids making one on every
+// single API call (which is slow and, on Safari/iOS, an extra chance for ITP to
+// interfere with the cross-site session).
+let tokenCache: { token: string; expMs: number } | null = null;
+
+/** Decode a JWT's `exp` (ms epoch); 0 if it can't be read. */
+function tokenExpiryMs(token: string): number {
+  const parts = token.split(".");
+  if (parts.length < 2) return 0;
+  try {
+    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    b64 += "=".repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(b64)) as { exp?: number };
+    return typeof payload.exp === "number" ? payload.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Returns the JWT to authenticate calls to our own Worker API.
  * Neon Auth injects the signed JWT into `session.token` (from the
  * `set-auth-jwt` response header) whenever the session is fetched.
  * Send it as `Authorization: Bearer <token>`.
+ *
+ * Pass `forceRefresh` to bypass the cache (used to recover from a 401 caused by
+ * an expired cached token).
  */
-export async function getAuthToken(): Promise<string | null> {
+export async function getAuthToken(forceRefresh = false): Promise<string | null> {
+  const now = Date.now();
+  // Reuse a cached token until ~30s before it expires.
+  if (!forceRefresh && tokenCache && now < tokenCache.expMs - 30_000) {
+    return tokenCache.token;
+  }
   const { data } = await authClient.getSession();
-  return data?.session?.token ?? null;
+  const token = data?.session?.token ?? null;
+  tokenCache = token
+    ? { token, expMs: tokenExpiryMs(token) || now + 60_000 }
+    : null;
+  return token;
+}
+
+/** Drop any cached token (on 401, or when the session ends). */
+export function clearAuthTokenCache(): void {
+  tokenCache = null;
 }

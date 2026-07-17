@@ -1,4 +1,4 @@
-import { getAuthToken } from "../auth";
+import { getAuthToken, clearAuthTokenCache } from "../auth";
 
 /**
  * Base origin for the Worker API. On the web build this is empty, so requests
@@ -28,12 +28,21 @@ export async function api<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const token = await getAuthToken();
-  const headers = new Headers(init.headers);
-  if (init.body) headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const send = async (forceRefresh: boolean) => {
+    const token = await getAuthToken(forceRefresh);
+    const headers = new Headers(init.headers);
+    if (init.body) headers.set("Content-Type", "application/json");
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(`${API_BASE}/api${path}`, { ...init, headers });
+  };
 
-  const res = await fetch(`${API_BASE}/api${path}`, { ...init, headers });
+  let res = await send(false);
+  // A 401 may just be an expired cached token — refresh the session once and
+  // retry before surfacing it as an auth failure.
+  if (res.status === 401) {
+    clearAuthTokenCache();
+    res = await send(true);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const message =
@@ -46,12 +55,23 @@ export async function api<T>(
 
 /** Upload a file as the raw request body (preserves its content-type). */
 export async function apiUpload<T>(path: string, file: File): Promise<T> {
-  const token = await getAuthToken();
-  const headers = new Headers();
-  headers.set("Content-Type", file.type || "application/octet-stream");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const send = async (forceRefresh: boolean) => {
+    const token = await getAuthToken(forceRefresh);
+    const headers = new Headers();
+    headers.set("Content-Type", file.type || "application/octet-stream");
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(`${API_BASE}/api${path}`, {
+      method: "POST",
+      body: file,
+      headers,
+    });
+  };
 
-  const res = await fetch(`${API_BASE}/api${path}`, { method: "POST", body: file, headers });
+  let res = await send(false);
+  if (res.status === 401) {
+    clearAuthTokenCache();
+    res = await send(true);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(
