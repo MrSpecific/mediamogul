@@ -12,6 +12,7 @@ import {
 } from "@wlcr/base-ic";
 import { usePaginatedApi } from "../lib/hooks";
 import { LoadMore } from "../components/LoadMore";
+import { getInitials } from "../lib/initials";
 import type { AdminUserRow } from "../lib/types";
 
 const ANY = "ANY";
@@ -94,7 +95,7 @@ export function AdminUsersPage() {
                 <Avatar
                   size="3"
                   src={u.avatarUrl ?? undefined}
-                  fallback={(u.displayName ?? u.username).slice(0, 2).toUpperCase()}
+                  fallback={getInitials(u.displayName ?? u.username)}
                 />
                 <Flex direction="column" gap="1">
                   <Link to={`/u/${u.username}`}>

@@ -248,6 +248,26 @@ me.get("/activity", async (c) => {
  * source is ordered and paged by `createdAt` (the moment the action happened)
  * so a single timestamp cursor merges them cleanly.
  */
+/** The users the current user follows (most-recently-followed first) — a
+ *  compact roster to sit alongside the following-activity feed. */
+me.get("/following", async (c) => {
+  const rows = await c.get("prisma").follow.findMany({
+    where: { followerId: c.get("user").id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      following: {
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  });
+  return c.json(rows.map((r) => r.following));
+});
+
 me.get("/following-activity", async (c) => {
   const prisma = c.get("prisma");
   const userId = c.get("user").id;

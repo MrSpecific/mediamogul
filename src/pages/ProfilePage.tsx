@@ -4,6 +4,7 @@ import { Avatar, Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic"
 import { authClient } from "../auth";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { getInitials } from "../lib/initials";
 import { AdminUserControls } from "../components/AdminUserControls";
 import { ProfileListCard } from "../components/ProfileListCard";
 import {
@@ -80,7 +81,7 @@ export function ProfilePage() {
         <Avatar
           size="5"
           src={data.avatarUrl ?? undefined}
-          fallback={(data.displayName ?? data.username).slice(0, 2).toUpperCase()}
+          fallback={getInitials(data.displayName ?? data.username)}
         />
         <Flex direction="column" gap="1">
           <Flex gap="2" align="center" wrap="wrap">

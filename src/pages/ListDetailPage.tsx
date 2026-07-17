@@ -4,20 +4,33 @@ import {
   Badge,
   Button,
   Card,
+  Dialog,
+  Field,
   Flex,
   Heading,
+  Input,
   Text,
   Textarea,
+  Toggle,
+  ToggleGroup,
 } from "@wlcr/base-ic";
-import { Check, NotebookPen, Users, X } from "lucide-react";
+import { Check, NotebookPen, Pencil, Users, X } from "lucide-react";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { MediaCard } from "../components/MediaCard";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
+import { MediaPicker } from "../components/MediaPicker";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { StarButton } from "../components/StarButton";
 import { ManageCollaboratorsDialog } from "../components/ManageCollaboratorsDialog";
 import { VISIBILITY_OPTIONS } from "../lib/visibility";
-import type { ListDetail } from "../lib/types";
+import {
+  MEDIA_TYPES,
+  type ListDetail,
+  type MediaItem,
+  type MediaType,
+  type Visibility,
+} from "../lib/types";
 
 /** Owner-editable "why it's on the list" note. Saving upserts via the same
  *  add-item endpoint (keyed by mediaItemId), so it both adds and edits. */
@@ -99,12 +112,62 @@ export function ListDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data, reload } = useApiData<ListDetail>(id ? `/lists/${id}` : null);
   const [manageOpen, setManageOpen] = useState(false);
+  // Edit-list dialog (owner only).
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editVis, setEditVis] = useState<Visibility>("PRIVATE");
+  const [editTypes, setEditTypes] = useState<MediaType[]>([]);
+  const [editRanked, setEditRanked] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  // Feedback for the add-media search.
+  const [addMsg, setAddMsg] = useState<string | null>(null);
 
   if (!data) return <Text color="gray">Loading…</Text>;
 
   const toggleSave = async () => {
     await apiSend(data.isSaved ? "DELETE" : "PUT", `/lists/${id}/save`);
     reload();
+  };
+  const openEdit = () => {
+    setEditTitle(data.title);
+    setEditDesc(data.description ?? "");
+    setEditVis(data.visibility);
+    setEditTypes(data.allowedTypes);
+    setEditRanked(data.ranked);
+    setEditOpen(true);
+  };
+  const saveEdit = async () => {
+    if (!editTitle.trim()) return;
+    setSavingEdit(true);
+    try {
+      await apiSend("PATCH", `/lists/${id}`, {
+        title: editTitle.trim(),
+        description: editDesc.trim(),
+        visibility: editVis,
+        allowedTypes: editTypes,
+        ranked: editRanked,
+      });
+      setEditOpen(false);
+      reload();
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+  const addMedia = async (media: MediaItem) => {
+    setAddMsg(null);
+    try {
+      await apiSend("POST", `/lists/${id}/items`, { mediaItemId: media.id });
+      setAddMsg(`Added “${media.title}”.`);
+      reload();
+    } catch (e) {
+      const err = (e as Error).message;
+      setAddMsg(
+        err === "type_not_allowed"
+          ? "That media type isn't allowed on this list."
+          : err,
+      );
+    }
   };
   const remove = async (itemId: string) => {
     await apiSend("DELETE", `/lists/${id}/items/${itemId}`);
@@ -146,6 +209,11 @@ export function ListDetailPage() {
           </Flex>
         </Flex>
         <Flex gap="2" align="center">
+          {data.isOwner && (
+            <Button variant="soft" color="gray" onClick={openEdit}>
+              <Pencil size={14} aria-hidden /> Edit list
+            </Button>
+          )}
           <StarButton
             listId={data.id}
             starred={data.isStarred}
@@ -236,8 +304,29 @@ export function ListDetailPage() {
         />
       )}
 
+      {data.canEdit && (
+        <Card size="2">
+          <Flex direction="column" gap="2">
+            <Text weight="medium">Add to this list</Text>
+            <Text size="1" color="gray">
+              Search the catalog and add a title.
+            </Text>
+            <MediaPicker onPick={(m) => void addMedia(m)} />
+            {addMsg && (
+              <Text size="1" color="gray">
+                {addMsg}
+              </Text>
+            )}
+          </Flex>
+        </Card>
+      )}
+
       {data.items.length === 0 && (
-        <Text color="gray">Empty list — add items from any media page.</Text>
+        <Text color="gray">
+          {data.canEdit
+            ? "Empty list — search above or add items from any media page."
+            : "Empty list."}
+        </Text>
       )}
       <div className="media-grid">
         {data.items.map((it) => (
@@ -269,6 +358,103 @@ export function ListDetailPage() {
           </Flex>
         ))}
       </div>
+
+      <Dialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title="Edit list"
+        content={
+          <Flex
+            as="form"
+            direction="column"
+            gap="3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveEdit();
+            }}
+          >
+            <Field label="Title">
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.currentTarget.value)}
+                placeholder="List title"
+              />
+            </Field>
+            <Field label="Description">
+              <Textarea
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.currentTarget.value)}
+                placeholder="What's this list about?"
+                rows={3}
+              />
+            </Field>
+            <Field label="Visibility">
+              <SegmentedControl
+                ariaLabel="List visibility"
+                value={editVis}
+                onChange={setEditVis}
+                options={VISIBILITY_OPTIONS}
+              />
+            </Field>
+            <Field label="Allowed types">
+              <Flex direction="column" gap="1" align="start">
+                <ToggleGroup
+                  multiple
+                  value={editTypes}
+                  onValueChange={(v: unknown[]) =>
+                    setEditTypes(v as MediaType[])
+                  }
+                >
+                  {MEDIA_TYPES.map((t) => (
+                    <Toggle key={t.value} value={t.value}>
+                      {t.label}
+                    </Toggle>
+                  ))}
+                </ToggleGroup>
+                <Text size="1" color="gray">
+                  {editTypes.length
+                    ? "Only these types can be added."
+                    : "Any media type can be added."}
+                </Text>
+              </Flex>
+            </Field>
+            <Field label="Ordering">
+              <SegmentedControl
+                ariaLabel="List ordering"
+                value={editRanked ? "ranked" : "unordered"}
+                onChange={(v) => setEditRanked(v === "ranked")}
+                options={[
+                  { value: "unordered", label: "Unordered" },
+                  { value: "ranked", label: "Ranked" },
+                ]}
+              />
+            </Field>
+          </Flex>
+        }
+        footer={
+          <Flex gap="2" justify="end">
+            <Button
+              variant="soft"
+              color="gray"
+              onClick={() => setEditOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              loading={savingEdit}
+              disabled={!editTitle.trim()}
+              onClick={() => void saveEdit()}
+            >
+              Save
+            </Button>
+          </Flex>
+        }
+      >
+        {/* Controlled via `open`; the trigger is required by the API but unused.
+            Must be a real <button> — Base UI's Trigger expects native button
+            semantics. */}
+        <button type="button" style={{ display: "none" }} aria-hidden />
+      </Dialog>
     </Flex>
   );
 }

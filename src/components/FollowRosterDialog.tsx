@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Avatar, Button, Dialog, Flex, Text } from "@wlcr/base-ic";
 import { usePaginatedApi } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { getInitials } from "../lib/initials";
 import { LoadMore } from "./LoadMore";
 import type { UserSummary } from "../lib/types";
 
@@ -49,9 +50,7 @@ function UserRow({
           <Avatar
             size="2"
             src={user.avatarUrl ?? undefined}
-            fallback={(user.displayName ?? user.username)
-              .slice(0, 2)
-              .toUpperCase()}
+            fallback={getInitials(user.displayName ?? user.username)}
           />
           <Flex direction="column">
             <Text weight="medium" size="2">

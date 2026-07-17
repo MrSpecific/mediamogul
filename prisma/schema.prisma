@@ -673,6 +673,8 @@ model MediaList {
   owner        User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   title        String
   description  String?
+  /// Curated icon handle (a lucide icon name; see src/lib/list-icons.ts).
+  icon         String?
   visibility   Visibility  @default(PRIVATE)
   /// Which media types may be added. Empty = any type allowed.
   allowedTypes MediaType[] @map("allowed_types")

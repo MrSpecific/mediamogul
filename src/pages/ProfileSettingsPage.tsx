@@ -12,6 +12,7 @@ import {
 import { authClient } from "../auth";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { getInitials } from "../lib/initials";
 import { ProfileSettings } from "../components/ProfileSettings";
 import type { Profile } from "../lib/types";
 
@@ -53,7 +54,7 @@ function AccountCard() {
           <Avatar
             size="4"
             src={user?.image ?? undefined}
-            fallback={(user?.name ?? user?.email ?? "?").slice(0, 2).toUpperCase()}
+            fallback={getInitials(user?.name ?? user?.email)}
           />
           <Flex direction="column" gap="1">
             <Text weight="bold">{user?.name ?? "—"}</Text>

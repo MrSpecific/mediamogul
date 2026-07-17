@@ -1,13 +1,47 @@
 import { Link } from "react-router-dom";
 import { Avatar, Badge, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { PenLine, Tv } from "lucide-react";
-import { usePaginatedApi } from "../lib/hooks";
+import { useApiData, usePaginatedApi } from "../lib/hooks";
 import { LoadMore } from "../components/LoadMore";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { StarRating } from "../components/StarRating";
 import { formatDate, timeAgo } from "../lib/time";
-import type { FeedActor, FollowingActivityItem } from "../lib/types";
+import { getInitials } from "../lib/initials";
+import type {
+  FeedActor,
+  FollowingActivityItem,
+  UserSummary,
+} from "../lib/types";
+
+/** Compact roster of the people the viewer follows. */
+function FollowingList({ users }: { users: UserSummary[] }) {
+  return (
+    <Card size="2">
+      <Flex direction="column" gap="2">
+        <Text weight="medium">People you follow</Text>
+        <Flex gap="3" wrap="wrap">
+          {users.map((u) => (
+            <Link
+              key={u.id}
+              to={`/u/${u.username}`}
+              className="byline-link"
+            >
+              <Flex gap="2" align="center">
+                <Avatar
+                  size="1"
+                  src={u.avatarUrl ?? undefined}
+                  fallback={getInitials(u.displayName ?? u.username)}
+                />
+                <Text size="2">{u.displayName ?? `@${u.username}`}</Text>
+              </Flex>
+            </Link>
+          ))}
+        </Flex>
+      </Flex>
+    </Card>
+  );
+}
 
 function Actor({ actor }: { actor: FeedActor }) {
   return (
@@ -15,7 +49,7 @@ function Actor({ actor }: { actor: FeedActor }) {
       <Avatar
         size="1"
         src={actor.avatarUrl ?? undefined}
-        fallback={(actor.displayName ?? actor.username).slice(0, 2).toUpperCase()}
+        fallback={getInitials(actor.displayName ?? actor.username)}
       />
       <Link to={`/u/${actor.username}`} className="byline-link">
         <Text weight="medium">{actor.displayName ?? `@${actor.username}`}</Text>
@@ -41,6 +75,7 @@ function actionLabel(item: FollowingActivityItem): string {
 export function FollowingPage() {
   const { items, loading, loadingMore, hasMore, loadMore } =
     usePaginatedApi<FollowingActivityItem>("/me/following-activity");
+  const { data: following } = useApiData<UserSummary[]>("/me/following");
 
   return (
     <Flex direction="column" gap="4">
@@ -49,6 +84,8 @@ export function FollowingPage() {
         Activity from people you follow. Everyone you follow shows their public
         reviews; people who follow you back also show what they rate and watch.
       </Text>
+
+      {following && following.length > 0 && <FollowingList users={following} />}
 
       {!loading && items.length === 0 ? (
         <Text color="gray">
