@@ -78,7 +78,14 @@ export function WikipediaLookup({
       );
       onChanged?.();
     } catch (e) {
-      setPosterMsg((e as Error).message);
+      const messages: Record<string, string> = {
+        no_image: "No image found on that Wikipedia page.",
+        ingest_failed: "Found an image, but it couldn't be saved as a cover.",
+        no_wikipedia_link: "Link a Wikipedia article first.",
+        bad_url: "That doesn't look like a Wikipedia article URL.",
+      };
+      const code = (e as Error).message;
+      setPosterMsg(messages[code] ?? code);
     } finally {
       setPosterBusy(null);
     }

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Badge,
@@ -54,13 +55,20 @@ export function CatalogPage() {
         .filter((t) => (ALL_TYPES as string[]).includes(t)) as MediaType[])
     : [];
 
-  // Set/clear a single URL param without disturbing the others.
+  // How many pages of results are loaded. Persisted in the URL so returning to
+  // the catalog (e.g. browser Back from a media page) restores the same set
+  // instead of snapping to the first page.
+  const page = Math.max(Number(searchParams.get("page")) || 1, 1);
+
+  // Set/clear a single filter param without disturbing the others. Any filter
+  // change resets pagination — the previous page count no longer applies.
   const setParam = (key: string, value: string | null) => {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
         if (value) next.set(key, value);
         else next.delete(key);
+        next.delete("page");
         return next;
       },
       { replace: true },
@@ -85,6 +93,31 @@ export function CatalogPage() {
 
   const { items, loading, loadingMore, hasMore, loadMore } =
     usePaginatedApi<MediaItem>(`/media?${reqParams.toString()}`);
+
+  // Pages currently loaded (each is PAGE_SIZE items; the last may be shorter).
+  const pagesLoaded = Math.ceil(items.length / PAGE_SIZE) || 1;
+
+  // Drive loading toward the target page from the URL: on return this replays
+  // page fetches until the prior set is restored, and it powers the Load-more
+  // button (which just bumps `page`). One fetch at a time — the `loadingMore`
+  // guard serializes them.
+  useEffect(() => {
+    if (!loading && !loadingMore && hasMore && pagesLoaded < page) {
+      loadMore();
+    }
+  }, [loading, loadingMore, hasMore, pagesLoaded, page, loadMore]);
+
+  // Advance a page by recording it in the URL; the effect above does the fetch.
+  const showMore = () => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("page", String(pagesLoaded + 1));
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   const hasActiveFilter = Boolean(genre || credit);
 
@@ -235,7 +268,7 @@ export function CatalogPage() {
         )}
       </div>
 
-      <LoadMore hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
+      <LoadMore hasMore={hasMore} loading={loadingMore} onLoadMore={showMore} />
 
       {!loading && items.length > 0 && !hasMore && (
         <Card size="2" className="catalog-cta">

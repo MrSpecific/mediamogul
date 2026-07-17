@@ -2177,6 +2177,9 @@ media.post(
       sourceUrl: pageUrl,
       license: "CC BY-SA",
     });
+    // Wikipedia had an image but we couldn't ingest it (fetch/type/size). Report
+    // it as a real failure rather than the misleading "no image on that page".
+    if (!coverImageUrl) return c.json({ error: "ingest_failed" }, 502);
     return c.json({ coverImageUrl });
   },
 );

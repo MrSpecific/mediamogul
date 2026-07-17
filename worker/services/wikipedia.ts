@@ -108,9 +108,20 @@ export async function fetchWikipediaExtract(
   return page?.extract?.trim() || null;
 }
 
+/** Width (px) for the scaled lead-image render — a good cover size that stays
+ *  well under the upload cap, matching the Commons/Wikidata cover sizes. */
+const WIKI_IMAGE_WIDTH = 600;
+
 /**
- * Fetch the original lead/poster image URL for a Wikipedia article title (used
- * to adopt the article's main image as a cover). Returns null if none.
+ * Fetch a lead/poster image URL for a Wikipedia article title (used to adopt
+ * the article's main image as a cover). Returns null if none.
+ *
+ * Requests a `pithumbsize`-bounded THUMBNAIL, not the `original`: the original
+ * is the raw upload — routinely multi-megabyte (over our 8 MB upload cap) and
+ * often an SVG (an unsupported upload type). The thumbnail is a scaled JPEG/PNG
+ * render that both stays small and rasterizes SVG lead images, so ingest
+ * actually succeeds. This mirrors every other cover source (see covers.ts /
+ * scrape.ts), which all pull a scaled render rather than the original.
  */
 export async function fetchWikipediaImage(
   title: string,
@@ -124,7 +135,8 @@ export async function fetchWikipediaImage(
     origin: "*",
     titles: t,
     prop: "pageimages",
-    piprop: "original",
+    piprop: "thumbnail",
+    pithumbsize: String(WIKI_IMAGE_WIDTH),
     redirects: "1",
   };
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -133,10 +145,10 @@ export async function fetchWikipediaImage(
   }).catch(() => null);
   if (!res || !res.ok) return null;
   const data = (await res.json()) as {
-    query?: { pages?: Record<string, { original?: { source?: string } }> };
+    query?: { pages?: Record<string, { thumbnail?: { source?: string } }> };
   };
   const page = Object.values(data.query?.pages ?? {})[0];
-  return page?.original?.source ?? null;
+  return page?.thumbnail?.source ?? null;
 }
 
 /** Extract the article title from a Wikipedia URL (…/wiki/Article_Title). */
