@@ -4,6 +4,7 @@ import { Avatar, Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic"
 import { authClient } from "../auth";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 import { getInitials } from "../lib/initials";
 import { AdminUserControls } from "../components/AdminUserControls";
 import { ProfileListCard } from "../components/ProfileListCard";
@@ -71,7 +72,9 @@ export function ProfilePage() {
 
   const viewer = data.viewer;
   const toggleFollow = async () => {
-    await apiSend(data.isFollowing ? "DELETE" : "PUT", `/users/${username}/follow`);
+    const following = data.isFollowing;
+    await apiSend(following ? "DELETE" : "PUT", `/users/${username}/follow`);
+    if (!following) trackEvent("user_followed");
     reload();
   };
 

@@ -62,8 +62,12 @@ export type AnalyticsEvent =
   | "sign_up"
   | "media_added"
   | "list_created"
+  | "media_started"
   | "media_consumed"
-  | "media_rated";
+  | "media_rated"
+  | "review_created"
+  | "user_followed"
+  | "list_saved";
 
 /** Report a custom GA4 event. Safe to call anywhere — a no-op when analytics is
  *  disabled. */

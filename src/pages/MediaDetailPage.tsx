@@ -207,6 +207,7 @@ function MediaDetailContent() {
       status: "IN_PROGRESS",
       startedAt: new Date().toISOString(),
     });
+    trackEvent("media_started", { media_type: data.type });
     setMsg(`Started ${gerund}.`);
     refresh();
   };
@@ -238,12 +239,16 @@ function MediaDetailContent() {
         finishedAt: new Date().toISOString(),
       });
     }
-    if (stars != null) await apiSend("PUT", `/media/${id}/rating`, { stars });
+    if (stars != null) {
+      await apiSend("PUT", `/media/${id}/rating`, { stars });
+      trackEvent("media_rated", { media_type: data.type, stars });
+    }
     if (reviewBody) {
       await apiSend("PUT", `/media/${id}/review`, {
         body: reviewBody,
         visibility,
       });
+      trackEvent("review_created", { media_type: data.type });
     }
     trackEvent("media_consumed", { media_type: data.type });
     setMsg(`Marked as ${cfg.logPast}.`);
@@ -257,6 +262,7 @@ function MediaDetailContent() {
       body,
       visibility: reviewVis,
     });
+    trackEvent("review_created", { media_type: data.type });
     setReviewBody("");
     reloadReviews();
     reload();

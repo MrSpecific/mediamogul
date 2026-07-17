@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@wlcr/base-ic";
 import { Bookmark, BookmarkCheck } from "lucide-react";
 import { apiSend } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 
 interface Props {
   listId: string;
@@ -32,6 +33,7 @@ export function ListFollowButton({
     setBusy(true);
     try {
       await apiSend(next ? "PUT" : "DELETE", `/lists/${listId}/save`);
+      if (next) trackEvent("list_saved");
       setOn(next);
       onChange?.(next);
     } finally {

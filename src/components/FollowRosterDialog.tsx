@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Avatar, Button, Dialog, Flex, Text } from "@wlcr/base-ic";
 import { usePaginatedApi } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 import { getInitials } from "../lib/initials";
 import { LoadMore } from "./LoadMore";
 import type { UserSummary } from "../lib/types";
@@ -33,6 +34,7 @@ function UserRow({
     setBusy(true);
     try {
       await apiSend(next ? "PUT" : "DELETE", `/users/${user.username}/follow`);
+      if (next) trackEvent("user_followed");
       setFollowing(next);
     } finally {
       setBusy(false);

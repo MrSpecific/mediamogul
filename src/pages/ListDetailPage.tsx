@@ -41,6 +41,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 import { revalidateMyLists } from "../lib/lists";
 import { MediaCard } from "../components/MediaCard";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
@@ -192,7 +193,9 @@ export function ListDetailPage() {
   if (!data) return <Text color="gray">Loading…</Text>;
 
   const toggleSave = async () => {
+    const saving = !data.isSaved;
     await apiSend(data.isSaved ? "DELETE" : "PUT", `/lists/${id}/save`);
+    if (saving) trackEvent("list_saved");
     reload();
     void revalidateMyLists();
   };
