@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Card, Flex, Text } from "@wlcr/base-ic";
 import { Cover } from "./Cover";
 import { ListFollowButton } from "./ListFollowButton";
+import { ListIcon } from "./ListIcon";
 import type { ListSummary } from "../lib/types";
 
 /**
@@ -27,7 +28,10 @@ export function ProfileListCard({
         <Flex justify="space-between" align="start" gap="3">
           <Link to={`/lists/${list.id}`} className="media-card-link grow">
             <Flex direction="column" gap="1">
-              <Text weight="medium">{list.title}</Text>
+              <Flex gap="2" align="center">
+                <ListIcon handle={list.icon} size={16} />
+                <Text weight="medium">{list.title}</Text>
+              </Flex>
               {list.description && (
                 <Text size="1" color="gray" truncate>
                   {list.description}

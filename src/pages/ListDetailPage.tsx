@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import {
   Badge,
@@ -14,7 +14,31 @@ import {
   Toggle,
   ToggleGroup,
 } from "@wlcr/base-ic";
-import { Check, NotebookPen, Pencil, Users, X } from "lucide-react";
+import {
+  Check,
+  GripVertical,
+  NotebookPen,
+  Pencil,
+  Users,
+  X,
+} from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { MediaCard } from "../components/MediaCard";
@@ -23,6 +47,8 @@ import { MediaPicker } from "../components/MediaPicker";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StarButton } from "../components/StarButton";
 import { ManageCollaboratorsDialog } from "../components/ManageCollaboratorsDialog";
+import { ListIconPicker } from "../components/ListIconPicker";
+import { ListIcon } from "../components/ListIcon";
 import { VISIBILITY_OPTIONS } from "../lib/visibility";
 import {
   MEDIA_TYPES,
@@ -31,6 +57,35 @@ import {
   type MediaType,
   type Visibility,
 } from "../lib/types";
+
+/** One draggable list item. The drag handle overlays the cover's top-left; the
+ *  caller supplies the card + any other overlays as children. */
+function SortableListItem({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+    zIndex: isDragging ? 3 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="list-item">
+      <div className="list-item-overlay list-item-overlay-left">
+        <button
+          type="button"
+          className="list-item-action list-item-drag"
+          aria-label="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={14} aria-hidden />
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 /** Owner-editable "why it's on the list" note. Saving upserts via the same
  *  add-item endpoint (keyed by mediaItemId), so it both adds and edits. */
@@ -110,18 +165,28 @@ function ListItemNote({
 
 export function ListDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data, reload } = useApiData<ListDetail>(id ? `/lists/${id}` : null);
+  const { data, reload, setData } = useApiData<ListDetail>(
+    id ? `/lists/${id}` : null,
+  );
   const [manageOpen, setManageOpen] = useState(false);
   // Edit-list dialog (owner only).
   const [editOpen, setEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editIcon, setEditIcon] = useState<string | null>(null);
   const [editVis, setEditVis] = useState<Visibility>("PRIVATE");
   const [editTypes, setEditTypes] = useState<MediaType[]>([]);
   const [editRanked, setEditRanked] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   // Feedback for the add-media search.
   const [addMsg, setAddMsg] = useState<string | null>(null);
+  // Drag sensors: a small pointer threshold so clicks (open / remove) still work.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   if (!data) return <Text color="gray">Loading…</Text>;
 
@@ -132,6 +197,7 @@ export function ListDetailPage() {
   const openEdit = () => {
     setEditTitle(data.title);
     setEditDesc(data.description ?? "");
+    setEditIcon(data.icon);
     setEditVis(data.visibility);
     setEditTypes(data.allowedTypes);
     setEditRanked(data.ranked);
@@ -144,6 +210,7 @@ export function ListDetailPage() {
       await apiSend("PATCH", `/lists/${id}`, {
         title: editTitle.trim(),
         description: editDesc.trim(),
+        icon: editIcon,
         visibility: editVis,
         allowedTypes: editTypes,
         ranked: editRanked,
@@ -153,6 +220,19 @@ export function ListDetailPage() {
     } finally {
       setSavingEdit(false);
     }
+  };
+  // Reorder items on drag: optimistically reshuffle, persist the new order,
+  // and re-fetch on failure to snap back to the server's truth.
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = data.items.findIndex((it) => it.id === active.id);
+    const newIndex = data.items.findIndex((it) => it.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const reordered = arrayMove(data.items, oldIndex, newIndex);
+    setData({ ...data, items: reordered });
+    const order = reordered.map((it) => it.mediaItem.id);
+    void apiSend("PUT", `/lists/${id}/order`, { order }).catch(() => reload());
   };
   const addMedia = async (media: MediaItem) => {
     setAddMsg(null);
@@ -189,7 +269,10 @@ export function ListDetailPage() {
     <Flex direction="column" gap="4">
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">
         <Flex direction="column" gap="2">
-          <Heading size="7">{data.title}</Heading>
+          <Flex gap="2" align="center">
+            <ListIcon handle={data.icon} size={26} />
+            <Heading size="7">{data.title}</Heading>
+          </Flex>
           {data.description && <Text color="gray">{data.description}</Text>}
           <Flex gap="2" wrap="wrap">
             <Badge variant="soft">
@@ -311,36 +394,58 @@ export function ListDetailPage() {
             : "Empty list."}
         </Text>
       )}
-      <div className="media-grid">
-        {data.items.map((it) => (
-          <Flex direction="column" gap="1" key={it.id}>
-            <MediaCard item={it.mediaItem} />
-            {data.canEdit ? (
-              <ListItemNote
-                listId={data.id}
-                mediaItemId={it.mediaItem.id}
-                note={it.note}
-                onSaved={reload}
-              />
-            ) : (
-              it.note && (
+      {data.canEdit ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={data.items.map((it) => it.id)}
+            strategy={rectSortingStrategy}
+          >
+            <div className="media-grid">
+              {data.items.map((it) => (
+                <SortableListItem key={it.id} id={it.id}>
+                  <div className="list-item-overlay list-item-overlay-right">
+                    <button
+                      type="button"
+                      className="list-item-action"
+                      aria-label="Remove from list"
+                      title="Remove from list"
+                      onClick={() => void remove(it.id)}
+                    >
+                      <X size={14} aria-hidden />
+                    </button>
+                  </div>
+                  <Flex direction="column" gap="1">
+                    <MediaCard item={it.mediaItem} />
+                    <ListItemNote
+                      listId={data.id}
+                      mediaItemId={it.mediaItem.id}
+                      note={it.note}
+                      onSaved={reload}
+                    />
+                  </Flex>
+                </SortableListItem>
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      ) : (
+        <div className="media-grid">
+          {data.items.map((it) => (
+            <Flex direction="column" gap="1" key={it.id}>
+              <MediaCard item={it.mediaItem} />
+              {it.note && (
                 <Text size="1" color="gray" style={{ fontStyle: "italic" }}>
                   “{it.note}”
                 </Text>
-              )
-            )}
-            {data.canEdit && (
-              <Button
-                size="1"
-                variant="ghost"
-                onClick={() => void remove(it.id)}
-              >
-                Remove
-              </Button>
-            )}
-          </Flex>
-        ))}
-      </div>
+              )}
+            </Flex>
+          ))}
+        </div>
+      )}
 
       {data.canEdit && (
         <Card size="2">
@@ -387,6 +492,9 @@ export function ListDetailPage() {
                 placeholder="What's this list about?"
                 rows={3}
               />
+            </Field>
+            <Field label="Icon">
+              <ListIconPicker value={editIcon} onChange={setEditIcon} />
             </Field>
             <Field label="Visibility">
               <SegmentedControl

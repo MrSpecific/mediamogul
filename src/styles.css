@@ -327,6 +327,60 @@ body {
   }
 }
 
+/* Draggable list item: hover-reveal drag handle (left) + remove (right)
+   overlaying the cover, matching the recommendation card's overlay pattern. */
+.list-item {
+  position: relative;
+}
+.list-item-overlay {
+  position: absolute;
+  top: 16px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.list-item-overlay-left {
+  left: 16px;
+}
+.list-item-overlay-right {
+  right: 16px;
+}
+.list-item:hover .list-item-overlay,
+.list-item:focus-within .list-item-overlay {
+  opacity: 1;
+}
+@media (hover: none) {
+  .list-item-overlay {
+    opacity: 1;
+  }
+}
+.list-item-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+.list-item-action:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+.list-item-drag {
+  cursor: grab;
+  touch-action: none;
+}
+.list-item-drag:active {
+  cursor: grabbing;
+}
+
 .media-card-complete {
   position: absolute;
   top: 8px;

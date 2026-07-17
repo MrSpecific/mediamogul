@@ -33,7 +33,8 @@ import {
 
 /**
  * Curated set of list icons. The DB stores only the string `handle`; the UI
- * resolves it to a component here. Keep handles stable — they're persisted.
+ * resolves it to a component (see components/ListIcon.tsx). Keep handles stable
+ * — they're persisted.
  */
 export const LIST_ICONS: { handle: string; label: string; Icon: LucideIcon }[] =
   [
@@ -68,23 +69,9 @@ export const LIST_ICONS: { handle: string; label: string; Icon: LucideIcon }[] =
     { handle: "clock", label: "Clock", Icon: Clock },
   ];
 
-const BY_HANDLE = new Map(LIST_ICONS.map((i) => [i.handle, i.Icon]));
-
-/** Every valid icon handle (used for validation on the server too, via a copy
- *  in shared config if needed). */
+/** Every valid icon handle. */
 export const LIST_ICON_HANDLES = LIST_ICONS.map((i) => i.handle);
 
-/** Render a list's icon by handle. Renders nothing for an unknown/absent handle
- *  (the caller decides on a fallback). */
-export function ListIcon({
-  handle,
-  size = 16,
-}: {
-  handle: string | null | undefined;
-  size?: number;
-}) {
-  if (!handle) return null;
-  const Icon = BY_HANDLE.get(handle);
-  if (!Icon) return null;
-  return <Icon size={size} aria-hidden />;
-}
+/** handle → icon component, for O(1) lookup when rendering. */
+export const LIST_ICON_BY_HANDLE: Record<string, LucideIcon> =
+  Object.fromEntries(LIST_ICONS.map((i) => [i.handle, i.Icon]));

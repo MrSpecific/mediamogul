@@ -18,6 +18,7 @@ import { useMe } from "../lib/features";
 import { Cover } from "../components/Cover";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StarButton } from "../components/StarButton";
+import { ListIcon } from "../components/ListIcon";
 import { UpgradeCTA } from "../components/UpgradeCTA";
 import { type TierId, tierLimit } from "../../shared/tiers";
 import type { ListSummary, Visibility } from "../lib/types";
@@ -44,7 +45,10 @@ function ListRow({
         <Flex justify="space-between" align="start" gap="3">
           <Link to={`/lists/${list.id}`} className="media-card-link grow">
             <Flex direction="column" gap="1">
-              <Text weight="medium">{list.title}</Text>
+              <Flex gap="2" align="center">
+                <ListIcon handle={list.icon} size={16} />
+                <Text weight="medium">{list.title}</Text>
+              </Flex>
               {list.description && (
                 <Text size="1" color="gray" truncate>
                   {list.description}
