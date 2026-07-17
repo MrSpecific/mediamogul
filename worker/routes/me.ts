@@ -919,7 +919,7 @@ me.get("/lists/containing/:mediaId", async (c) => {
       },
     },
     select: {
-      list: { select: { id: true, title: true, visibility: true } },
+      list: { select: { id: true, title: true, visibility: true, icon: true } },
     },
     orderBy: { list: { title: "asc" } },
   });

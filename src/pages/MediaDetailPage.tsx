@@ -57,6 +57,7 @@ import { WhereToWatch } from "../components/WhereToWatch";
 import { StreamingEditor } from "../components/StreamingEditor";
 import { MediaFeedbackDialog } from "../components/MediaFeedbackDialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { ListIcon } from "../components/ListIcon";
 import { SegmentedControl } from "../components/SegmentedControl";
 import {
   MEDIA_FIELDS,
@@ -127,7 +128,12 @@ function MediaDetailContent() {
   );
   const { data: me } = useApiData<Profile>("/me");
   const { data: listMembership, reload: reloadMembership } = useApiData<{
-    lists: { id: string; title: string; visibility: string }[];
+    lists: {
+      id: string;
+      title: string;
+      visibility: string;
+      icon: string | null;
+    }[];
   }>(id ? `/me/lists/containing/${id}` : null);
   const isAdmin = Boolean(me?.isAdmin);
   const { data: covers, reload: reloadCovers } = useApiData<CoverInfo[]>(
@@ -669,7 +675,10 @@ function MediaDetailContent() {
                   className="media-card-link"
                 >
                   <Badge variant="soft" size="1" color="teal">
-                    {l.title}
+                    <Flex gap="1" align="center">
+                      <ListIcon handle={l.icon} size={12} />
+                      {l.title}
+                    </Flex>
                   </Badge>
                 </Link>
               ))}
