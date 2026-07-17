@@ -28,9 +28,21 @@ async function canEditList(
   return collab?.status === "ACCEPTED";
 }
 
+/** Bump a list's updatedAt when its items change (add / remove / reorder), so
+ *  the owner's Lists page re-sorts it to the top. Providing the value is a
+ *  no-op vs. @updatedAt's own now() — either way it lands at ~now. */
+function touchList(prisma: PrismaClient, listId: string) {
+  return prisma.mediaList.update({
+    where: { id: listId },
+    data: { updatedAt: new Date() },
+  });
+}
+
 const listInput = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
+  /** A curated list-icon handle (see src/lib/list-icons.tsx), or null to clear. */
+  icon: z.string().max(64).nullable().optional(),
   visibility: visibility.default("PRIVATE"),
   /** Empty array = any media type allowed. */
   allowedTypes: z.array(mediaType).default([]),
@@ -172,7 +184,52 @@ lists.post(
       update: { note, ...(position !== undefined ? { position } : {}) },
       include: { mediaItem: true },
     });
+    await touchList(prisma, listId);
     return c.json(created, 201);
+  },
+);
+
+/** Reorder a list's items. Body lists every current mediaItemId in the desired
+ *  order; positions are rewritten to 0..N-1 to match. */
+lists.put(
+  "/:id/order",
+  zValidator("json", z.object({ order: z.array(z.string().min(1)).min(1) })),
+  async (c) => {
+    const prisma = c.get("prisma");
+    const listId = c.req.param("id");
+    if (!(await canEditList(prisma, listId, c.get("user").id))) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const { order } = c.req.valid("json");
+
+    // The payload must be a permutation of the list's current items — reject
+    // anything else so a stale client can't drop or invent members.
+    const existing = await prisma.mediaListItem.findMany({
+      where: { listId },
+      select: { mediaItemId: true },
+    });
+    const existingIds = new Set(existing.map((e) => e.mediaItemId));
+    const orderSet = new Set(order);
+    if (
+      order.length !== existingIds.size ||
+      orderSet.size !== order.length ||
+      !order.every((mediaItemId) => existingIds.has(mediaItemId))
+    ) {
+      return c.json({ error: "order_mismatch" }, 400);
+    }
+
+    // position isn't unique on MediaListItem, so a straight 0..N-1 rewrite is
+    // safe (no two-phase parking needed).
+    await prisma.$transaction([
+      ...order.map((mediaItemId, i) =>
+        prisma.mediaListItem.updateMany({
+          where: { listId, mediaItemId },
+          data: { position: i },
+        }),
+      ),
+      touchList(prisma, listId),
+    ]);
+    return c.json({ ok: true });
   },
 );
 
@@ -184,6 +241,7 @@ lists.delete("/:id/items/:itemId", async (c) => {
   const res = await prisma.mediaListItem.deleteMany({
     where: { id: c.req.param("itemId"), listId: c.req.param("id") },
   });
+  if (res.count) await touchList(prisma, c.req.param("id"));
   return c.json({ deleted: res.count });
 });
 
@@ -198,6 +256,7 @@ lists.delete("/:id/items/by-media/:mediaId", async (c) => {
   const res = await prisma.mediaListItem.deleteMany({
     where: { listId, mediaItemId: c.req.param("mediaId") },
   });
+  if (res.count) await touchList(prisma, listId);
   return c.json({ deleted: res.count });
 });
 

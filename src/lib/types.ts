@@ -254,6 +254,8 @@ export interface ListSummary {
   id: string;
   title: string;
   description: string | null;
+  /** Curated icon handle (see src/lib/list-icons.tsx), or null. */
+  icon: string | null;
   visibility: Visibility;
   allowedTypes: MediaType[];
   ranked: boolean;

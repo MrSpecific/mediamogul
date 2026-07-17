@@ -885,10 +885,20 @@ me.get("/lists", async (c) => {
     ...l,
     isStarred: starred.has(l.id),
   });
+  // Starred lists first, then most-recently-updated. (updatedAt is bumped on
+  // every item add/remove/reorder — see touchList in routes/lists.ts.)
+  const byStarThenRecency = <
+    T extends { isStarred: boolean; updatedAt: Date },
+  >(
+    a: T,
+    b: T,
+  ) =>
+    Number(b.isStarred) - Number(a.isStarred) ||
+    b.updatedAt.getTime() - a.updatedAt.getTime();
   return c.json({
-    owned: owned.map(mark),
-    saved: saved.map((s) => mark(s.list)),
-    shared: collabs.map((x) => mark(x.list)),
+    owned: owned.map(mark).sort(byStarThenRecency),
+    saved: saved.map((s) => mark(s.list)).sort(byStarThenRecency),
+    shared: collabs.map((x) => mark(x.list)).sort(byStarThenRecency),
   });
 });
 

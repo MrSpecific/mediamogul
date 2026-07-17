@@ -304,23 +304,6 @@ export function ListDetailPage() {
         />
       )}
 
-      {data.canEdit && (
-        <Card size="2">
-          <Flex direction="column" gap="2">
-            <Text weight="medium">Add to this list</Text>
-            <Text size="1" color="gray">
-              Search the catalog and add a title.
-            </Text>
-            <MediaPicker onPick={(m) => void addMedia(m)} />
-            {addMsg && (
-              <Text size="1" color="gray">
-                {addMsg}
-              </Text>
-            )}
-          </Flex>
-        </Card>
-      )}
-
       {data.items.length === 0 && (
         <Text color="gray">
           {data.canEdit
@@ -358,6 +341,23 @@ export function ListDetailPage() {
           </Flex>
         ))}
       </div>
+
+      {data.canEdit && (
+        <Card size="2">
+          <Flex direction="column" gap="2">
+            <Text weight="medium">Add to this list</Text>
+            <Text size="1" color="gray">
+              Search the catalog and add a title.
+            </Text>
+            <MediaPicker onPick={(m) => void addMedia(m)} />
+            {addMsg && (
+              <Text size="1" color="gray">
+                {addMsg}
+              </Text>
+            )}
+          </Flex>
+        </Card>
+      )}
 
       <Dialog
         open={editOpen}
