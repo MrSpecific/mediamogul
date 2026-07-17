@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { Check } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 import {
   FEATURE_LABELS,
   FREE_HIGHLIGHTS,
@@ -28,7 +29,13 @@ export function WelcomePage() {
 
   useEffect(() => {
     try {
+      // First time we land here = a brand-new account finishing onboarding, so
+      // treat it as the sign-up conversion. Guard so a manual revisit to
+      // /welcome doesn't re-fire it.
+      const already =
+        window.localStorage.getItem("mediamogul:onboarded") === "true";
       window.localStorage.setItem("mediamogul:onboarded", "true");
+      if (!already) trackEvent("sign_up", { method: "email_or_google" });
     } catch {
       /* storage blocked — fine */
     }

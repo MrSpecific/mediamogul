@@ -14,6 +14,7 @@ import {
   ToggleGroup,
 } from "@wlcr/base-ic";
 import { apiSend, apiUpload } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 import { useApiData } from "../lib/hooks";
 import { SegmentedControl } from "./SegmentedControl";
 import { MEDIA_FIELDS, type MediaType } from "../../shared/media-fields";
@@ -99,6 +100,7 @@ export function ManualMediaForm() {
 
     try {
       const item = await apiSend<{ id: string }>("POST", "/media", payload);
+      trackEvent("media_added", { method: "manual", media_type: type });
       navigate(`/media/${item.id}`);
     } catch (e) {
       setError((e as Error).message);

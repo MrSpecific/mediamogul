@@ -31,6 +31,7 @@ import {
 import { useApiData, useDocumentTitle, type Page } from "../lib/hooks";
 import { useAdminMode } from "../lib/admin-mode";
 import { apiSend } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 import { CopyButton } from "../components/CopyButton";
 import { StarRating } from "../components/StarRating";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
@@ -198,6 +199,7 @@ function MediaDetailContent() {
 
   const rate = async (stars: number) => {
     await apiSend("PUT", `/media/${id}/rating`, { stars });
+    trackEvent("media_rated", { media_type: data.type, stars });
     reload();
   };
   const start = async () => {
@@ -243,6 +245,7 @@ function MediaDetailContent() {
         visibility,
       });
     }
+    trackEvent("media_consumed", { media_type: data.type });
     setMsg(`Marked as ${cfg.logPast}.`);
     refresh();
     reloadReviews();

@@ -15,6 +15,7 @@ import { Check, Plus } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
 import { useApiData } from "../lib/hooks";
 import { useMyLists, revalidateMyLists } from "../lib/lists";
+import { trackEvent } from "../lib/analytics";
 import { ListIcon } from "./ListIcon";
 import { VISIBILITY_OPTIONS } from "@/lib/visibility";
 
@@ -102,6 +103,7 @@ export function AddToListDialog({
     setCreateErr(null);
     try {
       const list = await apiSend<{ id: string }>("POST", "/lists", { title });
+      trackEvent("list_created", { method: "add_to_list" });
       await apiSend("POST", `/lists/${list.id}/items`, {
         mediaItemId: mediaId,
         note: note.trim() || undefined,

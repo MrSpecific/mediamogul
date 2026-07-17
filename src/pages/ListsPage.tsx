@@ -13,6 +13,7 @@ import {
 } from "@wlcr/base-ic";
 import { Plus, Users } from "lucide-react";
 import { apiSend } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 import { useMyLists } from "../lib/lists";
 import { useMe } from "../lib/features";
 import { Cover } from "../components/Cover";
@@ -125,6 +126,7 @@ export function ListsPage() {
     setSaving(true);
     try {
       await apiSend("POST", "/lists", { title, visibility, allowedTypes: [] });
+      trackEvent("list_created", { visibility });
       setTitle("");
       setVisibility("PRIVATE");
       setOpen(false);

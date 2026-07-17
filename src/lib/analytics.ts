@@ -55,3 +55,22 @@ export function trackPageView(path: string): void {
     page_title: document.title,
   });
 }
+
+/** The custom conversion/engagement events we report. Keep names snake_case
+ *  (GA4 convention) and centralized so call sites stay consistent. */
+export type AnalyticsEvent =
+  | "sign_up"
+  | "media_added"
+  | "list_created"
+  | "media_consumed"
+  | "media_rated";
+
+/** Report a custom GA4 event. Safe to call anywhere — a no-op when analytics is
+ *  disabled. */
+export function trackEvent(
+  name: AnalyticsEvent,
+  params?: Record<string, string | number | boolean | undefined>,
+): void {
+  if (!analyticsEnabled() || !window.gtag) return;
+  window.gtag("event", name, params);
+}

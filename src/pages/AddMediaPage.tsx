@@ -13,6 +13,7 @@ import {
 } from "@wlcr/base-ic";
 import { Check, ExternalLink, Info, Layers, Plus, Search } from "lucide-react";
 import { api, apiSend } from "../lib/api";
+import { trackEvent } from "../lib/analytics";
 import { LoadMore } from "../components/LoadMore";
 import { Spinner } from "../components/Spinner";
 import { Cover } from "../components/Cover";
@@ -205,6 +206,7 @@ export function AddMediaPage() {
       const item = await apiSend<MediaItem>("POST", "/media/import", {
         candidate,
       });
+      trackEvent("media_added", { method: "catalog", media_type: candidate.type });
       // Stay on the page so the user can keep adding from these results.
       setAddedKeys((prev) => ({ ...prev, [key]: item.id }));
     } catch (e) {
