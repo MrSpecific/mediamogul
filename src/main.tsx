@@ -11,6 +11,7 @@ import { AuthPage } from "./routes/AuthPage";
 import { AppLayout } from "./components/AppLayout";
 import { RequireAuth } from "./components/RequireAuth";
 import { ScrollToTop } from "./components/ScrollToTop";
+import { Analytics } from "./components/Analytics";
 import { HomePage } from "./pages/HomePage";
 import { FollowingPage } from "./pages/FollowingPage";
 import { SimilarPage } from "./pages/SimilarPage";
@@ -50,6 +51,7 @@ createRoot(document.getElementById("root")!).render(
     >
       <BrowserRouter>
         <ScrollToTop />
+        <Analytics />
         <AuthProvider>
           <Routes>
             <Route path="/auth/:pathname" element={<AuthPage />} />
