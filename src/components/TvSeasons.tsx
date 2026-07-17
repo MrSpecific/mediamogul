@@ -24,6 +24,27 @@ import { apiSend, ApiError } from "../lib/api";
 import { formatRuntime } from "../../shared/media-fields";
 import type { Season, SeasonsResponse } from "../lib/types";
 
+const seasonsOpenKey = (mediaId: string) => `tv-open-seasons:${mediaId}`;
+
+function loadOpenSeasons(mediaId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(seasonsOpenKey(mediaId));
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveOpenSeasons(mediaId: string, open: Set<string>) {
+  try {
+    if (open.size === 0) localStorage.removeItem(seasonsOpenKey(mediaId));
+    else
+      localStorage.setItem(seasonsOpenKey(mediaId), JSON.stringify([...open]));
+  } catch {
+    // localStorage unavailable — state just won't persist.
+  }
+}
+
 /** Human-readable episode air date, e.g. "Jun 2, 2002". */
 function formatAirDate(iso: string): string {
   const d = new Date(iso);
@@ -57,7 +78,21 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // Which season accordions are open. Empty = all collapsed (the default).
-  const [openSeasons, setOpenSeasons] = useState<Set<string>>(new Set());
+  // Persisted to localStorage per show so it survives navigations.
+  const [openSeasons, setOpenSeasons] = useState<Set<string>>(() =>
+    loadOpenSeasons(mediaId),
+  );
+  const [openSeasonsFor, setOpenSeasonsFor] = useState(mediaId);
+  if (openSeasonsFor !== mediaId) {
+    // Component instance was reused for a different show — reload its state.
+    setOpenSeasonsFor(mediaId);
+    setOpenSeasons(loadOpenSeasons(mediaId));
+  }
+
+  const setAndSaveOpenSeasons = (next: Set<string>) => {
+    setOpenSeasons(next);
+    saveOpenSeasons(mediaId, next);
+  };
 
   const toggleExpanded = (episodeId: string) =>
     setExpanded((prev) => {
@@ -67,20 +102,19 @@ export function TvSeasons({ mediaId, isAdmin, onProgressChange }: Props) {
       return next;
     });
 
-  const toggleSeason = (seasonId: string) =>
-    setOpenSeasons((prev) => {
-      const next = new Set(prev);
-      if (next.has(seasonId)) next.delete(seasonId);
-      else next.add(seasonId);
-      return next;
-    });
+  const toggleSeason = (seasonId: string) => {
+    const next = new Set(openSeasons);
+    if (next.has(seasonId)) next.delete(seasonId);
+    else next.add(seasonId);
+    setAndSaveOpenSeasons(next);
+  };
 
   if (!data) return null;
 
   const allSeasonsOpen =
     data.seasons.length > 0 && data.seasons.every((s) => openSeasons.has(s.id));
   const toggleAllSeasons = () =>
-    setOpenSeasons(
+    setAndSaveOpenSeasons(
       allSeasonsOpen ? new Set() : new Set(data.seasons.map((s) => s.id)),
     );
 
