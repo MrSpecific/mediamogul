@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -281,7 +281,7 @@ export function ListDetailPage() {
             <Heading size="7">{data.title}</Heading>
           </Flex>
           {data.description && <Text color="gray">{data.description}</Text>}
-          <Flex gap="2" wrap="wrap">
+          <Flex gap="2" wrap="wrap" align="center">
             <Badge variant="soft">
               {
                 VISIBILITY_OPTIONS.find(
@@ -295,6 +295,17 @@ export function ListDetailPage() {
               data.allowedTypes.map((t) => <MediaTypeBadge key={t} type={t} />)
             ) : (
               <Badge variant="outline">Any type</Badge>
+            )}
+            {data.owner && (
+              <Text size="1" color="gray">
+                by{" "}
+                <Link
+                  to={`/u/${data.owner.username}`}
+                  className="byline-link"
+                >
+                  @{data.owner.username}
+                </Link>
+              </Text>
             )}
           </Flex>
         </Flex>

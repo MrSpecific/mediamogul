@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { Badge, Button, Dialog, Flex, Input, Text } from "@wlcr/base-ic";
+import { Link } from "react-router-dom";
+import { Badge, Button, Dialog, Flex, Text } from "@wlcr/base-ic";
 import { UserPlus } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
 import { useMe, hasFeature } from "../lib/features";
 import { UpgradeCTA } from "./UpgradeCTA";
-import type { ListCollaborator } from "../lib/types";
+import { UsernameCombobox } from "./UsernameCombobox";
+import {
+  COLLABORATOR_STATUS_META,
+  type ListCollaborator,
+} from "../lib/types";
 
 interface Props {
   open: boolean;
@@ -31,8 +36,8 @@ export function ManageCollaboratorsDialog({
   const [msg, setMsg] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const invite = async () => {
-    const uname = inviteName.trim().replace(/^@/, "");
+  const invite = async (name?: string) => {
+    const uname = (name ?? inviteName).trim().replace(/^@/, "");
     if (!uname) return;
     setInviting(true);
     setMsg(null);
@@ -93,11 +98,11 @@ export function ManageCollaboratorsDialog({
                 void invite();
               }}
             >
-              <Input
-                wrapperClassName="grow"
-                placeholder="Invite by @username"
+              <UsernameCombobox
                 value={inviteName}
-                onChange={(e) => setInviteName(e.currentTarget.value)}
+                onChange={setInviteName}
+                placeholder="Invite by @username"
+                onPick={(username) => void invite(username)}
               />
               <Button
                 type="submit"
@@ -127,14 +132,21 @@ export function ManageCollaboratorsDialog({
             collaborators.map((col) => (
               <Flex key={col.userId} justify="space-between" align="center" gap="3">
                 <Flex gap="2" align="center" className="shrink">
-                  <Text size="2" truncate>
-                    @{col.user.username}
-                  </Text>
-                  {col.status === "PENDING" && (
-                    <Badge size="1" variant="soft" color="gray">
-                      pending
-                    </Badge>
-                  )}
+                  <Link
+                    to={`/u/${col.user.username}`}
+                    className="byline-link"
+                  >
+                    <Text size="2" truncate>
+                      @{col.user.username}
+                    </Text>
+                  </Link>
+                  <Badge
+                    size="1"
+                    variant="soft"
+                    color={COLLABORATOR_STATUS_META[col.status].color}
+                  >
+                    {COLLABORATOR_STATUS_META[col.status].label}
+                  </Badge>
                 </Flex>
                 <Button
                   size="1"

@@ -17,6 +17,8 @@ import { apiSend } from "../lib/api";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { RecCard, RecCardSkeleton } from "../components/RecCard";
+import { Cover } from "../components/Cover";
+import { ListIcon } from "../components/ListIcon";
 import { formatDate, timeAgo } from "../lib/time";
 import type {
   ActivityItem,
@@ -108,26 +110,54 @@ export function HomePage() {
             <Star size={18} aria-hidden className="dim-icon" />
             <Heading size="4">Starred lists</Heading>
           </Flex>
-          <div className="media-grid">
-            {starred.map((l) => (
-              <Link
-                key={l.id}
-                to={`/lists/${l.id}`}
-                className="media-card-link"
-              >
-                <Card asButton size="2">
-                  <Flex direction="column" gap="1">
-                    <Text weight="medium" truncate>
-                      {l.title}
-                    </Text>
-                    <Text size="1" color="gray">
-                      {l._count?.items ?? 0} items
-                      {l.owner ? ` · by @${l.owner.username}` : ""}
-                    </Text>
-                  </Flex>
-                </Card>
-              </Link>
-            ))}
+          <div className="list-card-grid">
+            {starred.map((l) => {
+              const items = l.items ?? [];
+              const count = l._count?.items ?? 0;
+              const extra = count - items.length;
+              return (
+                <Link key={l.id} to={`/lists/${l.id}`}>
+                  <Card asButton size="2">
+                    <Flex direction="column" gap="2">
+                      <Flex gap="2" align="center">
+                        <ListIcon handle={l.icon} size={16} />
+                        <Text weight="medium" truncate>
+                          {l.title}
+                        </Text>
+                      </Flex>
+                      {items.length > 0 ? (
+                        <div className="list-preview-row">
+                          {items.map((it) => (
+                            <div className="list-preview-cover" key={it.id}>
+                              <Cover
+                                type={it.mediaItem.type}
+                                title={it.mediaItem.title}
+                                src={it.mediaItem.coverImageUrl}
+                              />
+                            </div>
+                          ))}
+                          {extra > 0 && (
+                            <div className="list-preview-more">
+                              <Text size="1" color="gray">
+                                +{extra}
+                              </Text>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <Text size="1" color="gray">
+                          No items yet.
+                        </Text>
+                      )}
+                      <Text size="1" color="gray">
+                        {count} {count === 1 ? "item" : "items"}
+                        {l.owner ? ` · by @${l.owner.username}` : ""}
+                      </Text>
+                    </Flex>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         </Flex>
       )}

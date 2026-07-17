@@ -944,6 +944,18 @@ me.get("/starred", async (c) => {
         include: {
           _count: { select: { items: true } },
           owner: { select: { username: true, displayName: true } },
+          // A few covers for the homepage card preview (5 so the "+N" chip
+          // stays on the same row as the thumbnails).
+          items: {
+            take: 5,
+            orderBy: [{ position: "asc" }, { addedAt: "asc" }],
+            select: {
+              id: true,
+              mediaItem: {
+                select: { id: true, type: true, title: true, coverImageUrl: true },
+              },
+            },
+          },
         },
       },
     },

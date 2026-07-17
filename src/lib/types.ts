@@ -286,6 +286,15 @@ export interface UserSummary {
 
 export type CollaboratorStatus = "PENDING" | "ACCEPTED";
 
+/** Display metadata (properly-cased label + badge color) per collaborator status. */
+export const COLLABORATOR_STATUS_META: Record<
+  CollaboratorStatus,
+  { label: string; color: "amber" | "green" }
+> = {
+  PENDING: { label: "Pending", color: "amber" },
+  ACCEPTED: { label: "Accepted", color: "green" },
+};
+
 export interface ListCollaborator {
   userId: string;
   status: CollaboratorStatus;
