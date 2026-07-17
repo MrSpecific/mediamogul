@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Button,
   Dialog,
@@ -14,6 +15,7 @@ import { Check, Plus } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
 import { useApiData } from "../lib/hooks";
 import { useMyLists, revalidateMyLists } from "../lib/lists";
+import { ListIcon } from "./ListIcon";
 import { VISIBILITY_OPTIONS } from "@/lib/visibility";
 
 interface Props {
@@ -164,9 +166,18 @@ export function AddToListDialog({
             return (
               <Flex key={l.id} justify="space-between" align="center" gap="1">
                 <Flex direction="column" className="shrink" gap="0">
-                  <Text weight="medium" color="yellow" truncate>
-                    {l.title}
-                  </Text>
+                  <Link
+                    to={`/lists/${l.id}`}
+                    className="media-card-link"
+                    onClick={() => close(false)}
+                  >
+                    <Flex gap="1" align="center" className="shrink">
+                      <ListIcon handle={l.icon} size={14} />
+                      <Text weight="medium" color="yellow" truncate>
+                        {l.title}
+                      </Text>
+                    </Flex>
+                  </Link>
                   <Text size="1" color="gray">
                     {l._count?.items ?? 0} items ·{" "}
                     {VISIBILITY_OPTIONS.find((o) => o.value === l.visibility)
