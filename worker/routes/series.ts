@@ -25,6 +25,7 @@ series.post(
 );
 
 series.get("/:id", async (c) => {
+  const userId = c.get("user").id;
   const s = await c.get("prisma").series.findUnique({
     where: { id: c.req.param("id") },
     include: {
@@ -33,15 +34,63 @@ series.get("/:id", async (c) => {
         include: {
           // Credits drive the per-card byline (author/director/etc).
           mediaItem: {
-            include: { credits: { orderBy: { position: "asc" } } },
+            include: {
+              credits: { orderBy: { position: "asc" } },
+              // The viewer's own rating + latest show-level entry, so each card
+              // can show their star rating and read/watch status.
+              ratings: { where: { userId }, select: { stars: true }, take: 1 },
+              entries: {
+                where: { userId, episodeId: null },
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { status: true },
+              },
+            },
           },
         },
       },
     },
   });
   if (!s) return c.json({ error: "not_found" }, 404);
-  return c.json(s);
+  // Fold the viewer's per-item signals into a `you` object and drop the raw
+  // relation arrays from the payload.
+  return c.json({
+    ...s,
+    entries: s.entries.map((e) => {
+      const { ratings, entries, ...mediaItem } = e.mediaItem;
+      return {
+        ...e,
+        mediaItem: {
+          ...mediaItem,
+          you: {
+            stars: ratings[0] ? Number(ratings[0].stars) : null,
+            status: entries[0]?.status ?? null,
+          },
+        },
+      };
+    }),
+  });
 });
+
+// Admin: rename a series / edit its description.
+series.patch(
+  "/:id",
+  requireAdmin,
+  zValidator(
+    "json",
+    z.object({
+      title: z.string().min(1).max(300).optional(),
+      description: z.string().max(2000).nullable().optional(),
+    }),
+  ),
+  async (c) => {
+    const updated = await c.get("prisma").series.update({
+      where: { id: c.req.param("id") },
+      data: c.req.valid("json"),
+    });
+    return c.json(updated);
+  },
+);
 
 series.post(
   "/:id/items",

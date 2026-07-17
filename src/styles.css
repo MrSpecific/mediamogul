@@ -272,6 +272,15 @@ body {
   position: relative;
 }
 
+/* Series cards */
+.series-card-link {
+  transition: all 400ms ease;
+}
+
+.series-card-link:hover {
+  background-color: var(--color-gray-3, rgba(128, 128, 128, 0.12));
+}
+
 /* Recommendation card: hover-reveal thumbs-up / thumbs-down / hide overlay. */
 .rec-card {
   position: relative;

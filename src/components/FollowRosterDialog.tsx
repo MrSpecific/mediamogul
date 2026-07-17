@@ -137,8 +137,10 @@ export function FollowRosterDialog({
         </Flex>
       }
     >
-      {/* Controlled via `open`; the trigger is unused but required by the API. */}
-      <span style={{ display: "none" }} aria-hidden />
+      {/* Controlled via `open`; the trigger is required by the API but unused.
+          Must be a real <button> — Base UI's Trigger expects native button
+          semantics. */}
+      <button type="button" style={{ display: "none" }} aria-hidden />
     </Dialog>
   );
 }
