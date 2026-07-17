@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { LogoMark } from "./Logo";
 import { NotificationsBell } from "./NotificationsBell";
+import { InstallButton } from "./InstallButton";
 import { useApiData } from "../lib/hooks";
 import type { Profile } from "../lib/types";
 
@@ -92,6 +93,7 @@ export function AppLayout() {
               <NavLink to="/catalog">Catalog</NavLink>
               {/* <NavLink to="/following">Following</NavLink> */}
               <NavLink to="/lists">Lists</NavLink>
+              <InstallButton />
               <NotificationsBell />
               <span className="user-full">
                 <UserButton size="sm" additionalLinks={menuLinks} />
@@ -102,9 +104,12 @@ export function AppLayout() {
             </Flex>
           </SignedIn>
           <SignedOut>
-            <Button size="2" onClick={() => navigate("/auth/sign-in")}>
-              Sign in
-            </Button>
+            <Flex align="center" gap="3">
+              <InstallButton />
+              <Button size="2" onClick={() => navigate("/auth/sign-in")}>
+                Sign in
+              </Button>
+            </Flex>
           </SignedOut>
         </Flex>
       </header>

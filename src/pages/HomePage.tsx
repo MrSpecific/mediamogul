@@ -19,6 +19,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { RecCard, RecCardSkeleton } from "../components/RecCard";
 import { Cover } from "../components/Cover";
 import { ListIcon } from "../components/ListIcon";
+import { InstallCard } from "../components/InstallCard";
 import { formatDate, timeAgo } from "../lib/time";
 import type {
   ActivityItem,
@@ -76,6 +77,8 @@ export function HomePage() {
             : ""}
         .
       </Heading>
+
+      <InstallCard />
 
       <Flex gap="3" wrap="wrap">
         <Button onClick={() => navigate("/catalog")}>
