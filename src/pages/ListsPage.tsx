@@ -43,7 +43,7 @@ function ListRow({
     <Card size="2">
       <Flex direction="column" gap="2">
         <Flex justify="space-between" align="start" gap="3">
-          <Link to={`/lists/${list.id}`} className="media-card-link grow">
+          <Link to={`/lists/${list.id}`} className="grow">
             <Flex direction="column" gap="1">
               <Flex gap="2" align="center">
                 <ListIcon handle={list.icon} size={16} />
@@ -63,7 +63,7 @@ function ListRow({
           />
         </Flex>
 
-        <Link to={`/lists/${list.id}`} className="media-card-link">
+        <Link to={`/lists/${list.id}`}>
           {items.length > 0 ? (
             <div className="list-preview-row">
               {items.map((it) => (
@@ -92,7 +92,8 @@ function ListRow({
 
         <Flex gap="2" align="center" wrap="wrap">
           <Text size="1" color="gray">
-            {count} {count === 1 ? "item" : "items"} · {visLabel(list.visibility)}
+            {count} {count === 1 ? "item" : "items"} ·{" "}
+            {visLabel(list.visibility)}
             {list.owner ? ` · by @${list.owner.username}` : ""}
           </Text>
           {collaborators > 0 && (
