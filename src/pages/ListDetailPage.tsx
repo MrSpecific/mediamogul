@@ -194,6 +194,7 @@ export function ListDetailPage() {
   const toggleSave = async () => {
     await apiSend(data.isSaved ? "DELETE" : "PUT", `/lists/${id}/save`);
     reload();
+    void revalidateMyLists();
   };
   const openEdit = () => {
     setEditTitle(data.title);
@@ -218,6 +219,7 @@ export function ListDetailPage() {
       });
       setEditOpen(false);
       reload();
+      void revalidateMyLists();
     } finally {
       setSavingEdit(false);
     }
@@ -233,7 +235,9 @@ export function ListDetailPage() {
     const reordered = arrayMove(data.items, oldIndex, newIndex);
     setData({ ...data, items: reordered });
     const order = reordered.map((it) => it.mediaItem.id);
-    void apiSend("PUT", `/lists/${id}/order`, { order }).catch(() => reload());
+    void apiSend("PUT", `/lists/${id}/order`, { order })
+      .then(() => revalidateMyLists())
+      .catch(() => reload());
   };
   const addMedia = async (media: MediaItem) => {
     setAddMsg(null);
@@ -241,6 +245,7 @@ export function ListDetailPage() {
       await apiSend("POST", `/lists/${id}/items`, { mediaItemId: media.id });
       setAddMsg(`Added “${media.title}”.`);
       reload();
+      void revalidateMyLists();
     } catch (e) {
       const err = (e as Error).message;
       setAddMsg(
@@ -253,6 +258,7 @@ export function ListDetailPage() {
   const remove = async (itemId: string) => {
     await apiSend("DELETE", `/lists/${id}/items/${itemId}`);
     reload();
+    void revalidateMyLists();
   };
   const respondInvite = async (accept: boolean) => {
     await apiSend("POST", `/lists/${id}/collaboration/respond`, { accept });

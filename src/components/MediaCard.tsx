@@ -34,20 +34,33 @@ export function MediaCard({ item }: { item: MediaItem }) {
           <Text weight="medium" size="2" truncate>
             {item.title}
           </Text>
-          {item.averageRating != null && (
-            <Flex
-              gap="1"
-              align="center"
-              title={`${item.averageRating.toFixed(1)} from ${item.ratingCount} rating${item.ratingCount === 1 ? "" : "s"}`}
-            >
-              <StarRating value={item.averageRating} size={13} />
-              {item.ratingCount ? (
+          {/* Rating row. Only rendered where the field is present (catalog
+              results). When an item has no ratings yet we still render a dimmed
+              placeholder so every card is the same height. */}
+          {item.averageRating !== undefined &&
+            (item.averageRating != null ? (
+              <Flex
+                gap="1"
+                align="center"
+                title={`${item.averageRating.toFixed(1)} from ${item.ratingCount} rating${item.ratingCount === 1 ? "" : "s"}`}
+              >
+                <StarRating value={item.averageRating} size={13} />
+                {item.ratingCount ? (
+                  <Text size="1" color="gray">
+                    {item.ratingCount}
+                  </Text>
+                ) : null}
+              </Flex>
+            ) : (
+              <Flex gap="1" align="center" title="No ratings yet">
+                <span style={{ opacity: 0.3, display: "inline-flex" }}>
+                  <StarRating value={null} size={13} />
+                </span>
                 <Text size="1" color="gray">
-                  {item.ratingCount}
+                  No ratings
                 </Text>
-              ) : null}
-            </Flex>
-          )}
+              </Flex>
+            ))}
         </Flex>
       </Card>
     </Link>
