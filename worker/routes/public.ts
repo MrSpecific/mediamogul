@@ -97,6 +97,109 @@ publicRoutes.get("/users/:username", async (c) => {
   return c.json({ ...user, profilePublic: true, viewer: { isOwner: false, isAdmin: false, canFollow: false } });
 });
 
+/** Resolve a username to its id, but only for public, active accounts (so
+ *  private/deactivated profiles are indistinguishable from nonexistent ones). */
+async function publicUserId(env: Env, username: string): Promise<string | null> {
+  const user = await getPrisma(env).user.findFirst({
+    where: { username, profilePublic: true, deactivatedAt: null },
+    select: { id: true },
+  });
+  return user?.id ?? null;
+}
+
+const PUBLIC_ROSTER_PAGE = 20;
+const PUBLIC_USER_SUMMARY = {
+  id: true,
+  username: true,
+  displayName: true,
+  avatarUrl: true,
+} as const;
+
+/**
+ * A public profile's PUBLIC lists (no viewer context, so no `isSaved`). Only
+ * resolves for public, active accounts.
+ */
+publicRoutes.get("/users/:username/lists", async (c) => {
+  const targetId = await publicUserId(c.env, c.req.param("username"));
+  if (!targetId) return c.json({ error: "not_found" }, 404);
+  const lists = await getPrisma(c.env).mediaList.findMany({
+    where: { ownerId: targetId, visibility: "PUBLIC" },
+    orderBy: { updatedAt: "desc" },
+    include: {
+      _count: { select: { items: true, collaborators: true } },
+      items: {
+        take: 6,
+        orderBy: [{ position: "asc" }, { addedAt: "asc" }],
+        select: {
+          id: true,
+          mediaItem: {
+            select: { id: true, type: true, title: true, coverImageUrl: true },
+          },
+        },
+      },
+      owner: { select: { username: true, displayName: true } },
+    },
+  });
+  // Logged-out visitors can't save, and it's not their list.
+  return c.json(lists.map((l) => ({ ...l, isSaved: false, isOwner: false })));
+});
+
+/** Public followers roster (no viewer follow-state). */
+publicRoutes.get("/users/:username/followers", async (c) => {
+  const targetId = await publicUserId(c.env, c.req.param("username"));
+  if (!targetId) return c.json({ error: "not_found" }, 404);
+  const cursor = c.req.query("cursor");
+  const rows = await getPrisma(c.env).follow.findMany({
+    where: { followingId: targetId },
+    orderBy: [{ createdAt: "desc" }, { followerId: "asc" }],
+    take: PUBLIC_ROSTER_PAGE + 1,
+    ...(cursor
+      ? {
+          skip: 1,
+          cursor: {
+            followerId_followingId: {
+              followerId: cursor,
+              followingId: targetId,
+            },
+          },
+        }
+      : {}),
+    select: { follower: { select: PUBLIC_USER_SUMMARY } },
+  });
+  const page = rows.slice(0, PUBLIC_ROSTER_PAGE).map((r) => r.follower);
+  const nextCursor =
+    rows.length > PUBLIC_ROSTER_PAGE ? page[page.length - 1].id : null;
+  return c.json({ items: page, nextCursor });
+});
+
+/** Public following roster (no viewer follow-state). */
+publicRoutes.get("/users/:username/following", async (c) => {
+  const targetId = await publicUserId(c.env, c.req.param("username"));
+  if (!targetId) return c.json({ error: "not_found" }, 404);
+  const cursor = c.req.query("cursor");
+  const rows = await getPrisma(c.env).follow.findMany({
+    where: { followerId: targetId },
+    orderBy: [{ createdAt: "desc" }, { followingId: "asc" }],
+    take: PUBLIC_ROSTER_PAGE + 1,
+    ...(cursor
+      ? {
+          skip: 1,
+          cursor: {
+            followerId_followingId: {
+              followerId: targetId,
+              followingId: cursor,
+            },
+          },
+        }
+      : {}),
+    select: { following: { select: PUBLIC_USER_SUMMARY } },
+  });
+  const page = rows.slice(0, PUBLIC_ROSTER_PAGE).map((r) => r.following);
+  const nextCursor =
+    rows.length > PUBLIC_ROSTER_PAGE ? page[page.length - 1].id : null;
+  return c.json({ items: page, nextCursor });
+});
+
 // --- OpenGraph HTML injection for /m/:id ----------------------------------
 
 class SetAttr {

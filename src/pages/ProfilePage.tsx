@@ -1,10 +1,16 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Avatar, Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
 import { authClient } from "../auth";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
 import { AdminUserControls } from "../components/AdminUserControls";
-import type { Profile } from "../lib/types";
+import { ProfileListCard } from "../components/ProfileListCard";
+import {
+  FollowRosterDialog,
+  type RosterMode,
+} from "../components/FollowRosterDialog";
+import type { ListSummary, Profile } from "../lib/types";
 
 /**
  * A user profile. Renders one of several variants based on the viewer:
@@ -29,6 +35,16 @@ export function ProfilePage() {
         : `/public/users/${username}`
       : null;
   const { data, error, reload } = useApiData<Profile>(path);
+  const listsPath =
+    username && !isPending
+      ? signedIn
+        ? `/users/${username}/lists`
+        : `/public/users/${username}/lists`
+      : null;
+  const { data: lists } = useApiData<ListSummary[]>(listsPath);
+
+  // Which roster dialog (followers / following) is open, if any.
+  const [roster, setRoster] = useState<RosterMode | null>(null);
 
   if (error === "private") {
     return (
@@ -97,15 +113,50 @@ export function ProfilePage() {
 
       {data._count && (
         <Flex gap="4" wrap="wrap">
-          <Text size="2" color="gray">{data._count.followers} followers</Text>
-          <Text size="2" color="gray">{data._count.following} following</Text>
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setRoster("followers")}
+          >
+            <Text size="2" color="gray">
+              {data._count.followers} followers
+            </Text>
+          </button>
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setRoster("following")}
+          >
+            <Text size="2" color="gray">
+              {data._count.following} following
+            </Text>
+          </button>
           <Text size="2" color="gray">{data._count.entries} logged</Text>
           <Text size="2" color="gray">{data._count.lists} lists</Text>
         </Flex>
       )}
 
+      {lists && lists.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Heading size="4">Public lists</Heading>
+          {lists.map((l) => (
+            <ProfileListCard key={l.id} list={l} signedIn={signedIn} />
+          ))}
+        </Flex>
+      )}
+
       {/* Admin management — only when an admin views someone else's profile. */}
       {viewer?.isAdmin && !viewer.isOwner && <AdminUserControls userId={data.id} />}
+
+      {username && (
+        <FollowRosterDialog
+          open={roster !== null}
+          onOpenChange={(open) => !open && setRoster(null)}
+          username={username}
+          mode={roster ?? "followers"}
+          signedIn={signedIn}
+        />
+      )}
     </Flex>
   );
 }

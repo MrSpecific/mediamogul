@@ -1,5 +1,14 @@
 import { getAuthToken } from "../auth";
 
+/**
+ * Base origin for the Worker API. On the web build this is empty, so requests
+ * stay same-origin (`/api/...`). In a native (Capacitor) build the SPA is served
+ * from a local `capacitor://` / `https://localhost` origin, so relative paths
+ * would never reach the Worker — set `VITE_API_BASE_URL` to the deployed origin
+ * (e.g. https://mediamogul.example.com) so the app targets it explicitly.
+ */
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
 export class ApiError extends Error {
   status: number;
   body?: unknown;
@@ -24,7 +33,7 @@ export async function api<T>(
   if (init.body) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`/api${path}`, { ...init, headers });
+  const res = await fetch(`${API_BASE}/api${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const message =
@@ -42,7 +51,7 @@ export async function apiUpload<T>(path: string, file: File): Promise<T> {
   headers.set("Content-Type", file.type || "application/octet-stream");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`/api${path}`, { method: "POST", body: file, headers });
+  const res = await fetch(`${API_BASE}/api${path}`, { method: "POST", body: file, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(

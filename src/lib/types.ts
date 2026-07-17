@@ -258,9 +258,25 @@ export interface ListSummary {
   allowedTypes: MediaType[];
   ranked: boolean;
   isStarred?: boolean;
+  /** Present on profile list rosters: whether the viewer has saved/followed it. */
+  isSaved?: boolean;
+  /** Present on profile list rosters: whether the list belongs to the viewer. */
+  isOwner?: boolean;
   items?: ListItemPreview[];
   _count?: { items: number; collaborators?: number };
   owner?: { username: string; displayName: string | null };
+}
+
+/** A user as shown in a followers / following roster. */
+export interface UserSummary {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  /** Whether the viewer follows this user (absent on public, logged-out views). */
+  isFollowing?: boolean;
+  /** Whether this row is the viewer themselves. */
+  isSelf?: boolean;
 }
 
 export type CollaboratorStatus = "PENDING" | "ACCEPTED";

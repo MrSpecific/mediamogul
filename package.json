@@ -20,10 +20,21 @@
     "gen:og": "node scripts/gen-og.mjs",
     "media:bulk": "node scripts/bulk-import.mjs",
     "stripe:webhook-listen": "stripe listen --forward-to localhost:5173/api/billing/webhook",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:mobile": "tsc -b && vite build",
+    "cap:sync": "cap sync",
+    "mobile:sync": "npm run build:mobile && cap sync",
+    "cap:ios": "cap open ios",
+    "cap:android": "cap open android"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
+    "@capacitor/preferences": "^8.0.1",
     "@hono/zod-validator": "^0.8.0",
     "@neondatabase/auth": "^0.4.2-beta",
     "@neondatabase/auth-ui": "^0.2.1-beta",
@@ -43,6 +54,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
+    "@capacitor/cli": "^8.4.2",
     "@cloudflare/vite-plugin": "^1.44.0",
     "@eslint/js": "^10.0.1",
     "@rolldown/plugin-babel": "^0.2.3",
