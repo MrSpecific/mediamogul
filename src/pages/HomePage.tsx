@@ -9,6 +9,7 @@ import {
   Star,
   Tv,
   UserCheckIcon,
+  Clock,
 } from "lucide-react";
 import { useState } from "react";
 import { useApiData } from "../lib/hooks";
@@ -38,7 +39,10 @@ export function HomePage() {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [signals, setSignals] = useState<Record<string, "UP" | "DOWN">>({});
 
-  const sendFeedback = (mediaId: string, signal: "UP" | "DOWN" | "HIDE" | null) =>
+  const sendFeedback = (
+    mediaId: string,
+    signal: "UP" | "DOWN" | "HIDE" | null,
+  ) =>
     void apiSend("PUT", `/me/recommendations/${mediaId}/feedback`, {
       signal,
     }).catch(() => undefined);
@@ -161,7 +165,10 @@ export function HomePage() {
       })()}
 
       <Flex direction="column" gap="3">
-        <Heading size="4">Recent activity</Heading>
+        <Flex gap="2" align="center">
+          <Clock size={18} aria-hidden className="dim-icon" />
+          <Heading size="4">Recent activity</Heading>
+        </Flex>
         {activity && activity.length === 0 && (
           <Text color="gray">
             Nothing yet — find something in the catalog and log it.
