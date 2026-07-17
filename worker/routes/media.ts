@@ -496,10 +496,36 @@ media.get(
     const hasMore = rows.length > limit;
     if (hasMore) rows.pop();
     const nextCursor = hasMore ? rows.at(-1)!.id : null;
-    const items = rows.map(({ entries, ...item }) => ({
-      ...item,
-      hasCompleted: entries.length > 0,
-    }));
+
+    // Community rating per item, aggregated in one grouped query for the page.
+    const ids = rows.map((r) => r.id);
+    const ratingAgg = ids.length
+      ? await c.get("prisma").rating.groupBy({
+          by: ["mediaItemId"],
+          where: { mediaItemId: { in: ids } },
+          _avg: { stars: true },
+          _count: true,
+        })
+      : [];
+    const ratingByItem = new Map(
+      ratingAgg.map((r) => [
+        r.mediaItemId,
+        {
+          avg: r._avg.stars == null ? null : Number(r._avg.stars),
+          count: r._count,
+        },
+      ]),
+    );
+
+    const items = rows.map(({ entries, ...item }) => {
+      const rating = ratingByItem.get(item.id);
+      return {
+        ...item,
+        hasCompleted: entries.length > 0,
+        averageRating: rating?.avg ?? null,
+        ratingCount: rating?.count ?? 0,
+      };
+    });
     return c.json({ items, nextCursor });
   },
 );

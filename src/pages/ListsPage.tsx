@@ -12,8 +12,8 @@ import {
   Text,
 } from "@wlcr/base-ic";
 import { Plus, Users } from "lucide-react";
-import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { useMyLists } from "../lib/lists";
 import { useMe } from "../lib/features";
 import { Cover } from "../components/Cover";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -107,11 +107,7 @@ function ListRow({
 }
 
 export function ListsPage() {
-  const { data, reload } = useApiData<{
-    owned: ListSummary[];
-    saved: ListSummary[];
-    shared: ListSummary[];
-  }>("/me/lists");
+  const { data, revalidate } = useMyLists();
   const { data: me } = useMe();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -131,7 +127,7 @@ export function ListsPage() {
       setTitle("");
       setVisibility("PRIVATE");
       setOpen(false);
-      reload();
+      revalidate();
     } finally {
       setSaving(false);
     }
@@ -209,7 +205,7 @@ export function ListsPage() {
           <Text color="gray">No lists yet.</Text>
         )}
         {data?.owned.map((l) => (
-          <ListRow key={l.id} list={l} onStarChange={reload} />
+          <ListRow key={l.id} list={l} onStarChange={revalidate} />
         ))}
       </Flex>
 
@@ -217,7 +213,7 @@ export function ListsPage() {
         <Flex direction="column" gap="3">
           <Heading size="4">Shared with you</Heading>
           {data.shared.map((l) => (
-            <ListRow key={l.id} list={l} onStarChange={reload} />
+            <ListRow key={l.id} list={l} onStarChange={revalidate} />
           ))}
         </Flex>
       )}
@@ -226,7 +222,7 @@ export function ListsPage() {
         <Flex direction="column" gap="3">
           <Heading size="4">Saved lists</Heading>
           {data.saved.map((l) => (
-            <ListRow key={l.id} list={l} onStarChange={reload} />
+            <ListRow key={l.id} list={l} onStarChange={revalidate} />
           ))}
         </Flex>
       )}

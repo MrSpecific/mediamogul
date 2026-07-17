@@ -41,6 +41,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
+import { revalidateMyLists } from "../lib/lists";
 import { MediaCard } from "../components/MediaCard";
 import { MediaTypeBadge } from "../components/MediaTypeBadge";
 import { MediaPicker } from "../components/MediaPicker";

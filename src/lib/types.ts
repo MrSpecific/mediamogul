@@ -46,6 +46,9 @@ export interface MediaItem {
   contentRating?: ContentRatingRef | null;
   /** Whether the current user has completed this item; set on catalog results. */
   hasCompleted?: boolean;
+  /** Community average rating (0.5–5) and count; set on catalog results. */
+  averageRating?: number | null;
+  ratingCount?: number;
 }
 
 export interface Genre {

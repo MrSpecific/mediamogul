@@ -13,8 +13,8 @@ import {
 import { Check, Plus } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
 import { useApiData } from "../lib/hooks";
+import { useMyLists, revalidateMyLists } from "../lib/lists";
 import { VISIBILITY_OPTIONS } from "@/lib/visibility";
-import type { ListSummary } from "../lib/types";
 
 interface Props {
   open: boolean;
@@ -22,11 +22,6 @@ interface Props {
   mediaId: string;
   /** Called after any add/remove so the opener can refresh its own view. */
   onChanged?: () => void;
-}
-
-interface MyLists {
-  owned: ListSummary[];
-  shared: ListSummary[];
 }
 
 /** Modal to add/remove the current media to/from the user's editable lists.
@@ -40,10 +35,9 @@ export function AddToListDialog({
   mediaId,
   onChanged,
 }: Props) {
-  // Fetched only while open; refetched each time it reopens.
-  const { data: mine, reload: reloadLists } = useApiData<MyLists>(
-    open ? "/me/lists" : null,
-  );
+  // Lists come from the shared SWR cache: they paint instantly from cache when
+  // the dialog opens, then refresh in the background (on open + on focus).
+  const { data: mine } = useMyLists(open);
   const { data: membership, reload: reloadMembership } = useApiData<{
     lists: { id: string; title: string; visibility: string }[];
   }>(open && mediaId ? `/me/lists/containing/${mediaId}` : null);
@@ -61,7 +55,7 @@ export function AddToListDialog({
 
   const afterChange = () => {
     reloadMembership();
-    reloadLists();
+    void revalidateMyLists();
     onChanged?.();
   };
 
