@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Avatar, Badge, Button, Card, Flex, Heading, Text } from "@wlcr/base-ic";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Flex,
+  Heading,
+  Text,
+} from "@wlcr/base-ic";
 import { authClient } from "../auth";
 import { useApiData } from "../lib/hooks";
 import { apiSend } from "../lib/api";
@@ -53,7 +61,9 @@ export function ProfilePage() {
       <Card size="3">
         <Flex direction="column" gap="2">
           <Heading size="5">This profile is private</Heading>
-          <Text color="gray">@{username} has chosen not to make their profile public.</Text>
+          <Text color="gray">
+            @{username} has chosen not to make their profile public.
+          </Text>
         </Flex>
       </Card>
     );
@@ -90,7 +100,9 @@ export function ProfilePage() {
           <Flex gap="2" align="center" wrap="wrap">
             <Heading size="7">{data.displayName ?? data.username}</Heading>
             {data.deactivatedAt && <Badge color="red">Deactivated</Badge>}
-            {data.profilePublic === false && <Badge color="gray">Private</Badge>}
+            {data.profilePublic === false && (
+              <Badge color="gray">Private</Badge>
+            )}
           </Flex>
           <Text color="gray">@{data.username}</Text>
         </Flex>
@@ -116,7 +128,7 @@ export function ProfilePage() {
       {data.bio && <Text>{data.bio}</Text>}
 
       {data._count && (
-        <Flex gap="4" wrap="wrap">
+        <Flex gap="4" wrap="wrap" align="center">
           <button
             type="button"
             className="link-button"
@@ -135,8 +147,12 @@ export function ProfilePage() {
               {data._count.following} following
             </Text>
           </button>
-          <Text size="2" color="gray">{data._count.entries} logged</Text>
-          <Text size="2" color="gray">{data._count.lists} lists</Text>
+          <Text size="2" color="gray">
+            {data._count.entries} logged
+          </Text>
+          <Text size="2" color="gray">
+            {data._count.lists} lists
+          </Text>
         </Flex>
       )}
 
@@ -150,7 +166,9 @@ export function ProfilePage() {
       )}
 
       {/* Admin management — only when an admin views someone else's profile. */}
-      {viewer?.isAdmin && !viewer.isOwner && <AdminUserControls userId={data.id} />}
+      {viewer?.isAdmin && !viewer.isOwner && (
+        <AdminUserControls userId={data.id} />
+      )}
 
       {username && (
         <FollowRosterDialog

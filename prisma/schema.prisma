@@ -763,11 +763,14 @@ model ListCollaborator {
 
 enum NotificationType {
   LIST_INVITE
+  LIST_INVITE_ACCEPTED
+  FOLLOW
   CONTENT_SUBMISSION
 }
 
 /// In-app notification for a recipient user. `actor` is who triggered it and
-/// `list` is the related list (for LIST_INVITE). `readAt` null = unread.
+/// `list` is the related list (for the list-related types). `readAt` null =
+/// unread.
 model Notification {
   id        String           @id @default(uuid())
   userId    String           @map("user_id")

@@ -42,10 +42,15 @@ function UserRow({
   };
 
   return (
-    <Flex align="center" justify="space-between" gap="3">
+    <Flex
+      align="center"
+      justify="space-between"
+      gap="3"
+      className="user-list-card"
+    >
       <Link
         to={`/u/${user.username}`}
-        className="media-card-link"
+        style={{ flexGrow: 1 }}
         onClick={onNavigate}
       >
         <Flex align="center" gap="2">
@@ -55,7 +60,7 @@ function UserRow({
             fallback={getInitials(user.displayName ?? user.username)}
             color="amber"
           />
-          <Flex direction="column">
+          <Flex direction="column" gap="0">
             <Text weight="medium" size="2">
               {user.displayName ?? user.username}
             </Text>

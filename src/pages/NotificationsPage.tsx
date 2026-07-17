@@ -55,6 +55,27 @@ export function NotificationsPage() {
                 </Link>
               </Flex>
             )}
+            {n.type === "FOLLOW" && n.actor && (
+              <Flex gap="2" align="center" wrap="wrap">
+                <Link
+                  to={`/u/${n.actor.username}`}
+                  className="media-card-link"
+                >
+                  <Button size="1" variant="soft">
+                    View profile
+                  </Button>
+                </Link>
+              </Flex>
+            )}
+            {n.type === "LIST_INVITE_ACCEPTED" && n.listId && (
+              <Flex gap="2" align="center" wrap="wrap">
+                <Link to={`/lists/${n.listId}`} className="media-card-link">
+                  <Button size="1" variant="soft">
+                    View list
+                  </Button>
+                </Link>
+              </Flex>
+            )}
             {n.type === "LIST_INVITE" && n.listId && (
               <Flex gap="2" align="center" wrap="wrap">
                 {responded[n.id] ? (

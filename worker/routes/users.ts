@@ -245,19 +245,47 @@ users.put("/:username/follow", async (c) => {
     select: { id: true },
   });
   if (!target) return c.json({ error: "not_found" }, 404);
-  if (target.id === c.get("user").id) {
+  const meId = c.get("user").id;
+  if (target.id === meId) {
     return c.json({ error: "cannot_follow_self" }, 400);
   }
-  await prisma.follow.upsert({
+  const existing = await prisma.follow.findUnique({
     where: {
-      followerId_followingId: {
-        followerId: c.get("user").id,
-        followingId: target.id,
-      },
+      followerId_followingId: { followerId: meId, followingId: target.id },
     },
-    create: { followerId: c.get("user").id, followingId: target.id },
-    update: {},
+    select: { followerId: true },
   });
+  if (!existing) {
+    // Notify on a genuinely new follow — but only once per follower, so
+    // toggling follow/unfollow can't spam the target.
+    const alreadyNotified = await prisma.notification.findFirst({
+      where: { userId: target.id, type: "FOLLOW", actorId: meId },
+      select: { id: true },
+    });
+    const me = c.get("profile");
+    const who = me.displayName || me.username;
+    // If a concurrent request already created the follow, the unique
+    // constraint rolls back the transaction — already following, fine.
+    await prisma
+      .$transaction([
+        prisma.follow.create({
+          data: { followerId: meId, followingId: target.id },
+        }),
+        ...(alreadyNotified
+          ? []
+          : [
+              prisma.notification.create({
+                data: {
+                  userId: target.id,
+                  type: "FOLLOW",
+                  actorId: meId,
+                  message: `${who} started following you`,
+                },
+              }),
+            ]),
+      ])
+      .catch(() => undefined);
+  }
   return c.json({ following: true });
 });
 

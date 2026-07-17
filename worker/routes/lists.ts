@@ -414,14 +414,37 @@ lists.post(
     const userId = c.get("user").id;
     const collab = await prisma.listCollaborator.findUnique({
       where: { listId_userId: { listId, userId } },
-      select: { status: true },
+      select: {
+        status: true,
+        invitedById: true,
+        list: { select: { title: true } },
+      },
     });
     if (!collab) return c.json({ error: "not_found" }, 404);
     if (c.req.valid("json").accept) {
-      await prisma.listCollaborator.update({
-        where: { listId_userId: { listId, userId } },
-        data: { status: "ACCEPTED" },
-      });
+      const me = c.get("profile");
+      const who = me.displayName || me.username;
+      // Flip to ACCEPTED and notify the inviter together. Only the PENDING →
+      // ACCEPTED transition notifies, so re-accepting can't re-notify.
+      await prisma.$transaction([
+        prisma.listCollaborator.update({
+          where: { listId_userId: { listId, userId } },
+          data: { status: "ACCEPTED" },
+        }),
+        ...(collab.status === "PENDING"
+          ? [
+              prisma.notification.create({
+                data: {
+                  userId: collab.invitedById,
+                  type: "LIST_INVITE_ACCEPTED",
+                  actorId: userId,
+                  listId,
+                  message: `${who} accepted your invite to collaborate on “${collab.list.title}”`,
+                },
+              }),
+            ]
+          : []),
+      ]);
       return c.json({ status: "ACCEPTED" });
     }
     await prisma.listCollaborator.delete({
