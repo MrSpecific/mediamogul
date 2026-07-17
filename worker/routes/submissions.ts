@@ -60,6 +60,19 @@ const streamingProvider = z.enum([
   "STARZ",
   "YOUTUBE",
   "VIMEO",
+  "BBC_IPLAYER",
+  "BRITBOX",
+  "ABC",
+  "CBS",
+  "NBC",
+  "PBS",
+  "AMC_PLUS",
+  "CRUNCHYROLL",
+  "SHUDDER",
+  "MUBI",
+  "CRITERION_CHANNEL",
+  "PLUTO_TV",
+  "ROKU_CHANNEL",
 ]);
 
 /** MEDIA_EDIT proposals can also add/remove genres and streaming platforms.

@@ -103,6 +103,20 @@ enum StreamingProvider {
   STARZ
   YOUTUBE
   VIMEO
+  // Appended after launch (new values must go at the end — Postgres enum).
+  BBC_IPLAYER
+  BRITBOX
+  ABC
+  CBS
+  NBC
+  PBS
+  AMC_PLUS
+  CRUNCHYROLL
+  SHUDDER
+  MUBI
+  CRITERION_CHANNEL
+  PLUTO_TV
+  ROKU_CHANNEL
 }
 
 /// The kind of contribution a person made to a media item.

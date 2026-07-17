@@ -16,7 +16,11 @@ import { apiSend } from "../lib/api";
 import { useApiData } from "../lib/hooks";
 import { MediaPicker } from "./MediaPicker";
 import { titleCase } from "../../shared/media-fields";
-import { STREAMING_PROVIDERS, streamingLabel } from "../lib/streaming";
+import {
+  STREAMING_PROVIDERS,
+  providerFromUrl,
+  streamingLabel,
+} from "../lib/streaming";
 import type { StreamingProvider } from "../lib/streaming";
 import type { ContentRating, Genre, MediaDetail, MediaItem } from "../lib/types";
 
@@ -301,7 +305,13 @@ export function MediaFeedbackDialog({ media }: { media: MediaDetail }) {
                           type="url"
                           placeholder="https://… deep link"
                           value={addUrl}
-                          onChange={(e) => setAddUrl(e.currentTarget.value)}
+                          onChange={(e) => {
+                            const next = e.currentTarget.value;
+                            setAddUrl(next);
+                            // Recognize the provider from a pasted deep link.
+                            const detected = providerFromUrl(next);
+                            if (detected) setAddProvider(detected);
+                          }}
                         />
                         <Button
                           size="1"

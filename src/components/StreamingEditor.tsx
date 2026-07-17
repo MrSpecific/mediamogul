@@ -2,7 +2,11 @@ import { useState } from "react";
 import { Badge, Button, Flex, Grid, Input, Select, Text } from "@wlcr/base-ic";
 import { Plus, Trash2 } from "lucide-react";
 import { apiSend, ApiError } from "../lib/api";
-import { STREAMING_PROVIDERS, type StreamingProvider } from "../lib/streaming";
+import {
+  STREAMING_PROVIDERS,
+  providerFromUrl,
+  type StreamingProvider,
+} from "../lib/streaming";
 import type { StreamingAvailability } from "../lib/types";
 
 interface Props {
@@ -95,7 +99,13 @@ export function StreamingEditor({ mediaId, streaming, onChanged }: Props) {
           type="url"
           placeholder="https://… deep link to the title"
           value={url}
-          onChange={(e) => setUrl(e.currentTarget.value)}
+          onChange={(e) => {
+            const next = e.currentTarget.value;
+            setUrl(next);
+            // Recognize the provider from a pasted deep link.
+            const detected = providerFromUrl(next);
+            if (detected) setProvider(detected);
+          }}
         />
         <Button type="submit" size="1" loading={busy} disabled={!url.trim()}>
           <Plus size={14} aria-hidden /> Add
