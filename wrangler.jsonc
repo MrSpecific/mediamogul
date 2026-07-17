@@ -33,6 +33,7 @@
     // Any large public library's OverDrive key — used to resolve Libby title
     // ids (the id is stable across libraries).
     "LIBBY_LIBRARY_KEY": "lapl",
+    "VITE_GA_MEASUREMENT_ID": "G-DD7LF0XGB7",
   },
   // Object storage for uploaded cover images (dev uses a local simulated
   // bucket automatically; the "mediamogul" bucket backs production).

@@ -17,10 +17,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="MediaMogul" />
-    <meta
-      name="apple-mobile-web-app-status-bar-style"
-      content="black-translucent"
-    />
+    <!-- Opaque status bar: iOS insets the web view BELOW the status bar so the
+         sticky header can't be clipped by it. ("black-translucent" would draw
+         the app under the status bar and rely on env(safe-area-inset-top),
+         which was cutting the header off.) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <title>Mediamogul — track everything you watch, read, and listen to</title>
     <meta
       name="description"

@@ -84,10 +84,10 @@ body {
 
 .topbar {
   padding: 0.85rem 1.25rem;
-  /* In an installed PWA on iOS the status bar is translucent and the web view
-     draws edge-to-edge (viewport-fit=cover), so pad the sticky header past the
-     status bar / notch and clear side notches in landscape. `max(...)` keeps
-     the normal padding on devices with no insets. */
+  /* The opaque iOS status bar (see index.html) already insets the web view, so
+     these safe-area insets are belt-and-suspenders: they keep the sticky header
+     clear of the status bar / side notches on any device that DOES draw
+     edge-to-edge. `max(...)` keeps the normal padding when insets are 0. */
   padding-top: max(0.85rem, env(safe-area-inset-top));
   padding-left: max(1.25rem, env(safe-area-inset-left));
   padding-right: max(1.25rem, env(safe-area-inset-right));
