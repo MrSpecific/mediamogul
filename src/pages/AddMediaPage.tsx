@@ -68,10 +68,15 @@ export function AddMediaPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQ = searchParams.get("q") ?? "";
+  // Type filters carried over from the catalog (e.g. its "Add …" CTA), narrowed
+  // to the ones this page's search can actually return.
+  const initialTypes = (searchParams.get("types") ?? "")
+    .split(",")
+    .filter((t): t is MediaType => (SEARCHABLE_TYPES as string[]).includes(t));
 
   const [q, setQ] = useState(initialQ);
   // Empty = include all searchable types; toggling narrows to those picked.
-  const [types, setTypes] = useState<MediaType[]>([]);
+  const [types, setTypes] = useState<MediaType[]>(initialTypes);
   const [results, setResults] = useState<MediaCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [page, setPage] = useState(1);

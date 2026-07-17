@@ -91,7 +91,7 @@ export function CatalogPage() {
   if (order && order !== "new") reqParams.set("order", order);
   if (types.length) reqParams.set("types", types.join(","));
 
-  const { items, loading, loadingMore, hasMore, loadMore } =
+  const { items, loading, loadingMore, hasMore, loadMore, loaded } =
     usePaginatedApi<MediaItem>(`/media?${reqParams.toString()}`);
 
   // Pages currently loaded (each is PAGE_SIZE items; the last may be shorter).
@@ -120,6 +120,25 @@ export function CatalogPage() {
   };
 
   const hasActiveFilter = Boolean(genre || credit);
+
+  // Keep the empty state mounted across subsequent no-result searches (only its
+  // text updates) instead of unmounting on every keystroke's loading flip —
+  // which read as a flash. `loaded` (true once the first fetch resolves) also
+  // avoids showing "no results" during the very first load.
+  const showEmpty = items.length === 0 && loaded;
+
+  // Hand off to the add-media page: carry the query and the searchable type
+  // filters so it pre-fills both and runs the search on arrival.
+  const addMediaHref = () => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    const searchable = types.filter(
+      (t) => t === "MOVIE" || t === "TV_SHOW" || t === "BOOK",
+    );
+    if (searchable.length) params.set("types", searchable.join(","));
+    const qs = params.toString();
+    return qs ? `/catalog/add?${qs}` : "/catalog/add";
+  };
 
   return (
     <Flex direction="column" gap="4">
@@ -231,8 +250,13 @@ export function CatalogPage() {
       {/* Stable container (no remount): old results stay in place but dim +
           settle while a new filter loads, then ease back in when results
           arrive. No layout shift, no flash of empty state. */}
-      <div className="results" data-loading={loading || undefined}>
-        {!loading && items.length === 0 ? (
+      <div
+        className="results"
+        // Dim/settle only applies to actual results loading — while the empty
+        // state is up, keep it fully static across successive no-result queries.
+        data-loading={(loading && !showEmpty) || undefined}
+      >
+        {showEmpty ? (
           <Card size="3" className="empty-state">
             <Flex direction="column" align="center" gap="3">
               <SearchX size={40} aria-hidden className="dim-icon" />
@@ -246,15 +270,7 @@ export function CatalogPage() {
                     : "Try adjusting your filters, or add something new to the catalog."}
                 </Text>
               </Flex>
-              <Button
-                onClick={() =>
-                  navigate(
-                    q
-                      ? `/catalog/add?q=${encodeURIComponent(q)}`
-                      : "/catalog/add",
-                  )
-                }
-              >
+              <Button onClick={() => navigate(addMediaHref())}>
                 <Plus size={16} aria-hidden /> {q ? `Add “${q}”` : "Add media"}
               </Button>
             </Flex>
@@ -279,16 +295,7 @@ export function CatalogPage() {
                 Add a movie, show, book, or anything else to the catalog.
               </Text>
             </Flex>
-            <Button
-              variant="soft"
-              onClick={() =>
-                navigate(
-                  q
-                    ? `/catalog/add?q=${encodeURIComponent(q)}`
-                    : "/catalog/add",
-                )
-              }
-            >
+            <Button variant="soft" onClick={() => navigate(addMediaHref())}>
               <Plus size={16} aria-hidden /> Add new media
             </Button>
           </Flex>

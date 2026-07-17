@@ -72,6 +72,10 @@ interface PaginatedState<T> {
   loadMore: () => void;
   /** Discard loaded pages and re-fetch from the first page. */
   reload: () => void;
+  /** True once the first fetch has resolved at least once (stays true across
+   *  later filter changes) — lets callers hold an empty state steady instead of
+   *  flickering it in and out on each in-flight query. */
+  loaded: boolean;
 }
 
 /**
@@ -89,6 +93,7 @@ export function usePaginatedApi<T>(path: string | null): PaginatedState<T> {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
   // Bumped on every first-page load so responses from a stale filter set
   // (still in flight when the path changed) are discarded on arrival.
@@ -120,6 +125,7 @@ export function usePaginatedApi<T>(path: string | null): PaginatedState<T> {
       })
       .finally(() => {
         if (gen === genRef.current) setLoading(false);
+        setLoaded(true);
       });
   }, [path, reloadTick]);
 
@@ -153,5 +159,6 @@ export function usePaginatedApi<T>(path: string | null): PaginatedState<T> {
     hasMore: nextCursor !== null,
     loadMore,
     reload,
+    loaded,
   };
 }
