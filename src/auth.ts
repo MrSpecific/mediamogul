@@ -1,21 +1,25 @@
 import { createAuthClient } from "@neondatabase/auth";
 import { BetterAuthReactAdapter } from "@neondatabase/auth/react";
 
-const url = import.meta.env.VITE_NEON_AUTH_URL;
-if (!url) {
-  throw new Error(
-    "VITE_NEON_AUTH_URL is not set. Copy it from Neon Console → Auth → Configuration into your .env file.",
-  );
-}
+/**
+ * Auth requests go to OUR origin (`/api/auth/*`), where the Worker proxies
+ * them to the Neon Auth server (worker/routes/auth-proxy.ts). Talking to the
+ * Neon origin directly made the session a third-party cookie, which
+ * Safari/Firefox/incognito block — sessions vanished on reload and OAuth had
+ * to run twice. Native (Capacitor) builds set VITE_API_BASE_URL to the
+ * deployed origin, same as lib/api.ts.
+ */
+const url = `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/auth`;
 
 /**
  * Neon Auth client (built on Better Auth). Exposes `useSession()`,
  * `signIn`, `signOut`, `getSession`, etc. The prebuilt UI components
  * (`NeonAuthUIProvider`, `AuthView`, `UserButton`) are driven by this client.
  */
-export const authClient = createAuthClient(url, {
-  adapter: BetterAuthReactAdapter(),
-});
+export const authClient = createAuthClient(
+  url.startsWith("http") ? url : new URL(url, window.location.origin).href,
+  { adapter: BetterAuthReactAdapter() },
+);
 
 // The Neon Auth server lives on a different origin, so `getSession()` is a
 // cross-origin request. Caching the still-valid JWT avoids making one on every

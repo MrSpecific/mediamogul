@@ -16,9 +16,16 @@ import { admin } from "./routes/admin";
 import { handleBatchImport } from "./routes/batch";
 import { runScheduledDiscovery } from "./services/discovery";
 import { publicRoutes, renderMediaOg } from "./routes/public";
+import { proxyNeonAuth } from "./routes/auth-proxy";
 import type { AppEnv } from "./types";
 
 const app = new Hono<AppEnv>();
+
+// Same-origin proxy to the Neon Auth server, so its session cookie is
+// first-party (third-party cookies are blocked by Safari/Firefox/incognito,
+// which broke session persistence). Public by design: the session cookie
+// itself is the credential. Registered before the requireAuth group.
+app.all("/api/auth/*", proxyNeonAuth);
 
 // Public health/info endpoint. Registered before the auth middleware below, so
 // it stays open.

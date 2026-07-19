@@ -22,9 +22,10 @@
   // `wrangler deploy` doesn't disable them and drift-warn on every deploy.
   "workers_dev": true,
   "preview_urls": true,
-  // Public (non-secret) vars. NEON_AUTH_URL must match VITE_NEON_AUTH_URL in .env
-  // — the Worker verifies Neon Auth JWTs against
-  // <NEON_AUTH_URL>/.well-known/jwks.json (JWKS).
+  // Public (non-secret) vars. NEON_AUTH_URL is the upstream Neon Auth server:
+  // the Worker verifies its JWTs against <NEON_AUTH_URL>/.well-known/jwks.json
+  // and reverse-proxies it at /api/auth/* (routes/auth-proxy.ts) so the session
+  // cookie is first-party. The browser client always talks to /api/auth.
   "vars": {
     "NEON_AUTH_URL": "https://ep-empty-sound-a6ukfuft.neonauth.us-west-2.aws.neon.tech/neondb/auth",
     // Comma-separated emails granted admin regardless of JWT role. Reliable
