@@ -49,12 +49,15 @@ export interface RemoteCoverOpts {
   creator?: string;
 }
 
-/** Fetch a remote image and validate it, without writing anything. */
+/** Fetch a remote image and validate it, without writing anything. The
+ *  timeout matters: archive.org (behind Open Library covers) hangs for
+ *  minutes when overloaded, which would stall the whole Worker request. */
 async function fetchRemoteImage(
   imageUrl: string,
 ): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
   const res = await fetch(sanitizeUrl(imageUrl), {
     headers: { "User-Agent": "mediamogul/1.0 (media consumption tracker)" },
+    signal: AbortSignal.timeout(12_000),
   }).catch(() => null);
   if (!res || !res.ok) return null;
   const contentType = res.headers.get("content-type")?.split(";")[0] ?? "";

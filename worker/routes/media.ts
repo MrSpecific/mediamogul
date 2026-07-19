@@ -12,6 +12,10 @@ import {
   searchWikidataSeriesMembers,
 } from "../services/scrape";
 import { deleteImage, uploadImage } from "../services/storage";
+import {
+  ingestRemoteCover,
+  makeCoverPrimary,
+} from "../services/cover-ingest";
 import { type CoverSource, searchCovers } from "../services/covers";
 import { linkGenres, resolveGenreId } from "../services/genres";
 import { libbyTitleUrl, searchLibby } from "../services/libby";
@@ -218,6 +222,7 @@ async function saveRelations(
  */
 async function importScrapeCandidate(
   prisma: AppEnv["Variables"]["prisma"],
+  env: Env,
   cand: MediaCandidate,
   userId: string | null,
 ): Promise<{ id: string; existed: boolean }> {
@@ -258,6 +263,17 @@ async function importScrapeCandidate(
       created.id,
       cand.seriesName,
       cand.seriesPosition,
+      userId,
+    );
+  }
+  // Pull the scraped cover into our own storage; the remote URL stays as the
+  // display fallback if the fetch fails (the true-up pass retries those).
+  if (cand.coverImageUrl) {
+    await ingestRemoteCover(
+      prisma,
+      env,
+      created.id,
+      { imageUrl: cand.coverImageUrl, sourceUrl: cand.coverImageUrl, sourceName: "Scraped import" },
       userId,
     );
   }
@@ -327,6 +343,7 @@ export async function bulkImport(
       }
       const { id, existed } = await importScrapeCandidate(
         prisma,
+        env,
         cand,
         createdById,
       );
@@ -351,88 +368,19 @@ export async function bulkImport(
   return results;
 }
 
-/**
- * Fetch a remote image, store it in R2, record a provenance asset, and set it
- * as the item's cover. Returns the stored URL, or null if the fetch failed.
- */
-/**
- * Percent-encode URL characters that are technically illegal in a URL (spaces,
- * braces, backticks, pipes, …) without touching existing `%` escapes. OverDrive
- * cover URLs contain raw `{...}` which makes the Workers `fetch()` throw on an
- * invalid URL — so callers must sanitize before fetching.
- */
-function sanitizeUrl(u: string): string {
-  return u.replace(
-    /[{}|\\^`<>\s]/g,
-    (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`,
-  );
-}
-
-async function ingestRemoteCover(
+/** Request-context convenience wrapper around the cover-ingest service. */
+function ingestCover(
   c: Context<AppEnv>,
   mediaItemId: string,
-  opts: {
-    imageUrl: string;
-    sourceName?: string;
-    sourceUrl?: string;
-    license?: string;
-    creator?: string;
-  },
+  opts: Parameters<typeof ingestRemoteCover>[3],
 ): Promise<string | null> {
-  const prisma = c.get("prisma");
-  // Never let a bad/oversized/invalid cover 500 the surrounding request — the
-  // link/import should succeed regardless of whether the cover ingests.
-  try {
-    const res = await fetch(sanitizeUrl(opts.imageUrl), {
-      headers: { "User-Agent": "mediamogul/1.0 (media consumption tracker)" },
-    }).catch(() => null);
-    if (!res || !res.ok) return null;
-    const contentType = res.headers.get("content-type")?.split(";")[0] ?? "";
-    const bytes = await res.arrayBuffer();
-    const stored = await uploadImage(c.env, bytes, contentType);
-    const asset = await prisma.mediaAsset.create({
-    data: {
-      mediaItemId,
-      kind: "COVER",
-      provider: stored.provider,
-      key: stored.key,
-      url: stored.url,
-      contentType: stored.contentType,
-      size: stored.size,
-      sourceName: opts.sourceName,
-      sourceUrl: opts.sourceUrl,
-      license: opts.license,
-      creator: opts.creator,
-      uploadedById: c.get("user").id,
-    },
-    });
-    await makeCoverPrimary(prisma, mediaItemId, asset.id, stored.url);
-    return stored.url;
-  } catch (err) {
-    console.error("cover ingest failed:", err);
-    return null;
-  }
-}
-
-/** Mark one cover asset primary (demoting the rest) and sync the item's cover. */
-async function makeCoverPrimary(
-  prisma: AppEnv["Variables"]["prisma"],
-  mediaItemId: string,
-  assetId: string,
-  url: string,
-) {
-  await prisma.mediaAsset.updateMany({
-    where: { mediaItemId, kind: "COVER", isPrimary: true },
-    data: { isPrimary: false },
-  });
-  await prisma.mediaAsset.update({
-    where: { id: assetId },
-    data: { isPrimary: true },
-  });
-  await prisma.mediaItem.update({
-    where: { id: mediaItemId },
-    data: { coverImageUrl: url },
-  });
+  return ingestRemoteCover(
+    c.get("prisma"),
+    c.env,
+    mediaItemId,
+    opts,
+    c.get("user").id,
+  );
 }
 
 // --- catalog ---------------------------------------------------------------
@@ -573,6 +521,15 @@ media.post("/", zValidator("json", mediaInput), async (c) => {
       c.get("user").id,
     );
   }
+  // A pasted remote cover URL gets ingested into our storage like scraped
+  // ones ( /uploads/ paths from the upload flow are already ours).
+  if (data.coverImageUrl?.startsWith("http")) {
+    await ingestCover(c, created.id, {
+      imageUrl: data.coverImageUrl,
+      sourceUrl: data.coverImageUrl,
+      sourceName: "User-provided URL",
+    });
+  }
   // New TV shows automatically pull their season/episode guide (best-effort).
   if (created.type === "TV_SHOW") {
     await importAndPersistSeasons(prisma, c.env, {
@@ -651,6 +608,15 @@ media.post(
         c.get("user").id,
       );
     }
+    // Pull the scraped cover into our own storage (best-effort; the remote
+    // URL stays as the display fallback until the true-up pass retries it).
+    if (cand.coverImageUrl) {
+      await ingestCover(c, created.id, {
+        imageUrl: cand.coverImageUrl,
+        sourceUrl: cand.coverImageUrl,
+        sourceName: "Scraped import",
+      });
+    }
     // New TV shows automatically pull their season/episode guide (best-effort;
     // a lookup miss or source hiccup must not fail the add).
     if (created.type === "TV_SHOW") {
@@ -691,7 +657,7 @@ media.post(
     let existed = 0;
     // Sequential: each import dedupes + links into the shared Series row.
     for (const m of members) {
-      const r = await importScrapeCandidate(prisma, m, c.get("user").id).catch(
+      const r = await importScrapeCandidate(prisma, c.env, m, c.get("user").id).catch(
         () => null,
       );
       if (!r) continue;
@@ -753,7 +719,7 @@ media.post(
   async (c) => {
     const { imageUrl, sourceName, sourceUrl, license, creator } =
       c.req.valid("json");
-    const url = await ingestRemoteCover(c, c.req.param("id"), {
+    const url = await ingestCover(c, c.req.param("id"), {
       imageUrl,
       sourceName,
       sourceUrl,
@@ -2014,7 +1980,7 @@ media.post(
 
     let coverImageUrl: string | null | undefined;
     if (cover) {
-      coverImageUrl = await ingestRemoteCover(c, id, cover);
+      coverImageUrl = await ingestCover(c, id, cover);
       if (coverImageUrl === null) {
         return c.json({ error: "cover_fetch_failed" }, 400);
       }
@@ -2210,7 +2176,7 @@ media.post(
     if (!title) return c.json({ error: "bad_url" }, 400);
     const imageUrl = await fetchWikipediaImage(title);
     if (!imageUrl) return c.json({ error: "no_image" }, 404);
-    const coverImageUrl = await ingestRemoteCover(c, id, {
+    const coverImageUrl = await ingestCover(c, id, {
       imageUrl,
       sourceName: "Wikipedia",
       sourceUrl: pageUrl,
@@ -2332,7 +2298,7 @@ media.post(
         });
       }
       if (b.coverUrl) {
-        await ingestRemoteCover(c, created.id, {
+        await ingestCover(c, created.id, {
           imageUrl: b.coverUrl,
           sourceName: "Libby / OverDrive",
           sourceUrl: url,
@@ -2394,7 +2360,7 @@ media.post(
       })
       .catch(() => null);
     if (coverUrl) {
-      await ingestRemoteCover(c, id, {
+      await ingestCover(c, id, {
         imageUrl: coverUrl,
         sourceName: "Libby / OverDrive",
         sourceUrl: url,

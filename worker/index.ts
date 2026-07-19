@@ -13,7 +13,7 @@ import { notifications } from "./routes/notifications";
 import { billing, handleStripeWebhook } from "./routes/billing";
 import { submissions } from "./routes/submissions";
 import { admin } from "./routes/admin";
-import { handleBatchImport } from "./routes/batch";
+import { handleBatchImport, handleCoverTrueUp } from "./routes/batch";
 import { runScheduledDiscovery } from "./services/discovery";
 import { publicRoutes, renderMediaOg } from "./routes/public";
 import { proxyNeonAuth } from "./routes/auth-proxy";
@@ -38,6 +38,8 @@ app.post("/api/billing/webhook", handleStripeWebhook);
 // Bulk import for tooling/scripts — public route, authorized by the BATCH_TOKEN
 // shared secret (not a session), so it bypasses requireAuth. See routes/batch.ts.
 app.post("/api/batch/import", handleBatchImport);
+// Cover true-up (ingest historic remote covers into R2) — same token guard.
+app.post("/api/batch/true-up-covers", handleCoverTrueUp);
 
 // Public delivery of uploaded R2 images (referenced as coverImageUrl). Not
 // under /api, so it bypasses auth; images are loaded directly by <img>.
